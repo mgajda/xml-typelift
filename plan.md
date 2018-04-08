@@ -37,7 +37,7 @@ xs:element name="person"
 Should be translated to:
 ```haskell
 data Person = Person { name :: String, age :: Int }
-```haskell
+```
 
 But with mixed content:
 ```yaml
