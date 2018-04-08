@@ -45,7 +45,7 @@ data Person = Person { name :: String, age :: Int }
 ```
 
 But with mixed content:
-```yaml
+```xml
 <xs:element name="p">
   <xs:complexType mixed="true">
     <xs:choose>
