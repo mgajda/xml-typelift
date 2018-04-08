@@ -26,12 +26,17 @@ The first confusing thing in XML is a distinction between:
 * `mixedType=false` - which works like a record.
 
 Example translation ([without closing brackets, but with indents instead](http://www.iro.umontreal.ca/~lapalme/ForestInsteadOfTheTrees/HTML/ch10s05.html)):
-```yaml
-xs:element name="person"
-  xs:complexType mixed="false"
-    xs:sequence
-      xs:element name="name" type="xs:string"
-      xs:element name="age"  type="xs:positiveInteger"
+```xml
+<xs:schema ...>
+  <xs:element name="person">
+    <xs:complexType mixed="false">
+      <xs:sequence>
+        <xs:element name="name" type="xs:string">
+        <xs:element name="age"  type="xs:positiveInteger">
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+</xs:schema ...>
 ```
 
 Should be translated to:
@@ -41,11 +46,14 @@ data Person = Person { name :: String, age :: Int }
 
 But with mixed content:
 ```yaml
-xs:element name="p"
-  xs:complexType mixed="true"
-    xs:choose
-     xs:element name="em"
-     xs:element name="strong"
+<xs:element name="p">
+  <xs:complexType mixed="true">
+    <xs:choose>
+      <xs:element name="em"     xs:type="p">
+      <xs:element name="strong" xs:type="p">
+    <xs:choose>
+  </xs:complexType>
+</xs:element>
 ```
 
 Should be translated into:
