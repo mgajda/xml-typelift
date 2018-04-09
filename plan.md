@@ -48,10 +48,10 @@ But with mixed content:
 ```xml
 <xs:element name="p">
   <xs:complexType mixed="true">
-    <xs:choose>
+    <xs:choice>
       <xs:element name="em"     xs:type="p">
       <xs:element name="strong" xs:type="p">
-    <xs:choose>
+    <xs:choice>
   </xs:complexType>
 </xs:element>
 ```
@@ -95,9 +95,10 @@ Can be solved by simply assertion on printing the result.
 
 ## Glossary
 `xs:sequence` - record by element name
+`xs:all` - record (the same as `xs:sequence`), but the order of fields may vary (important for decoding only)
 `xs:simpleType` - flat type (Int, String etc.)
 `xs:complexType` - record type
 mixed content - a list of either:
   * any element type
   * text node
-xs:restriction - restricts type (can be implemented as assertion on output)
+`xs:restriction` - restricts type (can be implemented as assertion on output)
