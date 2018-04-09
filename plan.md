@@ -55,6 +55,11 @@ But with mixed content:
   </xs:complexType>
 </xs:element>
 ```
+With example document like:
+```xml
+<p>Alphabetic <em>or</em> possibly <strong>phonetic</strong> representation.</p>
+```
+
 
 Should be translated into:
 ```haskell
@@ -63,8 +68,13 @@ data P = [PElt]
 data PElt = Em     EmT
           | Strong StrongT
           | Text
+
+document = P [Text "Alphabetic", Em [Text "or"], Text " possibly ", Strong [Text "phonetic"], Text " representation"]
+-- In this case:
+-- type EmT     = [PElt]
+-- type StrongT = [PElt]
 ```
-Remember: either complexType, and simpleType *may* be named for future reference in the same document.
+Remember: either `complexType`, and `simpleType` *may* be named for future reference in the same document.
 
 ### Elements versus attributes
 
