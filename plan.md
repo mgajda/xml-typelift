@@ -10,6 +10,9 @@ parser/pretty-printer for this structure.
 It would be best to use these as reference:
 * Great [introduction to XML Schema](https://www.w3schools.com/xml/schema_intro.asp).
 * [Zvon reference of XML Schema](http://zvon.org/xxl/xmlSchema2001Reference/Output/Schema/index.html)
+* Examples of multi-stage programming:
+  - [Walid Taha's "Gentle Introduction to Multi-Stage Programming](https://www.cs.tufts.edu/~nr/cs257/archive/walid-taha/dspg04a.pdf)
+  - code generation for types is used in `json-autotype:Data/Aeson/AutoType/CodeGen/*.hs`.
 
 ## Basic concepts
 
@@ -18,6 +21,11 @@ It would be best to use these as reference:
 Type names in XML Schema refer to either `xs:complexType` or `xs:simpleType`.
 These are either anonymous, if they only occur once, or named, and then they can be re-used by giving
 name anywhere in the same schema. Thus empty `xs:complexType` or `xs:simpleType` is usually reference.
+
+The entire `XML Schema` will be mapping from type *names* to individual types:
+```
+type XMLSchema = Map String XMLSchemaType
+```
 
 ### Mixed types and normal types
 
@@ -81,7 +89,9 @@ Remember: either `complexType`, and `simpleType` *may* be named for future refer
 Attributes are always *attached* to their elements.
 Attributes should thus be treated as a flat field in the complexType record,
 but the attribute type can *only* be `xs:simpleType`.
-
+```haskell
+data SimpleType = TString | TInteger | ...
+```
 
 ### Namespaces
 * xs:schema xs:targetNamespace="..." gives target namespace for objects.
