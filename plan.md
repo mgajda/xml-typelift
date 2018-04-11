@@ -93,6 +93,17 @@ but the attribute type can *only* be `xs:simpleType`.
 data SimpleType = TString | TInteger | ...
 ```
 
+### Dictionaries
+A lot of objects can have unique name that can be referenced for sharing afterwards.
+These should ideally be expressed either as same type for each occurence,
+or as some kind of type class (for attribute groups)
+This applies to:
+* `xs:element`,
+* `xs:simpleType`,
+* `xs:complexType`,
+* `xs:attribute`,
+* `xs:attributeGroup`.
+
 ### Namespaces
 * xs:schema xs:targetNamespace="..." gives target namespace for objects.
 * this namespace is normally labelled with `xmlns:mynamespace="..."` later - unimportant for us
