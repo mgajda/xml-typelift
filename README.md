@@ -1,5 +1,7 @@
 # Converting XML Schema to Haskell datatype
 
+[![Build Status](https://api.travis-ci.org/mgajda/json-autotype.svg?branch=master)](https://travis-ci.org/mgajda/xml-typelift)
+
 XML TypeLift will allow to use XML Schema to create Haskell data type and parser for it.
 
 That will allow us to easily handle large XML Schemas like Office OpenXML made by Microsoft.

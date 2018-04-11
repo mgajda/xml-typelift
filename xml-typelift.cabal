@@ -22,19 +22,21 @@ source-repository head
   type:     git
   location: https://github.com/DataHaskell/xml-typelif.git
 
-library
-  exposed-modules:     Data.XML.TypeLift
-  build-depends:       base                 >=4.3  && <4.12,
-                       containers           >=0.3  && <0.6,
-                       mtl                  >=2.1  && <2.3,
-                       text                 >=1.1  && <1.4
-  default-language:    Haskell2010
+--library
+--  exposed-modules:     Data.XML.TypeLift
+--  build-depends:       base                 >=4.3  && <4.12,
+--                       containers           >=0.3  && <0.6,
+--                       mtl                  >=2.1  && <2.3,
+--                       text                 >=1.1  && <1.4,
+--                       tagsoup              >=0.14 && <1.0
+--  default-language:    Haskell2010
 
-executable xml-typelift
-  main-is:             GenerateTypeLift.hs
-  other-modules:       Data.XML.TypeLift
+executable playground
+  main-is:             playground/ParseXMLSchema.hs
+  --other-modules:       Data.XML.TypeLift
   build-depends:       base                 >=4.3  && <4.12,
                        containers           >=0.3  && <0.6,
                        mtl                  >=2.1  && <2.3,
-                       text                 >=1.1  && <1.4
+                       text                 >=1.1  && <1.4,
+                       tagsoup              >=0.14 && <1.0
   default-language:    Haskell2010

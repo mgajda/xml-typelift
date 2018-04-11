@@ -13,6 +13,13 @@ It would be best to use these as reference:
 * Examples of multi-stage programming:
   - [Walid Taha's "Gentle Introduction to Multi-Stage Programming](https://www.cs.tufts.edu/~nr/cs257/archive/walid-taha/dspg04a.pdf)
   - code generation for types is used in `json-autotype:Data/Aeson/AutoType/CodeGen/*.hs`.
+* Example schemas with nice explanations:
+  - [XML Schema best practices](http://xml.coverpages.org/HP-StephensonSchemaBestPractices.pdf)
+  - [ISO-TC211 schema repository](https://github.com/ISO-TC211/XML)
+  - [XML Twig repository article](http://www.xmltwig.org/article/bw/bw_04-schema_repositories.html)
+  - [Docbook schemas](http://www.oasis-open.org/docbook/xsd/)
+  - [OpenGIS schemas](https://github.com/schema-repo/schema-repo)
+  - [Schema for XML Schema itself](https://www.w3.org/TR/xmlschema-1/#normative-schemaSchema)
 
 ## Basic concepts
 
