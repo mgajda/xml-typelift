@@ -26,26 +26,48 @@ dropUntilOpenTag str = dropWhile (not . (isTagOpenName str))
 
 takeUntilCloseTag str = takeWhile (not . (isTagCloseName str))
 
--- This doesn't work when there is a nested elements.
--- Need to take until MATCHING closing tag.
-extractElt [] = []
-extractElt tags =
-  let
-    firstElt = 
-      if (isSimpleType (head tags)) then
-        [head tags]
-      else
-        takeUntilCloseTag "xs:element" tags in
-  firstElt:(extractElt (dropUntilOpenTag "xs:element" $ tail tags)) 
-
--- This doesn't work when there is a nested sequence.
--- Need to take until MATCHING closing tag
-extractSeq :: [ Tag String ] -> [ [Tag String] ]
-extractSeq tags =
+-- Extract a beginning xml fragment enclosed in tagName 
+-- Returns the fragment and the unconsumed portion
+fragmentHelper :: String -> Int -> ([Tag String], [Tag String]) -> ( [Tag String], [Tag String])
+fragmentHelper tagName level (frag, [] ) = (frag, [])
+fragmentHelper tagName level (frag, rest) =
   let 
-    str = "xs:sequence"
-    seq = takeUntilCloseTag str $ tail $ dropUntilOpenTag str tags in
-  extractElt $ dropUntilOpenTag "xs:element" seq
+    (h:t) = rest
+    h' = (h:frag) in
+  if (isTagOpenName tagName h) then
+    let newLevel = level + if (isSimpleType h) then 0 else 1 in
+    fragmentHelper tagName (newLevel) (h', t)
+  else
+    if (isTagCloseName tagName h) then
+      if (level == 1) then
+        (h', t)
+      else 
+        fragmentHelper tagName (level-1) (h', t)
+    else
+      fragmentHelper tagName level (h', t)
+
+fragment tagName tags =
+  let t = dropUntilOpenTag tagName tags 
+      t' = fragmentHelper tagName 0 ([], t) in
+  (reverse $ fst t', snd t')
+  
+
+extractElts [] = []
+extractElts tags =
+  let t = dropUntilOpenTag "xs:element" tags in
+  case t of
+    [] -> []
+    otherwise ->
+      let
+        splitElt = if (isSimpleType (head t)) then
+                     ([head t], tail t)
+                   else
+                     fragment "xs:element" tags in
+      (fst splitElt): extractElts (snd splitElt) 
+
+extractSeq :: [ Tag String ] -> [ [Tag String] ]
+extractSeq tags = 
+  extractElts $ fst $ fragment "xs:sequence" tags
 
 genTypesHelper :: [Tag String] -> (String, String, String, Bool)
 genTypesHelper tags = 
@@ -69,8 +91,8 @@ genTypesHelper tags =
         depTypeDefStr = intercalate "\n\n" $ map (\(t,_,_,_) -> t) complexTypeStrs
         innerTypeStrs = map (\(_,elt,typ,_) -> elt ++ " :: " ++ typ) typeStrTriples
         depTypes = intercalate "\n  , " innerTypeStrs in
-      (depTypeDefStr ++ "\n\ndata " ++ typeName ++ " = " ++ typeName ++ " {\n    " 
-        ++ depTypes ++ "\n}\n" , eltName, typeName, True)
+      (depTypeDefStr ++ "data " ++ typeName ++ " = " ++ typeName ++ " {\n    " 
+        ++ depTypes ++ "\n}\n\n" , eltName, typeName, True)
   where
     openEltTag = head tags
     eltName = fromAttrib "name" openEltTag
@@ -91,6 +113,13 @@ simple = genTypes simpleXML
 
 complex = genTypes personXML
 
+testXML = "<xs:sequence name=\"seq\"><xs:element name\"elt1\">hello</xs:element><xs:sequence name=\"seq2\"></xs:sequence>blah</xs:sequence>"
+
 main = do
+  putStrLn "Simple type: "
+  putStrLn $ simple
+  putStrLn "\n\nComplex type: "
+  putStrLn $ complex
+  putStrLn "\n\nFrom file person.xsd: "
   xml <- readFile "person.xsd"
   putStrLn $ genTypes xml
