@@ -11,7 +11,7 @@ It would be best to use these as reference:
 * Great [introduction to XML Schema](https://www.w3schools.com/xml/schema_intro.asp).
 * [Zvon reference of XML Schema](http://zvon.org/xxl/xmlSchema2001Reference/Output/Schema/index.html)
 * Examples of multi-stage programming:
-  - [Walid Taha's "Gentle Introduction to Multi-Stage Programming](https://www.cs.tufts.edu/~nr/cs257/archive/walid-taha/dspg04a.pdf)
+  - ["Gentle Introduction to Multi-Stage Programming](https://www.cs.tufts.edu/~nr/cs257/archive/walid-taha/dspg04a.pdf" by Walid Tahas)
   - code generation for types is used in `json-autotype:Data/Aeson/AutoType/CodeGen/*.hs`.
 * Example schemas with nice explanations:
   - [XML Schema best practices](http://xml.coverpages.org/HP-StephensonSchemaBestPractices.pdf)
@@ -48,15 +48,25 @@ Example translation ([without closing brackets, but with indents instead](http:/
       <xs:sequence>
         <xs:element name="name" type="xs:string">
         <xs:element name="age"  type="xs:positiveInteger">
+        <xs:element name="birthplace">
+          <xs:complexType mixed="false">
+            <xs:sequence>
+              <xs:element name="city"  type="xs:string">
+              <xs:element name="country"  type="xs:string">
+            </xs:sequence>
+          </xs:complexType>
+        </xs:element>
       </xs:sequence>
     </xs:complexType>
   </xs:element>
-</xs:schema ...>
+</xs:schema>
 ```
 
 Should be translated to:
 ```haskell
-data Person = Person { name :: String, age :: Int }
+data Birthplace = Birthplace { city :: String, country :: String }
+
+data Person = Person { name :: String, age :: Int, birthplace :: Birthplace }
 ```
 
 But with mixed content:
