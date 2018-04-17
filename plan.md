@@ -88,7 +88,7 @@ With example document like:
 
 Should be translated into:
 ```haskell
-data P = [PElt]
+data P = P [PElt]
 
 data PElt = Em     EmT
           | Strong StrongT
