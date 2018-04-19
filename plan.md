@@ -74,9 +74,9 @@ But with mixed content:
 <xs:element name="p">
   <xs:complexType mixed="true">
     <xs:choice>
-      <xs:element name="em"     xs:type="p">
-      <xs:element name="strong" xs:type="p">
-    <xs:choice>
+      <xs:element name="em"     xs:type="p" />
+      <xs:element name="strong" xs:type="p" />
+    </xs:choice>
   </xs:complexType>
 </xs:element>
 ```
