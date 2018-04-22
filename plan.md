@@ -20,6 +20,8 @@ It would be best to use these as reference:
   - [Docbook schemas](http://www.oasis-open.org/docbook/xsd/)
   - [OpenGIS schemas](https://github.com/schema-repo/schema-repo)
   - [Schema for XML Schema itself](https://www.w3.org/TR/xmlschema-1/#normative-schemaSchema)
+* Online XML Schema validators:
+  - [Liquid technologies](https://www.liquid-technologies.com/online-xsd-validator)
 
 ## Basic concepts
 
