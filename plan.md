@@ -25,9 +25,9 @@ It would be best to use these as reference:
 
 ### Type names
 
-Type names in XML Schema refer to either `xs:complexType` or `xs:simpleType`.
+Type names in XML Schema refer to either `xsd:complexType` or `xsd:simpleType`.
 These are either anonymous, if they only occur once, or named, and then they can be re-used by giving
-name anywhere in the same schema. Thus empty `xs:complexType` or `xs:simpleType` is usually reference.
+name anywhere in the same schema. Thus empty `xsd:complexType` or `xsd:simpleType` is usually reference.
 
 The entire `XML Schema` will be mapping from type *names* to individual types:
 ```
@@ -42,24 +42,27 @@ The first confusing thing in XML is a distinction between:
 
 Example translation ([without closing brackets, but with indents instead](http://www.iro.umontreal.ca/~lapalme/ForestInsteadOfTheTrees/HTML/ch10s05.html)):
 ```xml
-<xs:schema ...>
-  <xs:element name="person">
-    <xs:complexType mixed="false">
-      <xs:sequence>
-        <xs:element name="name" type="xs:string">
-        <xs:element name="age"  type="xs:positiveInteger">
-        <xs:element name="birthplace">
-          <xs:complexType mixed="false">
-            <xs:sequence>
-              <xs:element name="city"  type="xs:string">
-              <xs:element name="country"  type="xs:string">
-            </xs:sequence>
-          </xs:complexType>
-        </xs:element>
-      </xs:sequence>
-    </xs:complexType>
-  </xs:element>
-</xs:schema>
+<?xml version="1.0"?>
+<xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+
+  <xsd:element name="person">
+    <xsd:complexType mixed="false">
+      <xsd:sequence>
+        <xsd:element name="name" type="xsd:string" />
+        <xsd:element name="age"  type="xsd:positiveInteger" />
+        <xsd:element name="birthplace">
+          <xsd:complexType mixed="false">
+            <xsd:sequence>
+              <xsd:element name="city"  type="xsd:string" />
+              <xsd:element name="country"  type="xsd:string" />
+            </xsd:sequence>
+          </xsd:complexType>
+        </xsd:element>
+      </xsd:sequence>
+    </xsd:complexType>
+  </xsd:element>
+
+</xsd:schema>
 ```
 
 Should be translated to:
@@ -71,14 +74,14 @@ data Person = Person { name :: String, age :: Int, birthplace :: Birthplace }
 
 But with mixed content:
 ```xml
-<xs:element name="p">
-  <xs:complexType mixed="true">
-    <xs:choice>
-      <xs:element name="em"     xs:type="p" />
-      <xs:element name="strong" xs:type="p" />
-    </xs:choice>
-  </xs:complexType>
-</xs:element>
+<xsd:element name="p">
+  <xsd:complexType mixed="true">
+    <xsd:choice>
+      <xsd:element name="em"     xsd:type="p" />
+      <xsd:element name="strong" xsd:type="p" />
+    </xsd:choice>
+  </xsd:complexType>
+</xsd:element>
 ```
 With example document like:
 ```xml
@@ -105,7 +108,7 @@ Remember: either `complexType`, and `simpleType` *may* be named for future refer
 
 Attributes are always *attached* to their elements.
 Attributes should thus be treated as a flat field in the complexType record,
-but the attribute type can *only* be `xs:simpleType`.
+but the attribute type can *only* be `xsd:simpleType`.
 ```haskell
 data SimpleType = TString | TInteger | ...
 ```
@@ -115,28 +118,28 @@ A lot of objects can have unique name that can be referenced for sharing afterwa
 These should ideally be expressed either as same type for each occurence,
 or as some kind of type class (for attribute groups)
 This applies to:
-* `xs:element`,
-* `xs:simpleType`,
-* `xs:complexType`,
-* `xs:attribute`,
-* `xs:attributeGroup`.
+* `xsd:element`,
+* `xsd:simpleType`,
+* `xsd:complexType`,
+* `xsd:attribute`,
+* `xsd:attributeGroup`.
 
 ### Namespaces
-* xs:schema xs:targetNamespace="..." gives target namespace for objects.
+* xsd:schema xsd:targetNamespace="..." gives target namespace for objects.
 * this namespace is normally labelled with `xmlns:mynamespace="..."` later - unimportant for us
 
 ### A lot of features
 
 There are many more features in XML Schema, that is of *secondary* importance, or can be ignored.
-For example `xs:restriction` of existing type - that restricts range of allowed values.
+For example `xsd:restriction` of existing type - that restricts range of allowed values.
 Can be solved by simply assertion on printing the result.
 
 ## Glossary
-`xs:sequence` - record by element name
-`xs:all` - record (the same as `xs:sequence`), but the order of fields may vary (important for decoding only)
-`xs:simpleType` - flat type (Int, String etc.)
-`xs:complexType` - record type
+`xsd:sequence` - record by element name
+`xsd:all` - record (the same as `xsd:sequence`), but the order of fields may vary (important for decoding only)
+`xsd:simpleType` - flat type (Int, String etc.)
+`xsd:complexType` - record type
 mixed content - a list of either:
   * any element type
   * text node
-`xs:restriction` - restricts type (can be implemented as assertion on output)
+`xsd:restriction` - restricts type (can be implemented as assertion on output)
