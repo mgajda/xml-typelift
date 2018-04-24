@@ -20,6 +20,8 @@ It would be best to use these as reference:
   - [Docbook schemas](http://www.oasis-open.org/docbook/xsd/)
   - [OpenGIS schemas](https://github.com/schema-repo/schema-repo)
   - [Schema for XML Schema itself](https://www.w3.org/TR/xmlschema-1/#normative-schemaSchema)
+* Online XML Schema validators:
+  - [Liquid technologies](https://www.liquid-technologies.com/online-xsd-validator)
 
 ## Basic concepts
 
@@ -33,6 +35,37 @@ The entire `XML Schema` will be mapping from type *names* to individual types:
 ```
 type XMLSchema = Map String XMLSchemaType
 ```
+
+Larger schemas usually assign types by reference:
+```xml
+<xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema" > 
+
+  <xsd:element name="person" type="personType" /> 
+  <xsd:complexType mixed="false" name="personType"> 
+    <xsd:sequence> 
+      <xsd:element name="name" type="xsd:string" minOccurs="1" maxOccurs="1"/>
+      <xsd:element name="address" type="xsd:string" minOccurs="1" maxOccurs="2"/>
+      <xsd:element name="friend" type="personType" minOccurs="0" maxOccurs="unbounded"/>
+    </xsd:sequence> 
+  </xsd:complexType> 
+</xsd:schema>
+```
+Example document:
+```xml
+<person>
+  <name>Michal</name>
+  <address>Singapore</address>
+  <friend>
+    <name>Kevin</name>
+    <address>Canada</address>
+  </friend>
+  <friend>
+    <name>Vaibhav</name>
+    <address>Singapore</address>
+  </friend>
+</person>
+```
+Here both <person/> and <friend/> have the same type. Defined only once.
 
 ### Mixed types and normal types
 
@@ -91,7 +124,7 @@ With example document like:
 
 Should be translated into:
 ```haskell
-data P = [PElt]
+data P = P [PElt]
 
 data PElt = Em     EmT
           | Strong StrongT
