@@ -1,20 +1,29 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 
 import Data.Text
+import Data.Map
 
-data XsSchema = XsSchema [ XsElement ] deriving Show
+newtype Id = Id Text deriving (Show, Eq)
+newtype Name = Name Text deriving (Show, Eq)
+
+data XsSchema = XsSchema {
+    elements :: Map Id XsElement
+  , simpleTypes :: Map Id XsSimpleType
+  , complexTypes :: Map Id XsComplexType
+  , topLevels :: [ XsElement ]
+}
 
 data XsElement = SimpleElt XsSimpleType | ComplexElt XsComplexType deriving Show
 
 data XsSimpleType = XsSimpleType { 
-    id :: Maybe Text
-  , name :: Maybe Text
+    id :: Maybe Id
+  , name :: Maybe Name
   , flatType :: Text
   } deriving Show
 
 data XsComplexType = XsComplexType { 
-    id :: Maybe Text
-  , name :: Maybe Text
+    id :: Maybe Id
+  , name :: Maybe Name
   , abstract :: Maybe Bool 
   , mixed :: Maybe Bool 
   , content :: Maybe Content
@@ -27,20 +36,20 @@ data Content =
   deriving Show
 
 data XsSimpleContent = SimpleContent {
-    id :: Maybe Text
+    id :: Maybe Id
   , kind :: Kind
   } deriving Show  
 
 data Kind = XSrestriction | XsExtension deriving (Eq, Show)
 
 data XsComplexContent = ComplexContent {
-    id :: Maybe Text
+    id :: Maybe Id
   , mixed :: Maybe Bool
   } deriving Show
 
 data XsGroup = XsGroup {
-    id :: Maybe Text
-  , name :: Maybe Text
+    id :: Maybe Id
+  , name :: Maybe Name
   , maxOccurs :: Maybe Int -- Use Nothing for unbounded. Default should be 1.
   , minOccurs :: Int
   , elements :: [ XsGroupElt ]
@@ -51,13 +60,13 @@ data XsGroupElt =
   deriving Show
 
 data XsAll =  XsAll {
-    id :: Maybe Text
+    id :: Maybe Id
   , minOccurs :: Int -- maxOccurs is 1. No need to specify
   , elements :: [ XsElement ]
   } deriving Show
 
 data XsChoice  = XsChoice {
-    id :: Maybe Text
+    id :: Maybe Id
   , maxOccurs :: Maybe Int -- Use Nothing for unbounded. Default should be 1.
   , minOccurs :: Int
   , elements :: [ XsChoiceElt ]
@@ -68,13 +77,13 @@ data XsChoiceElt =
   ChoiceEltSequence XsSequence | ChoiceEltAny XsAny deriving Show
 
 data XsAny = XsAny {
-    id :: Maybe Text
+    id :: Maybe Id
   , maxOccurs :: Maybe Int -- Use Nothing for unbounded. Default should be 1.
   , minOccurs :: Int
   } deriving Show
 
 data XsSequence = XsSequence {
-    id :: Maybe Text
+    id :: Maybe Id
   , maxOccurs :: Maybe Int -- Use Nothing for unbounded. Default should be 1.
   , minOccurs :: Int
   , elements :: [ XsSequenceElt ]
