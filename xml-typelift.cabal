@@ -1,4 +1,11 @@
--- Build information for the package.
+cabal-version: >= 1.10
+
+-- This file has been generated from package.yaml by hpack version 0.29.2.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: 853c8c6922c0c38267030a0a983919f5b0fff47874f810bafeb38826491d73b8
+
 name:                xml-typelift
 version:             0.0.1
 synopsis:            Converting XML Schema to Haskell datatype
@@ -10,33 +17,32 @@ homepage:            https://github.com/DataHaskell/xml-typelift
 license:             BSD3
 license-file:        LICENSE
 stability:           stable
-author:              Kevin Cheung, Michal Gajda
+author:              Michal Gajda
 maintainer:          dataopt@example.com
-copyright:           Copyright by Kevin Cheung '2018
-category:            Data, Tools
+copyright:           Copyright by Michal Gajda 2018
+category:            Development
 build-type:          Simple
-extra-source-files:  README.md changelog.md
-cabal-version:       >=1.10
+extra-source-files:
+  changelog.md
 bug-reports:         https://github.com/DataHaskell/xml-typelift/issues
+
 source-repository head
-  type:     git
-  location: https://github.com/DataHaskell/xml-typelif.git
+  type: git
+  location: https://github.com/DataHaskell/xml-typelift
 
---library
---  exposed-modules:     Data.XML.TypeLift
---  build-depends:       base                 >=4.3  && <4.12,
---                       containers           >=0.3  && <0.6,
---                       mtl                  >=2.1  && <2.3,
---                       text                 >=1.1  && <1.4,
---                       tagsoup              >=0.14 && <1.0
---  default-language:    Haskell2010
-
-executable playground
-  main-is:             playground/ParseXMLSchema.hs
-  --other-modules:       Data.XML.TypeLift
-  build-depends:       base                 >=4.3  && <4.12,
-                       containers           >=0.3  && <0.6,
-                       mtl                  >=2.1  && <2.3,
-                       text                 >=1.1  && <1.4,
-                       tagsoup              >=0.14 && <1.0
-  default-language:    Haskell2010
+executable xml-typelift
+  main-is: Main.hs
+  other-modules:
+    Schema
+    States
+    Paths_xml_typelift
+  hs-source-dirs:
+    src
+  ghc-options: -Wall
+  build-depends:
+    base >=4.9 && <5,
+    bytestring,
+    containers,
+    filepath,
+    xeno
+  default-language: Haskell2010
