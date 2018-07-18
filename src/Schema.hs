@@ -14,10 +14,22 @@ import GHC.Generics
 class Default a where
   def :: a
 
+-- | Top level XML Schema
+data Schema = Schema {
+    types :: Map XMLString Type -- ^ Types defined by name
+  , tops  :: [Element]          -- ^ Possible top level elements
+  , namespace :: XMLString
+  }
+  deriving (Eq, Ord, Show, Generic)
+
+instance Default Schema where
+  def = Schema Data.Map.empty [] ""
+
+-- | Type alias to the used `String`-like type
 type XMLString = BS.ByteString
 
 newtype ID = ID XMLString
-  deriving (Show, Read, Eq, Ord)
+  deriving (Show, Read, Eq, Ord, Generic)
 
 data Element = Element {
     minOccurs
