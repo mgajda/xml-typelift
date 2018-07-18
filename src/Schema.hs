@@ -1,11 +1,15 @@
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE DeriveGeneric       #-}
 {-# LANGUAGE NamedFieldPuns      #-}
+{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 -- | Simplification of XML Schema and RelaxNG schema
 module Schema where
 
 --import Data.Default
 import Data.ByteString.Char8 as BS
 import Data.Set as Set
+import Data.Map
+import GHC.Generics
 
 class Default a where
   def :: a
@@ -22,11 +26,12 @@ data Element = Element {
   , eType     :: Type
   , targetNamespace :: XMLString
   }
+  deriving (Eq, Ord, Show, Generic)
 
 instance Default Element where
   def = Element { minOccurs       = 1
                 , maxOccurs       = 1
-                , name            = XMLString
+                , name            = ""
                 , eType           = def
                 , targetNamespace = "" -- inherit
                 }
@@ -35,6 +40,8 @@ instance Default Element where
 simpleType :: Type -> Bool
 simpleType  = undefined
 
+-- | Expand references, extensions, and restrictions
+flatten :: Type -> Map XMLString Type -> Type
 flatten = undefined
 
 validType :: Type -> Bool
@@ -44,6 +51,7 @@ data Restriction =
     Enum   [XMLString]
   | Pattern XMLString
   | None -- ^ No restriction expressible here
+  deriving (Eq, Ord, Show, Generic)
 
 instance Default Restriction where
   def = None
@@ -62,7 +70,9 @@ data Type =
         attrs       :: [Attr]
       , contentType :: [Content]
       }
+  deriving (Eq, Ord, Show, Generic)
 
+predefinedTypes :: Set.Set XMLString
 predefinedTypes = Set.fromList [
     "xs:any"
   , "xs:string"
@@ -70,13 +80,15 @@ predefinedTypes = Set.fromList [
   , "xs:integer"
   , "xs:date"
   ]
-isSimple Ref x
-        | x `Set.member` predefinedTypes    = Just True
+
+isSimple :: Type -> Maybe Bool
+isSimple (Ref x)
+        | x    `Set.member` predefinedTypes = Just True
 isSimple Restriction { base }
         | base `Set.member` predefinedTypes = Just True
-isSimple Extension {}                       = Just False
-isSimple Complex   {}                       = Just False
-isSimple _                                  = Nothing -- no idea, need dictionary
+isSimple  Extension {}                      = Just False
+isSimple  Complex   {}                      = Just False
+isSimple  _                                 = Nothing -- no idea, need dictionary
 
 instance Default Type where
   def = Ref "xs:any"
@@ -87,11 +99,13 @@ data Attr = Attr {
   , aType :: Type
   , id    :: Maybe ID
   }
+  deriving (Eq, Ord, Show, Generic)
 
 data Use =
     Optional
   | Default XMLString
   | Required
+  deriving (Eq, Ord, Show, Generic)
 
 instance Default Use where
   def = Optional
@@ -99,6 +113,7 @@ instance Default Use where
 data Content = Seq    [Element]
              | Choice [Element]
              -- no support for xs:all yet
+  deriving (Eq, Ord, Show, Generic)
 
 instance Default Content where
   def = Seq []
