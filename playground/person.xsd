@@ -1,4 +1,4 @@
-<xs:schema ...>
+<xs:schema targetNamespace="p"> 
   <xs:element name="person">
     <xs:complexType mixed="false">
       <xs:sequence>

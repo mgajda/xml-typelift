@@ -79,18 +79,18 @@ data Type =
       , mixin :: Type
       } -- ^ Extension of complexType
   | Complex {
-        attrs       :: [Attr]
-      , contentType :: [Content]
+        attrs :: [Attr]
+      , subs  :: Content
       }
   deriving (Eq, Ord, Show, Generic)
 
 predefinedTypes :: Set.Set XMLString
 predefinedTypes = Set.fromList [
-    "xs:any"
-  , "xs:string"
-  , "xs:token"
-  , "xs:integer"
-  , "xs:date"
+    "any"
+  , "string"
+  , "token"
+  , "integer"
+  , "date"
   ]
 
 isSimple :: Type -> Maybe Bool
@@ -113,6 +113,9 @@ data Attr = Attr {
   }
   deriving (Eq, Ord, Show, Generic)
 
+instance Default Attr where
+  def = Attr "" def def Nothing
+
 data Use =
     Optional
   | Default XMLString
@@ -129,3 +132,9 @@ data Content = Seq    [Element]
 
 instance Default Content where
   def = Seq []
+
+-- | Append `Element` to whatever `Content` type we have.
+contentAppend :: Content -> Element -> Content
+contentAppend (Choice cs) c = Choice (c:cs)
+contentAppend (Seq    ss) c = Seq    (c:ss)
+

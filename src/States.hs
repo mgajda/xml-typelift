@@ -1,5 +1,8 @@
-{-# LANGUAGE DeriveGeneric     #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DeriveGeneric       #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE ViewPatterns        #-}
+{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE NamedFieldPuns      #-}
 module States where
 
 import Prelude hiding (id)
@@ -13,7 +16,7 @@ import Control.Monad.IO.Class
 import GHC.Generics
 import System.Exit(exitFailure)
 
-import Xeno.SAX
+import Xeno.SAX as Xeno
 
 import Schema
 
@@ -32,31 +35,71 @@ initialPState = [BSchema def]
 
 type Parser = St.StateT PState IO ()
 
-report :: BS.ByteString -> Parser
-report  = liftIO . BS.putStrLn 
-
 parseSchema :: BS.ByteString -> IO Schema
 parseSchema input = do
-  result <- (execStateT :: Parser -> PState -> IO PState )
-               (process openTagE attrE endOpenTagE textE closeTagE cDataE input)
-                initialPState
+  let result =
+         Xeno.fold openTagE attrE endOpenTagE textE closeTagE cDataE
+                   initialPState input
   case result of
-    [BSchema s] -> return s
-    unexpected  -> do BS.hPutStrLn stderr
-                        $ "Unexpected XML Schema parsing result: " <> bshow unexpected
-                      exitFailure
+    Right [BSchema s] -> return s
+    Left  exc         -> do BS.hPutStrLn stderr
+                              $ "Xeno parser exception: " <> bshow exc
+                            exitFailure
+    Right unexpected  -> do BS.hPutStrLn stderr
+                              $ "Unexpected XML Schema parsing result: " <> bshow unexpected
+                            exitFailure
 
 bshow :: Show a => a -> BS.ByteString
 bshow = BS.pack . show
 
-openTagE    t   = return ()
-attrE       k v = return ()
-endOpenTagE t   = return ()-- here we can validate
-closeTagE   t   = return ()
+berror = error . BS.unpack
 
--- | This we can freely ignorei:
-textE       _   = return ()
-cDataE      _   = return ()
+splitNS = breakEnd (==':')
+stripNS = snd . splitNS
 
---process
+openTagE, endOpenTagE, closeTagE, textE, cDataE :: PState -> XMLString -> PState
+openTagE s (stripNS -> tag) | stripNS tag `Prelude.notElem` handledTags = s
+openTagE s@[BSchema _] (stripNS -> "schema")  = s
+openTagE bs t@(stripNS -> "schema") = berror $ "Nested schema element:" <> bshow t
+                                           <> "state:" <> bshow bs
+openTagE bs (stripNS -> "element"       ) = BElement def:bs
+openTagE bs (stripNS -> "simpleType"    ) = BType    def:bs
+openTagE bs (stripNS -> "complexType"   ) = BType    def:bs
+openTagE bs (stripNS -> "attribute"     ) = BAttr    def:bs
+openTagE bs (stripNS -> "simpleContent" ) = BType    def:bs
+openTagE bs (stripNS -> "complexContent") = BType    (Complex [] def):bs
+openTagE bs (stripNS -> "sequence"      ) = BContent (Seq    []):bs
+openTagE bs (stripNS -> "choice"        ) = BContent (Choice []):bs
+openTagE bs  _                            = bs
 
+attrE :: PState -> XMLString -> XMLString -> PState
+attrE       bs (stripNS -> "name") v = bs
+attrE       bs  _                  v = bs
+
+endOpenTagE  s   t   = s-- here we can validate
+closeTagE   s t | stripNS t `Prelude.notElem` handledTags = s
+closeTagE   [BElement e, BSchema s]   (stripNS -> "element") =
+  [BSchema $ s { tops = e:tops s }]
+closeTagE   (BElement e:BContent c:s) (stripNS -> "element") =
+  (BContent $ contentAppend c e):s
+closeTagE   [BElement e, BSchema s]   (stripNS -> "element") =
+  [BSchema $ s { tops = e:tops s }]
+closeTagE   (BAttr a:BType (Complex {subs, attrs}):bs) (stripNS -> "attribute") =
+   BType (Complex { subs, attrs = a:attrs }):bs
+{-closeTagE   (BElement e:bs) tag = error $ "Expected </element>, got: " <> BS.unpack tag
+                                       <> "inside:" <> show bs-}
+closeTagE   (_:bs) t | stripNS t `Prelude.elem` handledTags = bs
+closeTagE   s _ = s
+
+-- | This we can freely ignore:
+textE       s _   = s
+cDataE      s _   = s
+
+handledTags = ["element"
+              ,"simpleType"
+              ,"complexType"
+              ,"attribute"
+              ,"simpleContent"
+              ,"complexContent"
+              ,"sequence"
+              ,"choice"        ]
