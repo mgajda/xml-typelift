@@ -1,23 +1,23 @@
-<xs:schema targetNamespace="p"> 
+<xs:schema targetNamespace="p" xmlns:xs="http://www.w3.org/2001/XMLSchema"> 
   <xs:element name="person">
     <xs:complexType mixed="false">
       <xs:sequence>
-        <xs:element name="name" type="xs:string">
-        <xs:element name="age"  type="xs:positiveInteger">
+        <xs:element name="name" type="xs:string"/>
+        <xs:element name="age"  type="xs:positiveInteger"/>
         <xs:element name="birthplace">
           <xs:complexType mixed="false">
             <xs:sequence>
-              <xs:element name="city"  type="xs:string">
-              <xs:element name="country"  type="xs:string">
+              <xs:element name="city"  type="xs:string"/>
+              <xs:element name="country"  type="xs:string"/>
             </xs:sequence>
           </xs:complexType>
         </xs:element>
-        <xs:element name="sex"  type="xs:positiveInteger">
+        <xs:element name="sex"  type="xs:positiveInteger"/>
         <xs:element name="education">
           <xs:complexType mixed="false">
             <xs:sequence>
-              <xs:element name="degree"  type="xs:string">
-              <xs:element name="yearobtained"  type="xs:string">
+              <xs:element name="degree"  type="xs:string" />
+              <xs:element name="yearobtained"  type="xs:string" />
             </xs:sequence>
           </xs:complexType>
         </xs:element>

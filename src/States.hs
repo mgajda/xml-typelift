@@ -52,24 +52,22 @@ parseSchema input = do
 bshow :: Show a => a -> BS.ByteString
 bshow = BS.pack . show
 
-berror = error . BS.unpack
-
 splitNS = breakEnd (==':')
 stripNS = snd . splitNS
 
 openTagE, endOpenTagE, closeTagE, textE, cDataE :: PState -> XMLString -> PState
 openTagE s (stripNS -> tag) | stripNS tag `Prelude.notElem` handledTags = s
 openTagE s@[BSchema _] (stripNS -> "schema")  = s
-openTagE bs t@(stripNS -> "schema") = berror $ "Nested schema element:" <> bshow t
+openTagE bs t@(stripNS -> "schema") = error $ BS.unpack $ "Nested schema element:" <> bshow t
                                            <> "state:" <> bshow bs
 openTagE bs (stripNS -> "element"       ) = BElement def:bs
 openTagE bs (stripNS -> "simpleType"    ) = BType    def:bs
 openTagE bs (stripNS -> "complexType"   ) = BType    def:bs
 openTagE bs (stripNS -> "attribute"     ) = BAttr    def:bs
-openTagE bs (stripNS -> "simpleContent" ) = BType    def:bs
+openTagE bs (stripNS -> "simpleContent" ) = BType    (Restriction "any" None):bs
 openTagE bs (stripNS -> "complexContent") = BType    (Complex [] def):bs
-openTagE bs (stripNS -> "sequence"      ) = BContent (Seq    []):bs
-openTagE bs (stripNS -> "choice"        ) = BContent (Choice []):bs
+openTagE bs (stripNS -> "sequence"      ) = BContent (Seq     []    ):bs
+openTagE bs (stripNS -> "choice"        ) = BContent (Choice  []    ):bs
 openTagE bs  _                            = bs
 
 attrE :: PState -> XMLString -> XMLString -> PState
@@ -88,14 +86,17 @@ closeTagE   (BAttr a:BType (Complex {subs, attrs}):bs) (stripNS -> "attribute") 
    BType (Complex { subs, attrs = a:attrs }):bs
 {-closeTagE   (BElement e:bs) tag = error $ "Expected </element>, got: " <> BS.unpack tag
                                        <> "inside:" <> show bs-}
-closeTagE   (_:bs) t | stripNS t `Prelude.elem` handledTags = bs
+closeTagE   (_:b:bs) t | stripNS t `Prelude.elem` handledTags &&
+                       stripNS t /= "schema" = b:bs
+--closeTagE   [s] t = error $ BS.unpack $ "Closing the last tag:" <> t
 closeTagE   s _ = s
 
 -- | This we can freely ignore:
 textE       s _   = s
 cDataE      s _   = s
 
-handledTags = ["element"
+handledTags = ["schema"
+              ,"element"
               ,"simpleType"
               ,"complexType"
               ,"attribute"

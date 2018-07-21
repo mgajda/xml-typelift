@@ -30,7 +30,12 @@ dependencies:
   - xeno
   - filepath
   - containers
+  - mtl
 
 executable:
   main: Main.hs
   source-dirs: src
+
+#executable:
+#  main: MainEvents.hs
+#  source-dirs: src
