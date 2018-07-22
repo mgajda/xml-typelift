@@ -8,14 +8,14 @@ module States where
 import Prelude hiding (id)
 
 import System.IO(stderr)
-import Data.Char(ord)
-import Data.Maybe(fromMaybe)
+--import Data.Char(ord)
+--import Data.Maybe(fromMaybe)
 import Data.Monoid
 import Data.ByteString.Char8 as BS
 import qualified Data.Map as Map
-import Data.Set
+--import Data.Set
 import Control.Monad.State.Strict as St
-import Control.Monad.IO.Class
+--import Control.Monad.IO.Class
 import GHC.Generics
 import System.Exit(exitFailure)
 import Data.ByteString.Internal(ByteString(..))
@@ -62,8 +62,9 @@ stripNS = snd . splitNS
 openTagE, endOpenTagE, closeTagE, textE, cDataE :: PState -> XMLString -> PState
 openTagE s (stripNS -> tag) | stripNS tag `Prelude.notElem` handledTags = s
 openTagE s@[BSchema _] (stripNS -> "schema")  = s
-openTagE bs t@(stripNS -> "schema") = error $ BS.unpack $ "Nested schema element:" <> bshow t
-                                           <> "state:" <> bshow bs
+openTagE bs t@(stripNS -> "schema") = parseError t
+                                    $ BS.unpack $ "Nested schema element:" <> bshow t
+                                   <> "state:" <> bshow bs
 openTagE bs (stripNS -> "element"       ) = BElement def:bs
 openTagE bs (stripNS -> "simpleType"    ) = BType    "" (Complex [] def):bs
 openTagE bs (stripNS -> "complexType"   ) = BType    "" (Complex [] def):bs
@@ -80,10 +81,11 @@ attrE    bs  _                   v = bs
 
 setName :: Builder -> XMLString -> Builder
 setName   (BElement   e) n = BElement $ e { name =n }
-setName   (BAttr      a) n = BAttr    $ a { aName =n }
+setName   (BAttr      a) n = BAttr    $ a { aName=n }
 setName c@(BType     {}) n =            c { tName=n }
-setName   (BContent   _) n = error $ "Attribute _name_ not allowed in content: " <> BS.unpack n
+setName   (BContent   _) n = parseError n "Attribute _name_ not allowed in content"
 
+{-
 parseError (PS ptrInput iStart iEnd)
            (PS ptrErr start end) msg | ptrInput == ptrErr
                                     && iStart <= start
@@ -98,9 +100,30 @@ parseError (PS ptrInput iStart iEnd)
     wrapEnd       = min iEnd   $ end+40
     lastLineStart = (start-10) `fromMaybe` BS.elemIndexEnd '\n' tilError
     tilError      = PS ptrInput (max iStart $ start-40) start
+-}
 
+-- | Since all ByteStrings have the pointer to initial input,
+--   we can show the preceding data and count lines before error.
+--   This hack looks dirty hack, but is still safe.
+parseError :: ByteString -> String -> a
+parseError (PS ptr start len) msg =
+    error $ msg <> "\nIn line " <> show lineCount
+         <>        " after:\n"
+         <> BS.unpack (PS ptr lastLineStart (end-lastLineStart)) <> "\n"
+  where
+    end           = start+len
+    lineCount     = BS.count '\n' $ PS ptr 0 start
+    sndLastLineStart = do
+      last <- BS.elemIndexEnd '\n' tilError
+      BS.elemIndexEnd '\n' $ PS ptr 0 last
+    lastLineStart = case sndLastLineStart of
+                      Nothing              -> defaultStart
+                      Just i | start-i>120 -> defaultStart
+                      Just i               -> i+1
+    defaultStart  = max    0 $ start-40
+    tilError      = PS ptr 0   start
 
-endOpenTagE  s   t   = s-- here we can validate
+endOpenTagE s t = s-- here we can validate
 closeTagE   s t | stripNS t `Prelude.notElem` handledTags = s
 closeTagE   [BElement e, BSchema s]   (stripNS -> "element") =
   [BSchema $ s { tops = e:tops s }]
@@ -113,8 +136,8 @@ closeTagE   [BType tName ty,BSchema s@Schema {types}]
   [BSchema $ s { types = Map.insert tName ty types}]
 closeTagE   (BAttr a:BType {tName, bType=Complex {subs, attrs}}:bs) (stripNS -> "attribute") =
    BType {tName, bType=Complex { subs, attrs = a:attrs }}:bs
-closeTagE   (BAttr a:bTy@BType {}:bs) (stripNS -> "attribute") =
-   error $ "Attribute within non-complex type:" <> show bTy
+closeTagE   (BAttr a:bTy@BType {}:bs) i@(stripNS -> "attribute") =
+   parseError i $ "Attribute within non-complex type:" <> show bTy
 {-closeTagE   (BElement e:bs) tag = error $ "Expected </element>, got: " <> BS.unpack tag
                                        <> "inside:" <> show bs-}
 closeTagE   (_:b:bs) t | stripNS t `Prelude.elem` handledTags &&
