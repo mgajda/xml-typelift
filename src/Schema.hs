@@ -16,8 +16,8 @@ class Default a where
 
 -- | Top level XML Schema
 data Schema = Schema {
-    types :: Map XMLString Type -- ^ Types defined by name
-  , tops  :: [Element]          -- ^ Possible top level elements
+    types     :: Map XMLString Type -- ^ Types defined by name
+  , tops      :: [Element]          -- ^ Possible top level elements
   , namespace :: XMLString
   }
   deriving (Eq, Ord, Show, Generic)

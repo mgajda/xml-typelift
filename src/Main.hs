@@ -1,3 +1,4 @@
+
 module Main where
 
 import Control.Monad
@@ -6,8 +7,7 @@ import System.Environment
 import System.Exit(exitFailure)
 import System.IO(stderr, hPutStrLn)
 
-import Schema
-import States
+import Parser
 
 main :: IO ()
 main  = do

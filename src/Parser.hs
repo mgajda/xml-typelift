@@ -3,7 +3,7 @@
 {-# LANGUAGE ViewPatterns        #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE NamedFieldPuns      #-}
-module States where
+module Parser where
 
 import Prelude hiding (id)
 
@@ -23,6 +23,7 @@ import Data.ByteString.Internal(ByteString(..))
 import Xeno.SAX as Xeno
 
 import Schema
+import Errors
 
 -- | Keep partly built structure to be merged upwards when the element is closed.
 data Builder = BContent Content
@@ -84,44 +85,6 @@ setName   (BElement   e) n = BElement $ e { name =n }
 setName   (BAttr      a) n = BAttr    $ a { aName=n }
 setName c@(BType     {}) n =            c { tName=n }
 setName   (BContent   _) n = parseError n "Attribute _name_ not allowed in content"
-
-{-
-parseError (PS ptrInput iStart iEnd)
-           (PS ptrErr start end) msg | ptrInput == ptrErr
-                                    && iStart <= start
-                                    && iEnd   >= end =
-    error $ msg <> " in line " <> show lineCount
-         <>        " at "      <> show start          <> ":\n"
-         <> BS.unpack (PS ptrInput wrapStart wrapEnd) <> "\n"
-         <> [' ' | _ <- [0..start-wrapStart]]         <> "^"
-  where
-    lineCount     = BS.count '\n' (PS ptrInput iStart start)
-    wrapStart     = max iStart   lastLineStart
-    wrapEnd       = min iEnd   $ end+40
-    lastLineStart = (start-10) `fromMaybe` BS.elemIndexEnd '\n' tilError
-    tilError      = PS ptrInput (max iStart $ start-40) start
--}
-
--- | Since all ByteStrings have the pointer to initial input,
---   we can show the preceding data and count lines before error.
---   This hack looks dirty hack, but is still safe.
-parseError :: ByteString -> String -> a
-parseError (PS ptr start len) msg =
-    error $ msg <> "\nIn line " <> show lineCount
-         <>        " after:\n"
-         <> BS.unpack (PS ptr lastLineStart (end-lastLineStart)) <> "\n"
-  where
-    end           = start+len
-    lineCount     = BS.count '\n' $ PS ptr 0 start
-    sndLastLineStart = do
-      last <- BS.elemIndexEnd '\n' tilError
-      BS.elemIndexEnd '\n' $ PS ptr 0 last
-    lastLineStart = case sndLastLineStart of
-                      Nothing              -> defaultStart
-                      Just i | start-i>120 -> defaultStart
-                      Just i               -> i+1
-    defaultStart  = max    0 $ start-40
-    tilError      = PS ptr 0   start
 
 endOpenTagE s t = s-- here we can validate
 closeTagE   s t | stripNS t `Prelude.notElem` handledTags = s
