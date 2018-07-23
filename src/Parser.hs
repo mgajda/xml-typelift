@@ -78,6 +78,9 @@ openTagE bs  _                            = bs
 
 attrE :: PState -> XMLString -> XMLString -> PState
 attrE (b:bs) (stripNS -> "name") v = setName b v:bs
+attrE (t@BType {}:bs) (stripNS -> "type") v = t { bType=Ref v }:bs
+attrE (BElement e@(Element {}):bs) (stripNS -> "minOccurs") v = BElement (e {minOccurs=read v}):bs
+attrE (BElement e@(Element {}):bs) (stripNS -> "maxOccurs") v = BElement (e {maxOccurs=read v}):bs
 attrE    bs  _                   v = bs
 
 setName :: Builder -> XMLString -> Builder
