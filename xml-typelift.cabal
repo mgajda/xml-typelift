@@ -1,8 +1,10 @@
--- This file has been generated from package.yaml by hpack version 0.28.2.
+cabal-version: >= 1.10
+
+-- This file has been generated from package.yaml by hpack version 0.29.2.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 593620aae53032fb531c81a4dd1a0312e135d0a54d2930ed8a87428dcf434bd6
+-- hash: 460ac79072c2c2d635fce1b9f9e70cfdb1195ba7f70b0c98744799f1534ada29
 
 name:           xml-typelift
 version:        0.0.1
@@ -21,7 +23,6 @@ copyright:      Copyright by Michal Gajda 2018
 license:        BSD3
 license-file:   LICENSE
 build-type:     Simple
-cabal-version:  >= 1.10
 extra-source-files:
     changelog.md
 
@@ -33,6 +34,7 @@ executable xml-typelift
   main-is: Main.hs
   other-modules:
       Events
+      Paths_xml_typelift
       Schema
       States
       Paths_xml_typelift
