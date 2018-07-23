@@ -1,6 +1,11 @@
-<xs:sequence name="seq">
-  <xs:element name="elt1">hello
+<xs:schema targetNamespace="p" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:element name="top">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="elt1"></xs:element>
+        <xs:element name="elt2"></xs:element>
+      </xs:sequence>
+    </xs:complexType>
   </xs:element>
-  <xs:sequence name=\"seq2\">
-  </xs:sequence>blah</xs:sequence>"
+</xs:schema>
 
