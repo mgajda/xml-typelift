@@ -1,0 +1,6 @@
+<xs:sequence name="seq">
+  <xs:element name="elt1">hello
+  </xs:element>
+  <xs:sequence name=\"seq2\">
+  </xs:sequence>blah</xs:sequence>"
+
