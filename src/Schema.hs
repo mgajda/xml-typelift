@@ -32,18 +32,20 @@ newtype ID = ID XMLString
   deriving (Show, Read, Eq, Ord, Generic)
 
 data Element = Element {
-    minOccurs
-  , maxOccurs :: Int
+    minOccurs :: Int
+  , maxOccurs :: Int -- `maxint` value means `unbounded`
   , name      :: XMLString
   , eType     :: Type
   , targetNamespace :: XMLString
   }
   deriving (Eq, Ord, Show, Generic)
 
+isUnbounded i | i==maxBound = True
+
 instance Default Element where
-  def = Element { minOccurs       = 1
-                , maxOccurs       = 1
-                , name            = ""
+  def = Element { name            = ""
+                , minOccurs       = 1
+                , maxOccurs       = 1 -- Nothing means `unbounded`
                 , eType           = def
                 , targetNamespace = "" -- inherit
                 }
