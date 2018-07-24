@@ -28,6 +28,8 @@ data Builder = BContent Content
              | BType    { tName :: XMLString, bType :: Type}
              | BAttr    Attr
              | BSchema  Schema
+             | BRestriction { rBase :: XMLString, restr :: Restriction }
+             | BEnum        XMLString
   deriving (Eq, Ord, Show, Generic)
 
 type PState = [Builder]       -- ^ Builder
@@ -67,7 +69,8 @@ openTagE bs (stripNS -> "element"       ) = BElement def:bs
 openTagE bs (stripNS -> "simpleType"    ) = BType    "" (Complex [] def):bs
 openTagE bs (stripNS -> "complexType"   ) = BType    "" (Complex [] def):bs
 openTagE bs (stripNS -> "attribute"     ) = BAttr    def:bs
---openTagE bs (stripNS -> "simpleContent" ) = BType    "" (Complex [] def):bs
+openTagE bs (stripNS -> "restriction"   ) = BRestriction "" None:bs
+openTagE bs (stripNS -> "enumeration"   ) = BEnum "":bs
 --openTagE bs (stripNS -> "complexContent") = BType    "" (Complex [] def)        :bs
 openTagE bs (stripNS -> "sequence"      ) = BContent (Seq     []    ):bs
 openTagE bs (stripNS -> "choice"        ) = BContent (Choice  []    ):bs
@@ -83,12 +86,14 @@ readUnboundedAttr "unbounded" = maxBound
 readUnboundedAttr v = readAttr v
 
 attrE :: PState -> XMLString -> XMLString -> PState
-attrE (b:bs) (stripNS -> "name") v = setName b v:bs
+attrE (b         :bs) (stripNS -> "name") v = setName b v:bs
 attrE (t@BType {}:bs) (stripNS -> "type") v = t { bType=Ref v }:bs
 attrE (BElement e@(Element {}):bs) (stripNS -> "type") v = BElement (e { eType=Ref v }):bs
 attrE (BElement e@(Element {}):bs) (stripNS -> "minOccurs") v = BElement (e {minOccurs=readAttr v}):bs
 attrE (BElement e@(Element {}):bs) (stripNS -> "maxOccurs") v = BElement (e {maxOccurs=readUnboundedAttr v}):bs
 attrE (b:bs) (stripNS -> "minOccurs") v = parseError v $ "minOccurs with TOS:" <> show b
+attrE (BType n r@Restriction {}:bs) (stripNS -> "base") v = BType n (r {base=v}):bs
+attrE (BEnum _                   :bs) (stripNS -> "value") v = BEnum v:bs
 attrE    bs  _                   v = bs
 
 setName :: Builder -> XMLString -> Builder
@@ -101,12 +106,15 @@ stripNSElem elemList e = stripNS e `elem` elemList
 
 endOpenTagE s t = s-- here we can validate
 closeTagE   s t | stripNS t `Prelude.notElem` handledTags = s
-closeTagE   [BElement e, BSchema s]   (stripNS -> "element") =
+closeTagE   [BElement e, BSchema s]            (stripNS -> "element") =
   [BSchema $ s { tops = e:tops s }]
-closeTagE   (BElement e:BContent c:s) (stripNS -> "element") =
+closeTagE   (BElement e:BContent c:s)          (stripNS -> "element") =
   (BContent $ contentAppend c e):s
-closeTagE   [BElement e, BSchema s]   (stripNS -> "element") =
-  [BSchema $ s { tops = e:tops s }]
+closeTagE   (BEnum e:(BRestriction{rBase,restr}:bs)) (stripNS -> "enumeration") =
+    BRestriction rBase (
+      case restr of
+        Enum es -> Enum (e:es)
+        None    -> Enum [e]):bs
 closeTagE   [BType tName ty,BSchema s@Schema {types}]
                                       (stripNS -> "complexType") =
   addType tName ty [BSchema s]
@@ -149,7 +157,7 @@ handledTags = ["schema"
               ,"simpleType"
               ,"complexType"
               ,"attribute"
-              {-,"simpleContent"
-              ,"complexContent"-}
+              ,"enumeration"
+              ,"restriction"
               ,"sequence"
               ,"choice"        ]
