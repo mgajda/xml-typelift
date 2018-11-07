@@ -81,16 +81,12 @@ readAttr v = case readMaybe $ BS.unpack v of
                Nothing -> parseError v "Cannot read attribute value"
                Just x  -> x
 
-readUnboundedAttr :: (Read a, Bounded a) => ByteString -> a
-readUnboundedAttr "unbounded" = maxBound
-readUnboundedAttr v = readAttr v
-
 attrE :: PState -> XMLString -> XMLString -> PState
 attrE (b         :bs) (stripNS -> "name") v = setName b v:bs
 attrE (t@BType {}:bs) (stripNS -> "type") v = t { bType=Ref v }:bs
 attrE (BElement e@(Element {}):bs) (stripNS -> "type") v = BElement (e { eType=Ref v }):bs
 attrE (BElement e@(Element {}):bs) (stripNS -> "minOccurs") v = BElement (e {minOccurs=readAttr v}):bs
-attrE (BElement e@(Element {}):bs) (stripNS -> "maxOccurs") v = BElement (e {maxOccurs=readUnboundedAttr v}):bs
+attrE (BElement e@(Element {}):bs) (stripNS -> "maxOccurs") v = BElement (e {maxOccurs=readAttr v}):bs
 attrE (b:bs) (stripNS -> "minOccurs") v = parseError v $ "minOccurs with TOS:" <> show b
 attrE (BType n r@Restriction {}:bs) (stripNS -> "base") v = BType n (r {base=v}):bs
 attrE (BEnum _                   :bs) (stripNS -> "value") v = BEnum v:bs
@@ -100,7 +96,9 @@ setName :: Builder -> XMLString -> Builder
 setName   (BElement   e) n = BElement $ e { name =n }
 setName   (BAttr      a) n = BAttr    $ a { aName=n }
 setName c@(BType     {}) n =            c { tName=n }
-setName   (BContent   _) n = parseError n "Attribute _name_ not allowed in content"
+setName   (BContent   _) n = parseError n   "Attribute _name_ not allowed in content"
+setName c                n = parseError n $ "Unexpected top element '" <> show c
+                                         <> "' when trying to assign name."
 
 stripNSElem elemList e = stripNS e `elem` elemList
 

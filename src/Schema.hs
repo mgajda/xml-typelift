@@ -1,7 +1,8 @@
-{-# LANGUAGE DeriveGeneric       #-}
-{-# LANGUAGE NamedFieldPuns      #-}
-{-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE DeriveGeneric              #-}
+{-# LANGUAGE NamedFieldPuns             #-}
+{-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE ScopedTypeVariables        #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 -- | Simplification of XML Schema and RelaxNG schema
 module Schema where
 
@@ -10,6 +11,7 @@ import Data.ByteString.Char8 as BS
 import Data.Set as Set
 import Data.Map
 import GHC.Generics
+import Debug.Trace
 
 class Default a where
   def :: a
@@ -31,15 +33,28 @@ type XMLString = BS.ByteString
 newtype ID = ID XMLString
   deriving (Show, Read, Eq, Ord, Generic)
 
+newtype MaxOccurs = MaxOccurs Int
+  deriving (Num, Eq, Ord, Bounded)
+
+instance Show MaxOccurs where
+  showsPrec p (MaxOccurs m) | m == (maxBound :: Int) = ("unbounded"++)
+  showsPrec p (MaxOccurs m)                          = showsPrec p m
+
+instance Read MaxOccurs where
+  readsPrec _ ('u':'n':'b':'o':'u':'n':'d':'e':'d':rest) = [(MaxOccurs maxBound,        rest)]
+  readsPrec p  x                                         = [(MaxOccurs r       ,        rest)
+                                                           |(          r :: Int,        rest) <- readsPrec p x]
+
 data Element = Element {
     minOccurs :: Int
-  , maxOccurs :: Int -- `maxint` value means `unbounded`
+  , maxOccurs :: MaxOccurs -- `maxint` value means `unbounded`
   , name      :: XMLString
   , eType     :: Type
   , targetNamespace :: XMLString
   }
   deriving (Eq, Ord, Show, Generic)
 
+isUnbounded :: MaxOccurs -> Bool
 isUnbounded i | i==maxBound = True
 
 instance Default Element where
