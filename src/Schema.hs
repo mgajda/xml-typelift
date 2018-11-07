@@ -12,7 +12,7 @@ import Data.ByteString.Char8 as BS
 import Data.Set as Set
 import Data.Map
 import GHC.Generics
-import Debug.Trace
+--import Debug.Trace
 
 class Default a where
   def :: a
@@ -38,7 +38,7 @@ newtype MaxOccurs = MaxOccurs Int
   deriving (Num, Eq, Ord, Bounded)
 
 instance Show MaxOccurs where
-  showsPrec p (isUnbounded -> True) = ("unbounded"++)
+  showsPrec _ (isUnbounded -> True) = ("unbounded"++)
   showsPrec p (MaxOccurs m)         = showsPrec p m
 
 instance Read MaxOccurs where

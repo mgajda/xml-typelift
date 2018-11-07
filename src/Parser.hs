@@ -93,7 +93,7 @@ attrE (BElement e@(Element {}) :bs) (stripNS -> "maxOccurs") v = BElement (e {ma
 attrE (b:_)                         (stripNS -> "minOccurs") v = parseError v $ "minOccurs with TOS:" <> show b
 attrE (BType n r@Restriction {}:bs) (stripNS -> "base"     ) v = BType n (r {base=v}):bs
 attrE (BEnum _                 :bs) (stripNS -> "value"    ) v = BEnum v:bs
-attrE  bs    _                   v = bs
+attrE  bs    _                                              _v = bs
 
 setName :: Builder -> XMLString -> Builder
 setName   (BElement   e) n = BElement $ e { name =n }
@@ -106,17 +106,19 @@ setName c                n = parseError n $ "Unexpected top element '" <> show c
 stripNSElem :: [ByteString] -> ByteString -> Bool
 stripNSElem elemList e = stripNS e `elem` elemList
 
-endOpenTagE s t = s-- here we can validate
+endOpenTagE s _t = s-- here we can validate
+
 closeTagE   s t | stripNS t `Prelude.notElem` handledTags = s
 closeTagE   [BElement e, BSchema s]            (stripNS -> "element") =
   [BSchema $ s { tops = e:tops s }]
 closeTagE   (BElement e:BContent c:s)          (stripNS -> "element") =
   (BContent $ contentAppend c e):s
 closeTagE   (BEnum e:(BRestriction{rBase,restr}:bs)) (stripNS -> "enumeration") =
-    BRestriction rBase (
-      case restr of
-        Enum es -> Enum (e:es)
-        None    -> Enum [e]):bs
+    BRestriction rBase (restriction restr):bs
+  where
+    restriction (Enum es)   = Enum (e:es)
+    restriction  None       = Enum [e]
+    restriction (Pattern _) = error "Regex pattern is not implemented yet!"
 closeTagE   [BType tName ty,BSchema s@Schema {types}]
                                       (stripNS -> "complexType") =
   addType tName ty [BSchema s]
