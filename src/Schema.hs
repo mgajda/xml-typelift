@@ -1,8 +1,9 @@
 {-# LANGUAGE DeriveGeneric              #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE NamedFieldPuns             #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE ViewPatterns               #-}
 -- | Simplification of XML Schema and RelaxNG schema
 module Schema where
 
@@ -37,8 +38,8 @@ newtype MaxOccurs = MaxOccurs Int
   deriving (Num, Eq, Ord, Bounded)
 
 instance Show MaxOccurs where
-  showsPrec p (MaxOccurs m) | m == (maxBound :: Int) = ("unbounded"++)
-  showsPrec p (MaxOccurs m)                          = showsPrec p m
+  showsPrec p (isUnbounded -> True) = ("unbounded"++)
+  showsPrec p (MaxOccurs m)         = showsPrec p m
 
 instance Read MaxOccurs where
   readsPrec _ ('u':'n':'b':'o':'u':'n':'d':'e':'d':rest) = [(MaxOccurs maxBound,        rest)]
@@ -56,6 +57,7 @@ data Element = Element {
 
 isUnbounded :: MaxOccurs -> Bool
 isUnbounded i | i==maxBound = True
+isUnbounded _               = False
 
 instance Default Element where
   def = Element { name            = ""

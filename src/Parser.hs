@@ -7,20 +7,20 @@ module Parser where
 
 import Prelude hiding (id)
 
-import Control.Monad.State.Strict as St
-import Data.Monoid
-import Data.ByteString.Char8 as BS hiding (elem)
-import Data.ByteString.Internal(ByteString(..))
+import           Control.Monad.State.Strict as St
+import           Data.Monoid
+import           Data.ByteString.Char8 as BS hiding (elem)
+import           Data.ByteString.Internal(ByteString(..))
 import qualified Data.Map as Map
-import GHC.Generics
-import System.Exit(exitFailure)
-import System.IO(stderr)
-import Text.Read(readMaybe)
+import           GHC.Generics
+import           System.Exit(exitFailure)
+import           System.IO(stderr)
+import           Text.Read(readMaybe)
 
-import Xeno.SAX as Xeno
+import           Xeno.SAX as Xeno
 
-import Schema
-import Errors
+import           Schema
+import           Errors
 
 -- | Keep partly built structure to be merged upwards when the element is closed.
 data Builder = BContent Content
@@ -56,7 +56,10 @@ parseSchema input = do
 bshow :: Show a => a -> BS.ByteString
 bshow = BS.pack . show
 
+splitNS :: ByteString -> (ByteString, ByteString)
 splitNS = breakEnd (==':')
+
+stripNS :: ByteString -> ByteString
 stripNS = snd . splitNS
 
 openTagE, endOpenTagE, closeTagE, textE, cDataE :: PState -> XMLString -> PState
@@ -82,15 +85,15 @@ readAttr v = case readMaybe $ BS.unpack v of
                Just x  -> x
 
 attrE :: PState -> XMLString -> XMLString -> PState
-attrE (b         :bs) (stripNS -> "name") v = setName b v:bs
-attrE (t@BType {}:bs) (stripNS -> "type") v = t { bType=Ref v }:bs
-attrE (BElement e@(Element {}):bs) (stripNS -> "type") v = BElement (e { eType=Ref v }):bs
-attrE (BElement e@(Element {}):bs) (stripNS -> "minOccurs") v = BElement (e {minOccurs=readAttr v}):bs
-attrE (BElement e@(Element {}):bs) (stripNS -> "maxOccurs") v = BElement (e {maxOccurs=readAttr v}):bs
-attrE (b:bs) (stripNS -> "minOccurs") v = parseError v $ "minOccurs with TOS:" <> show b
-attrE (BType n r@Restriction {}:bs) (stripNS -> "base") v = BType n (r {base=v}):bs
-attrE (BEnum _                   :bs) (stripNS -> "value") v = BEnum v:bs
-attrE    bs  _                   v = bs
+attrE (b                       :bs) (stripNS -> "name"     ) v = setName b v:bs
+attrE (t@BType {}              :bs) (stripNS -> "type"     ) v = t { bType=Ref v }:bs
+attrE (BElement e@(Element {}) :bs) (stripNS -> "type"     ) v = BElement (e { eType=Ref v }):bs
+attrE (BElement e@(Element {}) :bs) (stripNS -> "minOccurs") v = BElement (e {minOccurs=readAttr v}):bs
+attrE (BElement e@(Element {}) :bs) (stripNS -> "maxOccurs") v = BElement (e {maxOccurs=readAttr v}):bs
+attrE (b:_)                         (stripNS -> "minOccurs") v = parseError v $ "minOccurs with TOS:" <> show b
+attrE (BType n r@Restriction {}:bs) (stripNS -> "base"     ) v = BType n (r {base=v}):bs
+attrE (BEnum _                 :bs) (stripNS -> "value"    ) v = BEnum v:bs
+attrE  bs    _                   v = bs
 
 setName :: Builder -> XMLString -> Builder
 setName   (BElement   e) n = BElement $ e { name =n }
@@ -100,6 +103,7 @@ setName   (BContent   _) n = parseError n   "Attribute _name_ not allowed in con
 setName c                n = parseError n $ "Unexpected top element '" <> show c
                                          <> "' when trying to assign name."
 
+stripNSElem :: [ByteString] -> ByteString -> Bool
 stripNSElem elemList e = stripNS e `elem` elemList
 
 endOpenTagE s t = s-- here we can validate
@@ -140,6 +144,7 @@ closeTagE   (_:b:bs) t | stripNS t `Prelude.elem` handledTags &&
 closeTagE   s _ = s
 
 -- | Add type if name is non-empty, to the toplevel schema dictionary.
+addType :: XMLString -> Type -> [Builder] -> [Builder]
 addType ""   _  bs = bs
 addType name ty [BSchema s@Schema {types}] = 
   [BSchema $ s { types = Map.insert name ty types}]
@@ -150,12 +155,13 @@ addType name ty (b:bs) = b:addType name ty bs
 textE       s _   = s
 cDataE      s _   = s
 
-handledTags = ["schema"
-              ,"element"
-              ,"simpleType"
-              ,"complexType"
-              ,"attribute"
-              ,"enumeration"
-              ,"restriction"
-              ,"sequence"
-              ,"choice"        ]
+handledTags :: [ByteString]
+handledTags  = ["schema"
+               ,"element"
+               ,"simpleType"
+               ,"complexType"
+               ,"attribute"
+               ,"enumeration"
+               ,"restriction"
+               ,"sequence"
+               ,"choice"        ]

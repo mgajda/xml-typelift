@@ -34,7 +34,6 @@ executable xml-typelift
   main-is: Main.hs
   other-modules:
       Errors
-      Events
       Parser
       Schema
       Paths_xml_typelift

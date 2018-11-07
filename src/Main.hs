@@ -10,6 +10,7 @@ import           System.IO(stderr, hPutStrLn)
 import Parser
 
 -- | For GHCid testing:
+testExpr :: IO ()
 testExpr = forM_ testFiles $ \filename -> do
     putStrLn $ "Starting to process " <> filename
     input <- BS.readFile filename
