@@ -7,12 +7,11 @@
 -- | Simplification of XML Schema and RelaxNG schema
 module Schema where
 
---import Data.Default
+import Control.Deepseq
 import Data.ByteString.Char8 as BS
 import Data.Set as Set
 import Data.Map
 import GHC.Generics
---import Debug.Trace
 
 class Default a where
   def :: a
@@ -35,7 +34,7 @@ newtype ID = ID XMLString
   deriving (Show, Read, Eq, Ord, Generic)
 
 newtype MaxOccurs = MaxOccurs Int
-  deriving (Num, Eq, Ord, Bounded)
+  deriving (Num, Eq, Ord, Bounded, Generic)
 
 instance Show MaxOccurs where
   showsPrec _ (isUnbounded -> True) = ("unbounded"++)
@@ -45,6 +44,7 @@ instance Read MaxOccurs where
   readsPrec _ ('u':'n':'b':'o':'u':'n':'d':'e':'d':rest) = [(MaxOccurs maxBound,        rest)]
   readsPrec p  x                                         = [(MaxOccurs r       ,        rest)
                                                            |(          r :: Int,        rest) <- readsPrec p x]
+
 
 data Element = Element {
     minOccurs :: Int
@@ -156,4 +156,14 @@ instance Default Content where
 contentAppend :: Content -> Element -> Content
 contentAppend (Choice cs) c = Choice (c:cs)
 contentAppend (Seq    ss) c = Seq    (c:ss)
+
+instance NFData Attr
+instance NFData Content
+instance NFData Element
+instance NFData ID
+instance NFData MaxOccurs
+instance NFData Restriction
+instance NFData Schema
+instance NFData Type
+instance NFData Use
 

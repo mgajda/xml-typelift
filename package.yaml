@@ -27,15 +27,33 @@ ghc-options: -Wall
 dependencies:
   - base >= 4.9 && < 5
   - bytestring
-  - xeno
-  - filepath
   - containers
+  - deepseq
+  - filepath
   - mtl
+  - xeno
 
 executable:
   main: Main.hs
-  source-dirs: src
+  source-dirs:
+    - src
+    - app
 
-#executable:
-#  main: MainEvents.hs
-#  source-dirs: src
+benchmarks:
+  speed:
+    source-dirs:
+      - bench/speed
+      - src
+    main: Main.hs
+    dependencies:
+      - criterion
+      - weigh
+  memory:
+    source-dirs:
+      - bench/memory
+      - src
+    main: Main.hs
+    dependencies:
+      - criterion
+      - weigh
+
