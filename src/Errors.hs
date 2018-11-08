@@ -6,9 +6,7 @@ module Errors(parseError) where
 
 import Prelude hiding (id)
 
---import Data.Char(ord)
---import Data.Maybe(fromMaybe)
-import Data.Monoid
+--import Data.Monoid
 import Data.ByteString.Char8 as BS
 import Data.ByteString.Internal(ByteString(..))
 

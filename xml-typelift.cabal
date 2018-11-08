@@ -4,7 +4,7 @@ cabal-version: >= 1.10
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 700a6cc1ae72d3debff776b535b1e44f801ef413169e7c5b74c52e6766b49484
+-- hash: 8390410ca5ea67bd87f462c66218ecd545d300a7e8bbc0c4250bb2f32a3f40c9
 
 name:           xml-typelift
 version:        0.0.1
@@ -34,6 +34,7 @@ executable xml-typelift
   main-is: Main.hs
   other-modules:
       Errors
+      Freezable
       Parser
       Schema
       Paths_xml_typelift
@@ -45,6 +46,7 @@ executable xml-typelift
       base >=4.9 && <5
     , bytestring
     , containers
+    , deepseq
     , filepath
     , mtl
     , xeno
@@ -55,6 +57,7 @@ benchmark memory
   main-is: Main.hs
   other-modules:
       Errors
+      Freezable
       Parser
       Schema
       Paths_xml_typelift
@@ -79,6 +82,7 @@ benchmark speed
   main-is: Main.hs
   other-modules:
       Errors
+      Freezable
       Parser
       Schema
       Paths_xml_typelift
@@ -90,7 +94,7 @@ benchmark speed
       base >=4.9 && <5
     , bytestring
     , containers
-    , criterion
+    , criterion >=1.5.0.0
     , deepseq
     , filepath
     , mtl

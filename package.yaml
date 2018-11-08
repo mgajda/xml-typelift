@@ -46,7 +46,7 @@ benchmarks:
       - src
     main: Main.hs
     dependencies:
-      - criterion
+      - criterion >= 1.5.0.0
       - weigh
   memory:
     source-dirs:

@@ -1,5 +1,5 @@
 {-# LANGUAGE DeriveGeneric              #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE DeriveAnyClass             #-}
 {-# LANGUAGE NamedFieldPuns             #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
@@ -7,7 +7,7 @@
 -- | Simplification of XML Schema and RelaxNG schema
 module Schema where
 
-import Control.Deepseq
+import Control.DeepSeq
 import Data.ByteString.Char8 as BS
 import Data.Set as Set
 import Data.Map
@@ -22,7 +22,7 @@ data Schema = Schema {
   , tops      :: [Element]          -- ^ Possible top level elements
   , namespace :: XMLString
   }
-  deriving (Eq, Ord, Show, Generic)
+  deriving (Eq, Ord, Show, Generic, NFData)
 
 instance Default Schema where
   def = Schema Data.Map.empty [] ""
@@ -31,10 +31,10 @@ instance Default Schema where
 type XMLString = BS.ByteString
 
 newtype ID = ID XMLString
-  deriving (Show, Read, Eq, Ord, Generic)
+  deriving (Show, Read, Eq, Ord, Generic, NFData)
 
 newtype MaxOccurs = MaxOccurs Int
-  deriving (Num, Eq, Ord, Bounded, Generic)
+  deriving (Eq, Ord, Bounded, Generic, NFData)
 
 instance Show MaxOccurs where
   showsPrec _ (isUnbounded -> True) = ("unbounded"++)
@@ -53,7 +53,7 @@ data Element = Element {
   , eType     :: Type
   , targetNamespace :: XMLString
   }
-  deriving (Eq, Ord, Show, Generic)
+  deriving (Eq, Ord, Show, Generic, NFData)
 
 isUnbounded :: MaxOccurs -> Bool
 isUnbounded i | i==maxBound = True
@@ -61,8 +61,8 @@ isUnbounded _               = False
 
 instance Default Element where
   def = Element { name            = ""
-                , minOccurs       = 1
-                , maxOccurs       = 1 -- Nothing means `unbounded`
+                , minOccurs       =           1
+                , maxOccurs       = MaxOccurs 1 -- Nothing means `unbounded`
                 , eType           = def
                 , targetNamespace = "" -- inherit
                 }
@@ -82,7 +82,7 @@ data Restriction =
     Enum   [XMLString]
   | Pattern XMLString
   | None -- ^ No restriction expressible here
-  deriving (Eq, Ord, Show, Generic)
+  deriving (Eq, Ord, Show, Generic, NFData)
 
 instance Default Restriction where
   def = None
@@ -101,7 +101,7 @@ data Type =
         attrs :: [Attr]
       , subs  :: Content
       }
-  deriving (Eq, Ord, Show, Generic)
+  deriving (Eq, Ord, Show, Generic, NFData)
 
 predefinedTypes :: Set.Set XMLString
 predefinedTypes = Set.fromList [
@@ -130,7 +130,7 @@ data Attr = Attr {
   , aType :: Type
   , id    :: Maybe ID
   }
-  deriving (Eq, Ord, Show, Generic)
+  deriving (Eq, Ord, Show, Generic, NFData)
 
 instance Default Attr where
   def = Attr "" def def Nothing
@@ -139,7 +139,7 @@ data Use =
     Optional
   | Default XMLString
   | Required
-  deriving (Eq, Ord, Show, Generic)
+  deriving (Eq, Ord, Show, Generic, NFData)
 
 instance Default Use where
   def = Optional
@@ -147,7 +147,7 @@ instance Default Use where
 data Content = Seq    [Element]
              | Choice [Element]
              -- no support for xs:all yet
-  deriving (Eq, Ord, Show, Generic)
+  deriving (Eq, Ord, Show, Generic, NFData)
 
 instance Default Content where
   def = Seq []
@@ -157,7 +157,9 @@ contentAppend :: Content -> Element -> Content
 contentAppend (Choice cs) c = Choice (c:cs)
 contentAppend (Seq    ss) c = Seq    (c:ss)
 
-instance NFData Attr
+{-
+instance NFData Attr where
+  rnf (Attr a u t i) = rnf a $ rnf u $ rnf t $ rnf i
 instance NFData Content
 instance NFData Element
 instance NFData ID
@@ -166,4 +168,5 @@ instance NFData Restriction
 instance NFData Schema
 instance NFData Type
 instance NFData Use
+ -}
 

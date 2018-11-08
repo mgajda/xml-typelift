@@ -2,7 +2,6 @@ module Main(main, testExpr) where
 
 import           Control.Monad
 import qualified Data.ByteString.Char8 as BS
-import           Data.Monoid
 import           System.Environment
 import           System.Exit(exitFailure)
 import           System.IO(stderr, hPutStrLn)

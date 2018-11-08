@@ -8,7 +8,6 @@ module Parser where
 import Prelude hiding (id)
 
 import           Control.Monad.State.Strict as St
-import           Data.Monoid
 import           Data.ByteString.Char8 as BS hiding (elem)
 import           Data.ByteString.Internal(ByteString(..))
 import qualified Data.Map as Map
@@ -21,6 +20,7 @@ import           Xeno.SAX as Xeno
 
 import           Schema
 import           Errors
+import Data.IORef
 
 -- | Keep partly built structure to be merged upwards when the element is closed.
 data Builder = BContent Content
@@ -119,14 +119,14 @@ closeTagE   (BEnum e:(BRestriction{rBase,restr}:bs)) (stripNS -> "enumeration") 
     restriction (Enum es)   = Enum (e:es)
     restriction  None       = Enum [e]
     restriction (Pattern _) = error "Regex pattern is not implemented yet!"
-closeTagE   [BType tName ty,BSchema s@Schema {types}]
+closeTagE   [BType tName ty,BSchema s@Schema {}]
                                       (stripNS -> "complexType") =
   addType tName ty [BSchema s]
 closeTagE (BContent elts:ty@BType {bType}:bs) tag
     | stripNS tag `elem` ["sequence", "all", "choice"] =
     case bType of
       Complex ats _ty -> ty {bType=Complex ats elts}:bs
-      other           -> parseError tag $ "Expected different type to have content assigned: "
+      _other          -> parseError tag $ "Expected different type to have content assigned: "
                                        <> show bType
 closeTagE (BType innerName innerType:ty@BType {bType=outerType}:bs) tag
     | stripNS tag `elem` ["simpleContent", "complexContent"] =
@@ -136,7 +136,7 @@ closeTagE (BType innerName innerType:ty@BType {bType=outerType}:bs) tag
     else ty { bType=innerType}:addType innerName innerType bs
 closeTagE   (BAttr a:BType {tName, bType=Complex {subs, attrs}}:bs) (stripNS -> "attribute") =
    BType {tName, bType=Complex { subs, attrs = a:attrs }}:bs
-closeTagE   (BAttr a:bTy@BType {}:bs) i@(stripNS -> "attribute") =
+closeTagE   (BAttr _:bTy@BType {}:_bs) i@(stripNS -> "attribute") =
    parseError i $ "Attribute within non-complex type:" <> show bTy
 {-closeTagE   (BElement e:bs) tag = error $ "Expected </element>, got: " <> BS.unpack tag
                                        <> "inside:" <> show bs-}
