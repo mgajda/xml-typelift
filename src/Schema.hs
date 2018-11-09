@@ -4,6 +4,7 @@
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE ViewPatterns               #-}
+{-# LANGUAGE BangPatterns               #-}
 -- | Simplification of XML Schema and RelaxNG schema
 module Schema where
 
@@ -18,9 +19,9 @@ class Default a where
 
 -- | Top level XML Schema
 data Schema = Schema {
-    types     :: Map XMLString Type -- ^ Types defined by name
-  , tops      :: [Element]          -- ^ Possible top level elements
-  , namespace :: XMLString
+    types     ::                 Map XMLString Type -- ^ Types defined by name
+  , tops      ::                ![Element]          -- ^ Possible top level elements
+  , namespace :: {-# UNPACK #-} !XMLString
   }
   deriving (Eq, Ord, Show, Generic, NFData)
 
@@ -47,11 +48,11 @@ instance Read MaxOccurs where
 
 
 data Element = Element {
-    minOccurs :: Int
-  , maxOccurs :: MaxOccurs -- `maxint` value means `unbounded`
-  , name      :: XMLString
-  , eType     :: Type
-  , targetNamespace :: XMLString
+    minOccurs       :: !Int
+  , maxOccurs       :: !MaxOccurs -- `maxint` value means `unbounded`
+  , name            :: !XMLString
+  , eType           :: !Type
+  , targetNamespace :: !XMLString
   }
   deriving (Eq, Ord, Show, Generic, NFData)
 
@@ -79,8 +80,8 @@ validType :: Type -> Bool
 validType  = undefined
 
 data Restriction =
-    Enum   [XMLString]
-  | Pattern XMLString
+    Enum    ![XMLString]
+  | Pattern   XMLString
   | None -- ^ No restriction expressible here
   deriving (Eq, Ord, Show, Generic, NFData)
 
@@ -90,16 +91,16 @@ instance Default Restriction where
 data Type =
     Ref XMLString
   | Restriction {
-        base       :: XMLString
-      , restricted :: Restriction
+        base       :: {-# UNPACK #-} !XMLString
+      , restricted :: {-# UNPACK #-} !Restriction
       }
   | Extension {
-        base  :: XMLString
-      , mixin :: Type
+        base  :: {-# UNPACK #-} !XMLString
+      , mixin :: {-# UNPACK #-} !Type
       } -- ^ Extension of complexType
   | Complex {
-        attrs :: [Attr]
-      , subs  :: Content
+        attrs :: {-# UNPACK #-} ![Attr]
+      , subs  :: {-# UNPACK #-} !Content
       }
   deriving (Eq, Ord, Show, Generic, NFData)
 
@@ -125,10 +126,10 @@ instance Default Type where
   def = Ref "xs:any"
 
 data Attr = Attr {
-    aName  :: XMLString
-  , use   :: Use
-  , aType :: Type
-  , id    :: Maybe ID
+    aName :: {-# UNPACK #-} !XMLString
+  , use   :: {-# UNPACK #-} !Use
+  , aType :: {-# UNPACK #-} !Type
+  , id    ::                 Maybe ID
   }
   deriving (Eq, Ord, Show, Generic, NFData)
 
@@ -144,8 +145,8 @@ data Use =
 instance Default Use where
   def = Optional
 
-data Content = Seq    [Element]
-             | Choice [Element]
+data Content = Seq    ![Element]
+             | Choice ![Element]
              -- no support for xs:all yet
   deriving (Eq, Ord, Show, Generic, NFData)
 

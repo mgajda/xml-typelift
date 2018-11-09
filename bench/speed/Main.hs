@@ -11,6 +11,7 @@ import qualified Data.ByteString.Char8 as BS
 import           Data.Monoid
 import           Weigh
 import           Xeno.SAX(validate)
+import           Xeno.DOM(parse)
 
 import           Parser
 import           Schema
@@ -31,6 +32,8 @@ speedTest filename = do
     (\input ->
        bgroup
          filename
-         [ bench "speed" $ nfAppIO parseSchema input
-         , bench "xeno"  $ nf      validate    input ])
+         [ bench "speed"    $ nfAppIO parseSchema input
+         , bench "xeno"     $ nf      validate    input
+         , bench "xeno dom" $ nf      parse       input
+         ])
 

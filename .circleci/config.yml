@@ -5,6 +5,8 @@ jobs:
       - image: fpco/stack-build
     steps:
       - checkout
+      - setup_remote_docker:
+          docker_layer_caching: true
       - run:
           name:    Setup
           command: stack setup
