@@ -33,17 +33,25 @@ dependencies:
   - mtl
   - xeno
 
+library:
+  source-dirs:
+    - lib
+  exposed-modules:
+    - FromXML
+
 executable:
   main: Main.hs
   source-dirs:
     - src
     - app
+    - lib
 
 benchmarks:
   speed:
     source-dirs:
       - bench/speed
       - src
+      - lib
     main: Main.hs
     dependencies:
       - criterion >= 1.5.0.0

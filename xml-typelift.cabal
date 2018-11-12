@@ -4,7 +4,7 @@ cabal-version: >= 1.10
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 6199a366c442d537b779c96b3720a8ae241be86bf8682b0f4add37b1576b9db4
+-- hash: 3a962ff34e2a3e17f0858add7b72d67fcb1eaaa337159cc0afd2e79cf392abf2
 
 name:           xml-typelift
 version:        0.0.1
@@ -30,16 +30,36 @@ source-repository head
   type: git
   location: https://github.com/DataHaskell/xml-typelift
 
+library
+  exposed-modules:
+      FromXML
+  other-modules:
+      Paths_xml_typelift
+  hs-source-dirs:
+      lib
+  ghc-options: -Wall
+  build-depends:
+      base >=4.9 && <5
+    , bytestring
+    , containers
+    , deepseq
+    , filepath
+    , mtl
+    , xeno
+  default-language: Haskell2010
+
 executable xml-typelift
   main-is: Main.hs
   other-modules:
       Errors
       Parser
       Schema
+      FromXML
       Paths_xml_typelift
   hs-source-dirs:
       src
       app
+      lib
   ghc-options: -Wall
   build-depends:
       base >=4.9 && <5
@@ -82,10 +102,12 @@ benchmark speed
       Errors
       Parser
       Schema
+      FromXML
       Paths_xml_typelift
   hs-source-dirs:
       bench/speed
       src
+      lib
   ghc-options: -Wall
   build-depends:
       base >=4.9 && <5

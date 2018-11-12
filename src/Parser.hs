@@ -1,21 +1,19 @@
-{-# LANGUAGE DeriveGeneric       #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE BangPatterns        #-}
-{-# LANGUAGE ViewPatterns        #-}
-{-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE NamedFieldPuns      #-}
+{-# LANGUAGE CPP                 #-}
+{-# LANGUAGE DeriveGeneric       #-}
 {-# LANGUAGE LambdaCase          #-}
+{-# LANGUAGE NamedFieldPuns      #-}
+{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE ViewPatterns        #-}
 module Parser where
 
 import Prelude hiding (id)
 
 import           Control.Monad
---import           Control.Monad.State.Strict as St
 import qualified Data.ByteString.Char8 as BS hiding (elem)
 import           Data.ByteString.Internal(ByteString(..))
 import qualified Data.Map as Map
---import           GHC.Generics
---import           System.Exit(exitFailure)
 import           System.IO(stderr, hPutStrLn)
 import           Text.Read(readMaybe)
 
@@ -23,30 +21,7 @@ import           Xeno.DOM as Xeno
 
 import           Schema
 import           Errors
-
-{-
--- | Keep partly built structure to be merged upwards when the element is closed.
-data Builder = BContent {-# UNPACK #-} !Content
-             | BElement {-# UNPACK #-} !Element
-             | BType    { tName :: {-# UNPACK #-} !XMLString
-                        , bType :: {-# UNPACK #-} !Type}
-             | BAttr    {-# UNPACK #-} !Attr
-             | BSchema  {-# UNPACK #-} !Schema
-             | BRestriction { rBase :: {-# UNPACK #-} !XMLString
-                            , restr :: {-# UNPACK #-} !Restriction }
-             | BEnum    {-# UNPACK #-} !XMLString
-  deriving (Eq, Ord, Show, Generic)
-
-type PState = [Builder]       -- ^ Builder
-
-initialPState :: PState
-initialPState = [BSchema def]
-
-type Parser = St.StateT PState IO ()
- -}
-
-report :: String -> IO ()
-report = hPutStrLn stderr
+import           FromXML
 
 parseSchema :: BS.ByteString -> IO (Maybe Schema)
 parseSchema input = do
@@ -63,6 +38,9 @@ parseSchema input = do
         Right schema -> do
           putStrLn "XML Schema extracted"
           return $ Just schema
+  where
+    report :: String -> IO ()
+    report = hPutStrLn stderr
 
 analyzeSchema :: Xeno.Node -> Result Schema
 analyzeSchema top@(stripNS . Xeno.name -> "schema") = do
@@ -75,30 +53,23 @@ schemaAttr :: Schema -> (ByteString, ByteString) -> Result Schema
 schemaAttr sch            attr = defaultAttrHandler sch attr
 
 schemaElt  :: Schema -> Node -> Result Schema
-schemaElt  elt  val = defaultEltHandler  elt  val
+schemaElt  elt  val = defaultChildHandler  elt  val
+-- attrHandler  :: AttrHandler elt
+--  attrHandler   = defaultAttrHandler
+--  childHandler :: ChildHandler elt
+--  childHandler  = defaultChildHandler
 
-type XenoAttribute = (ByteString, ByteString)
-
-type Result elt = Either String elt
-
-type AttrHandler  elt = elt -> XenoAttribute -> Result elt
-type ChildHandler elt = elt -> Node          -> Result elt
-
--- Attribute handler for a given type of element
-class FromXML elt where
-  attrHandler :: AttrHandler elt
-  attrHandler  = defaultAttrHandler
-  eltHandler  :: ChildHandler elt
-  eltHandler   = defaultEltHandler
-
-defaultAttrHandler :: AttrHandler elt
-defaultAttrHandler _ (aName, aVal) = Left $ "Unhandled attribute " <> show      aName       <> "=" <> show aVal
-
-defaultEltHandler :: ChildHandler elt
-defaultEltHandler  _  node         = Left $ "Unhandled node "      <> show (Xeno.name node)
+instance FromXML Schema where
+  fromXML  n = case nodeName n of
+                 "schema"  -> fromXML' n
+                 otherName -> Left $ "Cannot find schema, found element:" <> show otherName
+  fromXML' = makeFromXML (def, schemaAttr, schemaElt)
 
 bshow :: Show a => a -> BS.ByteString
 bshow = BS.pack . show
+
+nodeName :: Node -> ByteString
+nodeName = stripNS . Xeno.name
 
 splitNS :: ByteString -> (ByteString, ByteString)
 splitNS = BS.breakEnd (==':')
