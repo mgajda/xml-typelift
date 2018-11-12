@@ -2,15 +2,16 @@
 module FromXML(FromXML(..),
                makeFromXML,
                DecodingError(..),
-               Result(..),
+               Result,
                AttrHandler,
                ChildHandler,
                unknownAttrHandler,
                unknownChildHandler,
-               getStartIndex
+               getStartIndex,
+               decodeXML
               ) where
 
-import           Control.Monad
+import           Control.Monad(foldM)
 import qualified Data.ByteString.Char8 as BS hiding (elem)
 import           Data.ByteString.Internal(ByteString(..))
 import           Xeno.Types as Xeno
@@ -38,18 +39,18 @@ class FromXML elt where
 
 decodeXML      :: FromXML elt => BS.ByteString -> Either XenoException elt
 decodeXML input = case Xeno.parse input of
-  Right result  -> case fromXML result of
-                     Left  (DecodingError errIndex errMsg) -> Left $ XenoParseError errIndex errMsg
-                     Right  r                              -> Right r
-  err@(Left  e) -> Left e
+  Right result -> case fromXML result of
+                    Left  (DecodingError errIndex errMsg) -> Left $ XenoParseError errIndex errMsg
+                    Right  r                              -> Right r
+  Left  e      -> Left e
 
 -- | There isn't much point in keeping this one uninlined!
 {-# INLINE CONLIKE makeFromXML #-}
 -- {-# CONLIKE   makeFromXML #-}
 makeFromXML :: (e, AttrHandler e, ChildHandler e) -> Xeno.Node -> Result e
 makeFromXML (pristine, attrHandler, childHandler) aNode = do
-  withAttrs <- foldM (catchAttrFailure  attrHandler ) pristine  $ Xeno.attributes aNode
-  foldM              (catchChildFailure childHandler) withAttrs $ Xeno.children   aNode
+  withAttrs <- foldM (catchAttrFailure  attrHandler ) pristine  (Xeno.attributes aNode)
+  foldM              (catchChildFailure childHandler) withAttrs (Xeno.children   aNode)
 
 {-# INLINE CONLIKE catchAttrFailure #-}
 catchAttrFailure :: AttrHandler elt -> elt -> XenoAttribute -> Result elt
@@ -77,5 +78,6 @@ unknownAttrHandler   _ (aName, aVal) = Left $ "Unhandled attribute " <> bshow aN
 unknownChildHandler :: ChildHandler elt
 unknownChildHandler  _  node         = Left $ "Unhandled node " <> bshow (Xeno.name node)
 
+bshow :: ByteString -> ByteString
 bshow = BS.pack . show
 
