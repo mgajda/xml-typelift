@@ -1,5 +1,14 @@
 {-# LANGUAGE OverloadedStrings #-}
-module FromXML(FromXML(..), makeFromXML, DecodingError(..), Result(..)) where
+module FromXML(FromXML(..),
+               makeFromXML,
+               DecodingError(..),
+               Result(..),
+               AttrHandler,
+               ChildHandler,
+               unknownAttrHandler,
+               unknownChildHandler,
+               getStartIndex
+              ) where
 
 import           Control.Monad
 import qualified Data.ByteString.Char8 as BS hiding (elem)

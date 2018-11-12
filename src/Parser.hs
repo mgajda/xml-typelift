@@ -12,7 +12,7 @@ import Prelude hiding (id)
 
 import           Control.Monad
 import qualified Data.ByteString.Char8 as BS hiding (elem)
-import           Data.ByteString.Internal(ByteString(..))
+import           Data.ByteString.Char8(ByteString)
 import qualified Data.Map as Map
 import           System.IO(stderr, hPutStrLn)
 import           Text.Read(readMaybe)
@@ -31,7 +31,7 @@ parseSchema input = do
       return Nothing
     Right dom -> do
       putStrLn "DOM parsed"
-      case analyzeSchema dom of
+      case fromXML dom of
         Left  err    -> do
           report err
           return Nothing
@@ -39,30 +39,26 @@ parseSchema input = do
           putStrLn "XML Schema extracted"
           return $ Just schema
   where
-    report :: String -> IO ()
-    report = hPutStrLn stderr
+    report :: Show a => a -> IO ()
+    report = hPutStrLn stderr . show
 
-analyzeSchema :: Xeno.Node -> Result Schema
-analyzeSchema top@(stripNS . Xeno.name -> "schema") = do
-    withAttrs <- foldM schemaAttr def       $ Xeno.attributes top
-    foldM              schemaElt  withAttrs $ Xeno.children   top
-analyzeSchema top = fail $ "Top level element should be `schema`, but is `" <> show (Xeno.name top) <> "`"
+schemaAttr :: AttrHandler Schema
+schemaAttr sch attr = unknownAttrHandler  sch attr
 
-schemaAttr :: Schema -> (ByteString, ByteString) -> Result Schema
---schemaAttr (aName, aValue) sch = undefined
-schemaAttr sch            attr = defaultAttrHandler sch attr
+schemaElt :: ChildHandler Schema
+schemaElt  elt val  = unknownChildHandler elt val
 
-schemaElt  :: Schema -> Node -> Result Schema
-schemaElt  elt  val = defaultChildHandler  elt  val
 -- attrHandler  :: AttrHandler elt
 --  attrHandler   = defaultAttrHandler
 --  childHandler :: ChildHandler elt
 --  childHandler  = defaultChildHandler
 
 instance FromXML Schema where
-  fromXML  n = case nodeName n of
-                 "schema"  -> fromXML' n
-                 otherName -> Left $ "Cannot find schema, found element:" <> show otherName
+  fromXML  n =
+    case nodeName n of
+      "schema"  -> fromXML' n
+      otherName -> Left $ DecodingError (getStartIndex otherName)
+                                        ("Top element should be schema, found element:" <> bshow otherName)
   fromXML' = makeFromXML (def, schemaAttr, schemaElt)
 
 bshow :: Show a => a -> BS.ByteString
