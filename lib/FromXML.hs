@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ViewPatterns      #-}
 module FromXML(FromXML(..),
                makeFromXML,
                DecodingError(..),
@@ -8,7 +9,11 @@ module FromXML(FromXML(..),
                unknownAttrHandler,
                unknownChildHandler,
                getStartIndex,
-               decodeXML
+               decodeXML,
+               failHere,
+               splitNS,
+               stripNS,
+               bshow
               ) where
 
 import           Control.Monad(foldM)
@@ -23,10 +28,14 @@ data DecodingError = DecodingError { errorIndex   :: {-# UNPACK #-} !Int
                                    , errorMessage :: {-# UNPACK #-} !BS.ByteString }
   deriving (Show, Eq)
 
-type Result elt = Either DecodingError elt
+type Result elt = Either XenoException elt
 
-type AttrHandler  elt = elt -> XenoAttribute -> Either BS.ByteString elt
-type ChildHandler elt = elt -> Node          -> Either BS.ByteString elt
+type AttrHandler  elt = elt -> XenoAttribute -> Either XenoException elt
+type ChildHandler elt = elt -> Node          -> Either XenoException elt
+
+{-# INLINE CONLIKE failHere #-}
+failHere :: BS.ByteString -> BS.ByteString -> Either XenoException a
+failHere msg here = Left $ XenoParseError (getStartIndex here) msg
 
 -- Attribute handler for a given type of element
 class FromXML elt where
@@ -39,32 +48,24 @@ class FromXML elt where
 
 decodeXML      :: FromXML elt => BS.ByteString -> Either XenoException elt
 decodeXML input = case Xeno.parse input of
-  Right result -> case fromXML result of
-                    Left  (DecodingError errIndex errMsg) -> Left $ XenoParseError errIndex errMsg
-                    Right  r                              -> Right r
-  Left  e      -> Left e
+  Right result -> fromXML result
+  Left  e      -> Left    e
 
 -- | There isn't much point in keeping this one uninlined!
 {-# INLINE CONLIKE makeFromXML #-}
 -- {-# CONLIKE   makeFromXML #-}
 makeFromXML :: (e, AttrHandler e, ChildHandler e) -> Xeno.Node -> Result e
 makeFromXML (pristine, attrHandler, childHandler) aNode = do
-  withAttrs <- foldM (catchAttrFailure  attrHandler ) pristine  (Xeno.attributes aNode)
-  foldM              (catchChildFailure childHandler) withAttrs (Xeno.children   aNode)
+  withAttrs <- foldM attrHandler pristine  (Xeno.attributes aNode)
+  foldM                          childHandler  withAttrs (Xeno.children   aNode)
 
 {-# INLINE CONLIKE catchAttrFailure #-}
-catchAttrFailure :: AttrHandler elt -> elt -> XenoAttribute -> Result elt
+catchAttrFailure :: (elt -> XenoAttribute -> Either BS.ByteString elt)
+                 ->  AttrHandler                           elt
 catchAttrFailure handler elt attr@(aName, _) =
   case handler elt attr of
-    Left  errMsg -> Left  (DecodingError (getStartIndex aName) errMsg)
-    Right r      -> Right r
-
-{-# INLINE CONLIKE catchChildFailure #-}
-catchChildFailure :: ChildHandler elt -> elt -> Xeno.Node -> Result elt
-catchChildFailure handler elt node =
-  case handler elt node of
-    Left  errMsg -> Left  (DecodingError (getStartIndex $ Xeno.name node) errMsg)
-    Right r      -> Right r
+    Left  errMsg -> errMsg `failHere` aName
+    Right r      -> Right  r
 
 {-# INLINE CONLIKE getStartIndex #-}
 getStartIndex :: BS.ByteString -> Int
@@ -72,12 +73,30 @@ getStartIndex (PS _ from _) = from
 
 {-# INLINE CONLIKE unknownAttrHandler #-}
 unknownAttrHandler :: AttrHandler elt
-unknownAttrHandler   _ (aName, aVal) = Left $ "Unhandled attribute " <> bshow aName <> "=" <> bshow aVal
+unknownAttrHandler   _ (splitNS -> (ns, aName), aVal) = ("Unhandled attribute in namespace '" <> ns
+                                                      <> "' : '" <> aName <> "' = '" <> aVal <> "'")
+                                                           `failHere` aName
+
+bshow :: Show a => a -> BS.ByteString
+bshow = BS.pack . show
+
+{-# INLINABLE splitNS #-}
+splitNS :: ByteString -> (ByteString, ByteString)
+splitNS name = (dropLastByte ns, elt)
+  where
+    (ns, elt) = BS.breakEnd (==':') name
+
+dropLastByte :: BS.ByteString -> BS.ByteString
+dropLastByte (PS ptr start len) | len >= 1 = PS ptr start (len-1)
+dropLastByte  bs                           = bs
+
+{-# INLINABLE stripNS #-}
+stripNS :: ByteString -> ByteString
+stripNS = snd . splitNS
 
 {-# INLINE CONLIKE unknownChildHandler #-}
 unknownChildHandler :: ChildHandler elt
-unknownChildHandler  _  node         = Left $ "Unhandled node " <> bshow (Xeno.name node)
-
-bshow :: ByteString -> ByteString
-bshow = BS.pack . show
+unknownChildHandler  _  node = ("Unhandled node '" <> eltName <> "'") `failHere` eltName
+  where
+    eltName = Xeno.name node
 

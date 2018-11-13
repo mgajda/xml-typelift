@@ -46,11 +46,10 @@ instance Read MaxOccurs where
   readsPrec p  x                                         = [(MaxOccurs r       ,        rest)
                                                            |(          r :: Int,        rest) <- readsPrec p x]
 
-
 data Element = Element {
     minOccurs       :: !Int
   , maxOccurs       :: !MaxOccurs -- `maxint` value means `unbounded`
-  , name            :: !XMLString
+  , eName           :: !XMLString
   , eType           :: !Type
   , targetNamespace :: !XMLString
   }
@@ -61,7 +60,7 @@ isUnbounded i | i==maxBound = True
 isUnbounded _               = False
 
 instance Default Element where
-  def = Element { name            = ""
+  def = Element { eName           = ""
                 , minOccurs       =           1
                 , maxOccurs       = MaxOccurs 1 -- Nothing means `unbounded`
                 , eType           = def

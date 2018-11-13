@@ -23,6 +23,21 @@ import           Schema
 import           Errors
 import           FromXML
 
+data TypeDesc =
+  TypeDesc { tName :: BS.ByteString
+           , ty    :: Type }
+
+instance FromXML TypeDesc where
+  fromXML' node = makeFromXML (TypeDesc "" $ Complex [] def, typeAttr, typeElt) node
+    where
+      typeAttr = unknownAttrHandler
+      typeElt  = unknownChildHandler
+  fromXML  node = case nodeName node of
+                    "simpleType"  -> fromXML' node
+                    "complexType" -> fromXML' node
+                    otherName     -> ("Node expected to contain type descriptor is named '"
+                                    <> otherName <> "'") `failHere` otherName
+
 parseSchema :: BS.ByteString -> IO (Maybe Schema)
 parseSchema input = do
   case Xeno.parse input of
@@ -43,10 +58,54 @@ parseSchema input = do
     report = hPutStrLn stderr . show
 
 schemaAttr :: AttrHandler Schema
-schemaAttr sch attr = unknownAttrHandler  sch attr
+schemaAttr sch attr@(aName, aVal) =
+  case splitNS aName of
+    (_,       "targetNamespace") -> Right sch
+    (_,       "xmlns"          ) -> Right sch
+    ("xmlns", _                ) -> Right sch
+    _                            -> unknownAttrHandler sch attr
 
 schemaElt :: ChildHandler Schema
-schemaElt  elt val  = unknownChildHandler elt val
+schemaElt sch nod =
+    case nodeName nod of
+      "element" -> do
+        elt :: Element <- fromXML' nod
+        return $ sch { tops = elt:tops sch }
+      "simpleType"  -> handleType
+      "complexType" -> handleType
+      _ -> return sch -- unknownChildHandler elt val
+  where
+    handleType = do
+      TypeDesc name ty <- fromXML nod
+      return $ addType name ty sch
+      -- TODO: Find a way to add nested named elements into dictionary.
+
+
+instance FromXML Element where
+  fromXML  = fromXML'
+  fromXML' = makeFromXML (def , eltAttrHandler, eltChildHandler)
+
+eltAttrHandler elt attr@(aName, aVal) =
+  case stripNS aName of
+    "name"      -> return $ elt { eName = aVal }
+    "minOccurs" ->
+      case BS.readInt aVal of
+        Nothing       -> ("Attribute minOccurs should be integer, but is '" <> aVal <> "'")
+                             `failHere` aVal
+        Just  (r, "") -> return $ elt { minOccurs = r }
+    "maxOccurs" -> 
+       case readMaxOccurs aVal of
+         Left  err -> Left     err
+         Right r   -> return $ elt { maxOccurs = r }
+    otherwise   -> unknownAttrHandler elt attr
+
+readMaxOccurs :: BS.ByteString -> Result MaxOccurs
+readMaxOccurs  "unbounded"                 = return $ MaxOccurs maxBound
+readMaxOccurs (BS.readInt -> Just (v, "")) = return $ MaxOccurs v
+readMaxOccurs  other                       = ("Cannot decode '" <> other <> "' as maxoccurs value")
+                                                 `failHere` other
+
+eltChildHandler = unknownChildHandler
 
 -- attrHandler  :: AttrHandler elt
 --  attrHandler   = defaultAttrHandler
@@ -57,21 +116,12 @@ instance FromXML Schema where
   fromXML  n =
     case nodeName n of
       "schema"  -> fromXML' n
-      otherName -> Left $ DecodingError (getStartIndex otherName)
-                                        ("Top element should be schema, found element:" <> bshow otherName)
+      otherName -> ("Top element should be schema, found element:" <> bshow otherName)
+                       `failHere` otherName
   fromXML' = makeFromXML (def, schemaAttr, schemaElt)
-
-bshow :: Show a => a -> BS.ByteString
-bshow = BS.pack . show
 
 nodeName :: Node -> ByteString
 nodeName = stripNS . Xeno.name
-
-splitNS :: ByteString -> (ByteString, ByteString)
-splitNS = BS.breakEnd (==':')
-
-stripNS :: ByteString -> ByteString
-stripNS = snd . splitNS
 
 readAttr :: Read a => ByteString -> a
 readAttr v = case readMaybe $ BS.unpack v of
