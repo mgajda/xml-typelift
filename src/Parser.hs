@@ -12,7 +12,7 @@ import Prelude hiding (id)
 
 import           Control.Monad
 import qualified Data.ByteString.Char8 as BS hiding (elem)
-import           Data.ByteString.Char8(ByteString)
+import           Data.ByteString.Char8(ByteString(..))
 import qualified Data.Map as Map
 import           System.IO(stderr, hPutStrLn)
 import           Text.Read(readMaybe)
@@ -31,7 +31,10 @@ data TypeDesc =
 instance FromXML TypeDesc where
   fromXML' node = makeFromXML (TypeDesc "" $ Complex [] def, typeAttr, typeElt) node
     where
-      typeAttr = unknownAttrHandler
+      typeAttr tyd attr@(aName, aVal) =
+        case stripNS aName of
+          "name" -> return $ tyd { tName = aVal }
+          _  -> unknownAttrHandler tyd attr
       typeElt  = unknownChildHandler
   fromXML  node = case nodeName node of
                     "simpleType"  -> fromXML' node
@@ -57,7 +60,9 @@ parseSchema input = do
           BS.hPutStrLn stderr $
                "Decoding error in line " <> bshow (lineNo i input)
             <> " byte index "            <> bshow         i
-            <> " at:\n"                  <> BS.takeWhile ('\n'/=) (BS.take 40 (BS.drop i input))
+            <> " at:\n"
+            <> revTake 16 (BS.take i input)
+            <> BS.takeWhile ('\n'/=) (BS.take 40 (BS.drop i input))
             <> ":\n"                     <> msg
           return Nothing
         Left  err -> do
@@ -73,10 +78,12 @@ parseSchema input = do
 schemaAttr :: AttrHandler Schema
 schemaAttr sch attr@(aName, aVal) =
   case splitNS aName of
-    (_,       "targetNamespace") -> Right sch
-    (_,       "xmlns"          ) -> Right sch
-    ("xmlns", _                ) -> Right sch
-    _                            -> unknownAttrHandler sch attr
+    (_,       "targetNamespace"     ) -> Right sch
+    (_,       "elementFormDefault"  ) -> Right sch
+    (_,       "attributeFormDefault") -> Right sch
+    (_,       "xmlns"               ) -> Right sch
+    ("xmlns", _                     ) -> Right sch
+    _                                 -> unknownAttrHandler sch attr
 
 schemaElt :: ChildHandler Schema
 schemaElt sch nod =
@@ -100,7 +107,8 @@ instance FromXML Element where
 
 eltAttrHandler elt attr@(aName, aVal) =
   case stripNS aName of
-    "name"      -> return $ elt { eName = aVal }
+    "name"      -> return $ elt { eName =     aVal }
+    "type"      -> return $ elt { eType = Ref aVal }
     "minOccurs" ->
       case BS.readInt aVal of
         Nothing       -> ("Attribute minOccurs should be integer, but is '" <> aVal <> "'")

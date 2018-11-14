@@ -13,7 +13,8 @@ module FromXML(FromXML(..),
                failHere,
                splitNS,
                stripNS,
-               bshow
+               bshow,
+               revTake
               ) where
 
 import           Control.Monad(foldM)
@@ -86,9 +87,17 @@ splitNS name = (dropLastByte ns, elt)
   where
     (ns, elt) = BS.breakEnd (==':') name
 
+-- | Drop last character
 dropLastByte :: BS.ByteString -> BS.ByteString
 dropLastByte (PS ptr start len) | len >= 1 = PS ptr start (len-1)
 dropLastByte  bs                           = bs
+
+-- | Take n last bytes.
+revTake :: Int -> BS.ByteString -> BS.ByteString
+revTake i (PS ptr from to) = PS ptr (end-len) len
+  where
+    end = from + to
+    len = min to i
 
 {-# INLINABLE stripNS #-}
 stripNS :: ByteString -> ByteString
