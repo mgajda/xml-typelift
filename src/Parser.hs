@@ -17,7 +17,8 @@ import qualified Data.Map as Map
 import           System.IO(stderr, hPutStrLn)
 import           Text.Read(readMaybe)
 
-import           Xeno.DOM as Xeno
+import           Xeno.DOM   as Xeno
+import           Xeno.Types as Xeno
 
 import           Schema
 import           Errors
@@ -38,6 +39,11 @@ instance FromXML TypeDesc where
                     otherName     -> ("Node expected to contain type descriptor is named '"
                                     <> otherName <> "'") `failHere` otherName
 
+-- | Find line number of the error from ByteString index.
+lineNo :: Int -> BS.ByteString -> Int
+lineNo index bs = BS.count '\n'
+                $ BS.take index bs
+
 parseSchema :: BS.ByteString -> IO (Maybe Schema)
 parseSchema input = do
   case Xeno.parse input of
@@ -47,8 +53,15 @@ parseSchema input = do
     Right dom -> do
       putStrLn "DOM parsed"
       case fromXML dom of
-        Left  err    -> do
-          report err
+        Left (Xeno.XenoParseError i msg) -> do
+          BS.hPutStrLn stderr $
+               "Decoding error in line " <> bshow (lineNo i input)
+            <> " byte index "            <> bshow         i
+            <> " at:\n"                  <> BS.takeWhile ('\n'/=) (BS.take 40 (BS.drop i input))
+            <> ":\n"                     <> msg
+          return Nothing
+        Left  err -> do
+          hPutStrLn stderr $ show err
           return Nothing
         Right schema -> do
           putStrLn "XML Schema extracted"
