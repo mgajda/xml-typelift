@@ -65,7 +65,7 @@ instance FromXML TypeDesc where
           "restriction"    -> do
              restr <- handleRestriction node
              return tyd { ty = restr }
-          "extension"      -> undefined -- TODO:
+          "extension"      -> return tyd -- undefined -- TODO: extension
           "sequence"       -> handleContent Seq
           "choice"         -> handleContent Choice
           other            -> unknownChildHandler node
@@ -77,10 +77,7 @@ instance FromXML TypeDesc where
           handleContent cons = do
             contents :: [Element] <- mapM fromXML $ children node
             return $ TypeDesc tName $ ty { subs = cons contents } -- TODO: handle restricted better
-
-          nested = do
-             ComplexType ty <- fromXML' node
-             return tyd { ty = ty }
+          nested = goTypeDesc tyd node
   fromXML  node = case nodeName node of
                     "simpleType"  -> fromXML' node
                     "complexType" -> fromXML' node
@@ -130,6 +127,7 @@ instance FromXML Attr where
       attrAttr cpl attr@(aName, aVal) = case stripNS aName of
         "id"      -> return cpl -- ignore ids for now
         "type"    -> return $ cpl { aType = Ref aVal }
+        "name"    -> return $ cpl { aName = aName    }
         "use"     -> case aVal of
                        "prohibited" -> return cpl -- we can safely ignore, since we do not fully validate
                        "optional"   -> return cpl { use = Optional }
