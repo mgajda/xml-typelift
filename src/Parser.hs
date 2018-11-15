@@ -5,6 +5,7 @@
 {-# LANGUAGE NamedFieldPuns      #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE Strict              #-}
 {-# LANGUAGE ViewPatterns        #-}
 {-# GHC_OPTIONS -fno-warn-orphans #-}
 module Parser where
@@ -32,24 +33,22 @@ data TypeDesc =
            , ty    :: !Type
            }
 
-
-
 instance FromXML TypeDesc where
-  fromXML' node = goTypeDesc init node
+  fromXML' = goTypeDesc $ TypeDesc "" $ Complex [] def
     where
-      init :: TypeDesc
-      init = TypeDesc "" $ Complex [] def
       goTypeDesc :: TypeDesc -> Node -> Result TypeDesc
       goTypeDesc = makeFromXML (typeAttr, typeElt)
+      typeAttr :: AttrHandler TypeDesc
       typeAttr tyd attr@(aName, aVal) =
         case stripNS aName of
-          "name"     -> return $ tyd { tName = aVal }
+          "name"     -> return $ tyd { tName =     aVal }
           "abstract" -> return tyd -- ignore for now
           "final"    -> return tyd -- ignore for now
           "block"    -> return tyd -- ignore for now
-          "type"     -> return $ tyd { ty = Ref aVal }
-          "ref"      -> return $ tyd { ty = Ref aVal }
+          "type"     -> return $ tyd { ty    = Ref aVal }
+          "ref"      -> return $ tyd { ty    = Ref aVal }
           _          -> unknownAttrHandler attr
+      typeElt :: ChildHandler TypeDesc
       typeElt tyd node =
         case nodeName node of
           "annotation"  -> return tyd -- ignore annotations
@@ -57,11 +56,20 @@ instance FromXML TypeDesc where
              attr <- fromXML' node
              return $ let ty@TypeDesc { ty = cpl@Complex { attrs, subs } } = tyd
                       in tyd { ty = cpl { attrs = attr:attrs } }
-          "complexType"    -> nested
+          "complexType"    -> nested -- can it be nested?
+          "simpleType"     -> nested -- can it be nested?
           "complexContent" -> nested
           "simpleContent"  -> nested
-          otherwise     -> unknownChildHandler node
+          "sequence"       -> handleContent Seq
+          "choice"         -> handleContent Choice
+          other            -> unknownChildHandler node
         where
+          TypeDesc tName ty = tyd
+          handleContent :: ([Element] -> Schema.Content) -> Result TypeDesc
+          handleContent cons = do
+            contents :: [Element] <- mapM fromXML $ children node
+            return $ TypeDesc tName $ ty { subs = cons contents } -- TODO: handle restricted better
+
           nested = do
              ComplexType ty <- fromXML' node
              return tyd { ty = ty }
@@ -181,6 +189,7 @@ instance FromXML Element where
   fromXML  = fromXML'
   fromXML' = makeFromXML (eltAttrHandler, eltChildHandler) def
 
+eltAttrHandler :: AttrHandler Element
 eltAttrHandler elt attr@(aName, aVal) =
   case stripNS aName of
     "name"      -> return $ elt { eName =     aVal }
@@ -202,7 +211,16 @@ readMaxOccurs (BS.readInt -> Just (v, "")) = return $ MaxOccurs v
 readMaxOccurs  other                       = ("Cannot decode '" <> other <> "' as maxoccurs value")
                                                  `failHere` other
 
-eltChildHandler _ = unknownChildHandler
+eltChildHandler :: ChildHandler Element
+eltChildHandler elt node = case nodeName node of
+    "complexType" -> handleType
+    "simpleType"  -> handleType
+    "annotation"  -> return     elt -- ignore
+    _             -> unknownChildHandler node
+  where
+    handleType = do
+      TypeDesc _ ty <- fromXML node
+      return $ elt { eType = ty }
 
 -- attrHandler  :: AttrHandler elt
 --  attrHandler   = defaultAttrHandler

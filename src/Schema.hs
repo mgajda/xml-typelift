@@ -1,10 +1,11 @@
+{-# LANGUAGE BangPatterns               #-}
 {-# LANGUAGE DeriveGeneric              #-}
 {-# LANGUAGE DeriveAnyClass             #-}
 {-# LANGUAGE NamedFieldPuns             #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
+{-# LANGUAGE Strict                     #-}
 {-# LANGUAGE ViewPatterns               #-}
-{-# LANGUAGE BangPatterns               #-}
 -- | Simplification of XML Schema and RelaxNG schema
 module Schema where
 
