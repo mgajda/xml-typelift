@@ -5,6 +5,11 @@ jobs:
       - image: fpco/stack-build
     steps:
       - checkout
+      - run:
+          name: "Pull Submodules"
+          command: |
+            git submodule sync
+            git submodule update --remote
       - setup_remote_docker:
           docker_layer_caching: true
       - run:
