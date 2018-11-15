@@ -4,7 +4,7 @@ cabal-version: >= 1.10
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 3a962ff34e2a3e17f0858add7b72d67fcb1eaaa337159cc0afd2e79cf392abf2
+-- hash: 7da50f80b6e28f82c1152e4c57dacc8ee8b893a8a623c82f2b740a2abbf8a9eb
 
 name:           xml-typelift
 version:        0.0.1
@@ -78,10 +78,12 @@ benchmark memory
       Errors
       Parser
       Schema
+      FromXML
       Paths_xml_typelift
   hs-source-dirs:
       bench/memory
       src
+      lib
   ghc-options: -Wall
   build-depends:
       base >=4.9 && <5

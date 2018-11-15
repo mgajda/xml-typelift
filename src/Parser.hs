@@ -15,6 +15,8 @@ import Prelude hiding (id)
 import           Control.Monad
 import qualified Data.ByteString.Char8 as BS hiding (elem)
 import           Data.ByteString.Char8(ByteString(..))
+import           Data.List(find)
+import           Data.Maybe(catMaybes, fromMaybe)
 import qualified Data.Map as Map
 import           System.IO(stderr, hPutStrLn)
 import           Text.Read(readMaybe)
@@ -60,10 +62,16 @@ instance FromXML TypeDesc where
           "simpleType"     -> nested -- can it be nested?
           "complexContent" -> nested
           "simpleContent"  -> nested
+          "restriction"    -> do
+             restr <- handleRestriction node
+             return tyd { ty = restr }
+          "extension"      -> undefined -- TODO:
           "sequence"       -> handleContent Seq
           "choice"         -> handleContent Choice
           other            -> unknownChildHandler node
         where
+          {-handleMixin = do
+            restr :: Restriction <- fromXML node-}
           TypeDesc tName ty = tyd
           handleContent :: ([Element] -> Schema.Content) -> Result TypeDesc
           handleContent cons = do
@@ -78,6 +86,35 @@ instance FromXML TypeDesc where
                     "complexType" -> fromXML' node
                     otherName     -> ("Node expected to contain type descriptor is named '"
                                     <> otherName <> "'") `failHere` otherName
+
+handleRestriction :: Xeno.Node -> Result Type
+handleRestriction node = do
+    restricted <- case ((`elem` ["pattern", "enumeration", "list", "union"]) . nodeName)
+                          `find` Xeno.children node of
+        Nothing -> return None
+        Just n -> let err = (`failHere` nodeName n)
+                  in case nodeName n of
+                      "list"        ->  err "List restriction not yet implemented"
+                      "union"       ->  err "List restriction not yet implemented"
+                      "pattern"     ->  Pattern <$> getValueAttr n
+                      "enumeration" -> (Enum . catMaybes) <$> mapM getEnumValue (Xeno.children node)
+                      other         ->  err "Unexpected failure in parsing <restriction>"
+    return Restriction { base = getBaseAttribute node, restricted }
+  where
+    getEnumValue :: Xeno.Node -> Result (Maybe XMLString)
+    getEnumValue eNode@(nodeName -> "enumeration") = Just <$> getValueAttr eNode
+    getEnumValue _                                 = return Nothing
+    getValueAttr :: Xeno.Node -> Result XMLString
+    getValueAttr (findAttributeValue "value" -> Just v) = return v
+    getValueAttr  aNode                                 = "Missing value attribute" `failHere` nodeName aNode
+    isValue (n, _) = stripNS n == "value"
+
+findAttributeValue :: XMLString -> Xeno.Node -> Maybe XMLString
+findAttributeValue name node = case find ((name==) . fst) $ Xeno.attributes node of
+  Just (_, v) -> Just v
+  Nothing     -> Nothing
+
+getBaseAttribute = fromMaybe "" . findAttributeValue "base"
 
 newtype ComplexType = ComplexType Type
 

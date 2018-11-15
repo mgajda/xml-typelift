@@ -60,6 +60,7 @@ benchmarks:
     source-dirs:
       - bench/memory
       - src
+      - lib
     main: Main.hs
     dependencies:
       - criterion

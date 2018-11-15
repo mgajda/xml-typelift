@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE Strict            #-}
 {-# LANGUAGE ViewPatterns      #-}
 module FromXML(FromXML(..),
                makeFromXML,
