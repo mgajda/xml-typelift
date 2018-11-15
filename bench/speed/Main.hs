@@ -19,7 +19,8 @@ import           Schema
 testFiles = ["test/person.xsd"
             ,"test/simple.xsd"
             ,"test/test.xsd"
-            ,"../tuxml/tuxml_schema-883.xsd"]
+            --,"../tuxml/tuxml_schema-883.xsd"
+            ]
 
 main :: IO ()
 main  = do
