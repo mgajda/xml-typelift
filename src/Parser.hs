@@ -1,20 +1,19 @@
-{-# LANGUAGE BangPatterns        #-}
-{-# LANGUAGE CPP                 #-}
-{-# LANGUAGE DeriveGeneric       #-}
-{-# LANGUAGE LambdaCase          #-}
-{-# LANGUAGE NamedFieldPuns      #-}
-{-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE Strict              #-}
-{-# LANGUAGE ViewPatterns        #-}
-{-# GHC_OPTIONS -fno-warn-orphans #-}
+{-# LANGUAGE BangPatterns         #-}
+{-# LANGUAGE CPP                  #-}
+{-# LANGUAGE DeriveGeneric        #-}
+{-# LANGUAGE LambdaCase           #-}
+{-# LANGUAGE NamedFieldPuns       #-}
+{-# LANGUAGE OverloadedStrings    #-}
+{-# LANGUAGE ScopedTypeVariables  #-}
+{-# LANGUAGE Strict               #-}
+{-# LANGUAGE ViewPatterns         #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module Parser where
 
 import Prelude hiding (id)
 
-import           Control.Monad
 import qualified Data.ByteString.Char8 as BS hiding (elem)
-import           Data.ByteString.Char8(ByteString(..))
+import           Data.ByteString.Char8(ByteString)
 import           Data.List(find)
 import           Data.Maybe(catMaybes, fromMaybe)
 import qualified Data.Map as Map
@@ -57,8 +56,8 @@ instance FromXML TypeDesc where
           "annotation"  -> return tyd -- ignore annotations
           "attribute"   -> do
              attr <- fromXML' node
-             return $ let ty@TypeDesc { ty = cpl@Complex { attrs, subs } } = tyd
-                      in tyd { ty = cpl { attrs = attr:attrs } }
+             return $ let TypeDesc { ty = cpl@Complex { attrs } } = tyd
+                      in  tyd      { ty = cpl { attrs = attr:attrs } }
           "complexType"    -> nested -- can it be nested?
           "simpleType"     -> nested -- can it be nested?
           "complexContent" -> nested
@@ -69,15 +68,15 @@ instance FromXML TypeDesc where
           "extension"      -> return tyd -- undefined -- TODO: extension
           "sequence"       -> handleContent Seq
           "choice"         -> handleContent Choice
-          other            -> unknownChildHandler node
+          _                -> unknownChildHandler node
         where
           {-handleMixin = do
             restr :: Restriction <- fromXML node-}
           TypeDesc tName ty = tyd
           handleContent :: ([Element] -> Schema.Content) -> Result TypeDesc
           handleContent cons = do
-            contents :: [Element] <- mapM fromXML $ children node
-            return $ TypeDesc tName $ ty { subs = cons contents } -- TODO: handle restricted better
+            subelts :: [Element] <- mapM fromXML $ children node
+            return $ TypeDesc tName $ ty { subs = cons subelts } -- TODO: handle restricted better
           nested = goTypeDesc tyd node
   fromXML  node = case nodeName node of
                     "simpleType"  -> fromXML' node
@@ -96,7 +95,7 @@ handleRestriction node = do
                       "union"       ->  err "List restriction not yet implemented"
                       "pattern"     ->  Pattern <$> getValueAttr n
                       "enumeration" -> (Enum . catMaybes) <$> mapM getEnumValue (Xeno.children node)
-                      other         ->  err "Unexpected failure in parsing <restriction>"
+                      _other        ->  err "Unexpected failure in parsing <restriction>"
     return Restriction { base = getBaseAttribute node, restricted }
   where
     getEnumValue :: Xeno.Node -> Result (Maybe XMLString)
@@ -105,16 +104,16 @@ handleRestriction node = do
     getValueAttr :: Xeno.Node -> Result XMLString
     getValueAttr (findAttributeValue "value" -> Just v) = return v
     getValueAttr  aNode                                 = "Missing value attribute" `failHere` nodeName aNode
-    isValue (n, _) = stripNS n == "value"
 
 findAttributeValue :: XMLString -> Xeno.Node -> Maybe XMLString
-findAttributeValue name node = case find ((name==) . fst) $ Xeno.attributes node of
+findAttributeValue attrName node = case find ((attrName==) . fst) $ Xeno.attributes node of
   Just (_, v) -> Just v
   Nothing     -> Nothing
 
-getBaseAttribute = fromMaybe "" . findAttributeValue "base"
+getBaseAttribute :: Xeno.Node -> XMLString
+getBaseAttribute  = fromMaybe "" . findAttributeValue "base"
 
-newtype ComplexType = ComplexType Type
+--newtype ComplexType = ComplexType Type
 
 instance FromXML Attr where
   fromXML' = makeFromXML (attrAttr, attrElt) def
@@ -122,9 +121,9 @@ instance FromXML Attr where
       attrElt  cpl nod = case nodeName nod of
         "annotation" -> return cpl
         "simpleType" -> do
-          TypeDesc nam ty <- fromXML' nod
+          TypeDesc "" ty <- fromXML' nod
           return $ cpl { aType = ty }
-        other        -> unknownChildHandler nod
+        _other       -> unknownChildHandler nod
       attrAttr cpl attr@(aName, aVal) = case stripNS aName of
         "id"      -> return cpl -- ignore ids for now
         "type"    -> return $ cpl { aType = Ref aVal }
@@ -138,13 +137,14 @@ instance FromXML Attr where
         "default" -> return $ cpl { use = Default aVal }
         "fixed"   -> return $ cpl { use = Default aVal } -- TODO: treat fixed as default for now
         "form"    -> return   cpl -- ignore qualification check for now
-        other     -> unknownAttrHandler attr
+        _other    -> unknownAttrHandler attr
 
+{-
 instance FromXML ComplexType where
   fromXML' node = goComplex (ComplexType def) node
     where
       goComplex = makeFromXML (cplxAttr, cplxElt)
-      cplxAttr cpl (aName, aVal) = case stripNS aName of
+      cplxAttr _cpl (aName, aVal) = case stripNS aName of
           otherwise -> unknownChildHandler node
       cplxElt (ComplexType cpl) node = case nodeName node of
           "attribute" -> do
@@ -161,6 +161,7 @@ instance FromXML ComplexType where
           handleContent cons = do
              contents :: [Element] <- mapM fromXML $ children node
              return $ ComplexType $ cpl { subs = cons contents } -- TODO: handle restricted better
+ -}
 
 -- | Find line number of the error from ByteString index.
 lineNo :: Int -> BS.ByteString -> Int
@@ -186,7 +187,7 @@ parseSchema input = do
             <> ":\n"                     <> msg
           return Nothing
         Left  err -> do
-          --hPutStrLn stderr $ show err
+          hPutStrLn stderr $ show err
           return Nothing
         Right schema -> do
           --putStrLn "XML Schema extracted"
@@ -198,11 +199,11 @@ parseSchema input = do
 schemaAttr :: AttrHandler Schema
 schemaAttr sch attr@(aName, aVal) =
   case splitNS aName of
-    (_,       "targetNamespace"     ) -> Right sch
-    (_,       "elementFormDefault"  ) -> Right sch
-    (_,       "attributeFormDefault") -> Right sch
-    (_,       "xmlns"               ) -> Right sch
-    ("xmlns", _                     ) -> Right sch
+    (_,       "targetNamespace"     ) -> return $ sch { namespace = aVal }
+    (_,       "elementFormDefault"  ) -> return sch
+    (_,       "attributeFormDefault") -> return sch
+    (_,       "xmlns"               ) -> return sch
+    ("xmlns", _                     ) -> return sch
     _                                 -> unknownAttrHandler attr
 
 schemaElt :: ChildHandler Schema
@@ -216,8 +217,8 @@ schemaElt sch nod =
       _ -> return sch -- unknownChildHandler elt val
   where
     handleType = do
-      TypeDesc name ty <- fromXML nod
-      return $ addType name ty sch
+      TypeDesc label ty <- fromXML nod
+      return $ addType label ty sch
       -- TODO: Find a way to add nested named elements into dictionary.
 
 
@@ -232,14 +233,14 @@ eltAttrHandler elt attr@(aName, aVal) =
     "type"      -> return $ elt { eType = Ref aVal }
     "minOccurs" ->
       case BS.readInt aVal of
-        Nothing       -> ("Attribute minOccurs should be integer, but is '" <> aVal <> "'")
-                             `failHere` aVal
         Just  (r, "") -> return $ elt { minOccurs = r }
+        _             -> ("Attribute minOccurs should be integer, but is '" <> aVal <> "'")
+                             `failHere` aVal
     "maxOccurs" -> 
        case readMaxOccurs aVal of
          Left  err -> Left     err
          Right r   -> return $ elt { maxOccurs = r }
-    otherwise   -> unknownAttrHandler attr
+    _           -> unknownAttrHandler attr
 
 readMaxOccurs :: BS.ByteString -> Result MaxOccurs
 readMaxOccurs  "unbounded"                 = return $ MaxOccurs maxBound

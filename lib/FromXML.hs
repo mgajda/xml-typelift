@@ -61,14 +61,6 @@ makeFromXML (attrHandler, childHandler) pristine aNode = do
   withAttrs <- foldM attrHandler pristine  (Xeno.attributes aNode)
   foldM                          childHandler  withAttrs (Xeno.children   aNode)
 
-{-# INLINE CONLIKE catchAttrFailure #-}
-catchAttrFailure :: (elt -> XenoAttribute -> Either BS.ByteString elt)
-                 ->  AttrHandler                           elt
-catchAttrFailure handler elt attr@(aName, _) =
-  case handler elt attr of
-    Left  errMsg -> errMsg `failHere` aName
-    Right r      -> Right  r
-
 {-# INLINE CONLIKE getStartIndex #-}
 getStartIndex :: BS.ByteString -> Int
 getStartIndex (PS _ from _) = from
@@ -84,9 +76,9 @@ bshow = BS.pack . show
 
 {-# INLINABLE splitNS #-}
 splitNS :: ByteString -> (ByteString, ByteString)
-splitNS name = (dropLastByte ns, elt)
+splitNS eltName = (dropLastByte ns, elt)
   where
-    (ns, elt) = BS.breakEnd (==':') name
+    (ns, elt) = BS.breakEnd (==':') eltName
 
 -- | Drop last character
 dropLastByte :: BS.ByteString -> BS.ByteString
