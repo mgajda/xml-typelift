@@ -47,6 +47,7 @@ instance FromXML TypeDesc where
           "abstract" -> return tyd -- ignore for now
           "final"    -> return tyd -- ignore for now
           "block"    -> return tyd -- ignore for now
+          "mixed"    -> return tyd -- TODO: ignore for now
           "type"     -> return $ tyd { ty    = Ref aVal }
           "ref"      -> return $ tyd { ty    = Ref aVal }
           _          -> unknownAttrHandler attr
@@ -173,7 +174,7 @@ parseSchema input = do
       report $ show err
       return Nothing
     Right dom -> do
-      putStrLn "DOM parsed"
+      --putStrLn "DOM parsed"
       case fromXML dom of
         Left (Xeno.XenoParseError i msg) -> do
           BS.hPutStrLn stderr $
@@ -185,10 +186,10 @@ parseSchema input = do
             <> ":\n"                     <> msg
           return Nothing
         Left  err -> do
-          hPutStrLn stderr $ show err
+          --hPutStrLn stderr $ show err
           return Nothing
         Right schema -> do
-          putStrLn "XML Schema extracted"
+          --putStrLn "XML Schema extracted"
           return $ Just schema
   where
     report :: Show a => a -> IO ()
