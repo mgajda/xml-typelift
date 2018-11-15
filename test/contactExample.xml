@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ex:Contacts xmlns:ex="http://www.example.org/contactExample"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.example.org/contactExample contactExample.xsd"
+    LastUpdate="2003-05-07">
+  <ex:Person>
+    <ex:PersonGivenName/>
+    <ex:PersonFamilyName/>
+    <ex:PersonBirthDate/>
+  </ex:Person>
+</ex:Contacts>
