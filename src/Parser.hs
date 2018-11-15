@@ -4,6 +4,7 @@
 {-# LANGUAGE LambdaCase           #-}
 {-# LANGUAGE NamedFieldPuns       #-}
 {-# LANGUAGE OverloadedStrings    #-}
+{-# LANGUAGE RecordWildCards      #-}
 {-# LANGUAGE ScopedTypeVariables  #-}
 {-# LANGUAGE Strict               #-}
 {-# LANGUAGE ViewPatterns         #-}
@@ -70,28 +71,43 @@ instance FromXML TypeDesc where
              TypeDesc _ ty <- foldM typeElt tyd $ Xeno.children     node
              return tyd { ty = Extension { base  = getBaseAttribute node
                                          , mixin = ty } }
-          "all"            -> handleContent allModel
-          "sequence"       -> handleContent Seq
-          "choice"         -> handleContent Choice
+          "all"            -> handleTyPart All
+          "sequence"       -> handleTyPart Seq
+          "choice"         -> handleTyPart Choice
           _                -> unknownChildHandler "type description" node
         where
           -- Our parsing model does not take account of All vs Seq difference
-          allModel = Seq . map fixOccurs
-            where
-              fixOccurs elt = elt { minOccurs=1, maxOccurs=MaxOccurs 1 }
-          {-handleMixin = do
-            restr :: Restriction <- fromXML node-}
           TypeDesc tName ty = tyd
-          handleContent :: ([Element] -> Schema.Content) -> Result TypeDesc
-          handleContent cons = do
-            subelts :: [Element] <- mapM fromXML $ children node
-            return $ TypeDesc tName $ ty { subs = cons subelts } -- TODO: handle restricted better
+          handleTyPart :: ([TyPart] -> TyPart) -> Result TypeDesc
+          handleTyPart cons = do
+            inner <- parseTyPart cons node
+            return $ TypeDesc tName $ ty { inner } -- TODO: handle restricted better
           nested = goTypeDesc tyd node
   fromXML  node = case nodeName node of
                     "simpleType"  -> fromXML' node
                     "complexType" -> fromXML' node
                     otherName     -> ("Node expected to contain type descriptor is named '"
                                     <> otherName <> "'") `failHere` otherName
+
+instance FromXML TyPart where
+  fromXML' = fromXML
+  fromXML node = case nodeName node of
+      "choice"  -> parseTyPart Choice node
+      "all"     -> parseTyPart All    node
+      "seq"     -> parseTyPart Seq    node
+      "element" -> Elt <$> fromXML    node
+
+-- | Parse type particle, and fix missing attribute values in case of xs:all
+parseTyPart :: ([TyPart] -> TyPart) -> Xeno.Node -> Result TyPart
+parseTyPart cons node = (postprocess . cons) <$> mapM fromXML (Xeno.children node)
+
+-- | Fix missing minOccurs/maxOccurs in xs:all
+postprocess :: TyPart -> TyPart
+postprocess (All typas) = All (fixOccurs <$> typas)
+  where
+    fixOccurs (Elt elt@(Schema.Element {..})) = Elt $ elt { minOccurs=1, maxOccurs=MaxOccurs 1 }
+    fixOccurs other                           = other
+postprocess  other      = other
 
 handleRestriction :: Xeno.Node -> Result Type
 handleRestriction node = do

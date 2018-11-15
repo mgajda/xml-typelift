@@ -100,7 +100,7 @@ data Type =
       } -- ^ Extension of complexType
   | Complex {
         attrs :: {-# UNPACK #-} ![Attr]
-      , subs  :: {-# UNPACK #-} !Content
+      , inner :: {-# UNPACK #-} !TyPart
       }
   deriving (Eq, Ord, Show, Generic, NFData)
 
@@ -145,18 +145,15 @@ data Use =
 instance Default Use where
   def = Optional
 
-data Content = Seq    ![Element]
-             | Choice ![Element]
+data TyPart = Seq    [TyPart]
+            | Choice [TyPart]
+            | All    [TyPart]
+            | Elt    Element
              -- no support for xs:all yet
   deriving (Eq, Ord, Show, Generic, NFData)
 
-instance Default Content where
+instance Default TyPart where
   def = Seq []
-
--- | Append `Element` to whatever `Content` type we have.
-contentAppend :: Content -> Element -> Content
-contentAppend (Choice cs) c = Choice (c:cs)
-contentAppend (Seq    ss) c = Seq    (c:ss)
 
 {-
 instance NFData Attr where
