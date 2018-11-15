@@ -4,7 +4,7 @@ cabal-version: >= 1.10
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 7da50f80b6e28f82c1152e4c57dacc8ee8b893a8a623c82f2b740a2abbf8a9eb
+-- hash: 50f28303355fd76a244797ab4907b3e6ccc6d50a9b52455351b513e767ab4a38
 
 name:           xml-typelift
 version:        0.0.1
@@ -51,6 +51,7 @@ library
 executable xml-typelift
   main-is: Main.hs
   other-modules:
+      Analyze
       Errors
       Parser
       Schema
@@ -75,6 +76,7 @@ benchmark memory
   type: exitcode-stdio-1.0
   main-is: Main.hs
   other-modules:
+      Analyze
       Errors
       Parser
       Schema
@@ -101,6 +103,7 @@ benchmark speed
   type: exitcode-stdio-1.0
   main-is: Main.hs
   other-modules:
+      Analyze
       Errors
       Parser
       Schema

@@ -58,18 +58,20 @@ decodeXML input = case Xeno.parse input of
 -- {-# CONLIKE   makeFromXML #-}
 makeFromXML :: (AttrHandler e, ChildHandler e) -> e -> Xeno.Node -> Result e
 makeFromXML (attrHandler, childHandler) pristine aNode = do
-  withAttrs <- foldM attrHandler pristine  (Xeno.attributes aNode)
-  foldM                          childHandler  withAttrs (Xeno.children   aNode)
+  withAttrs <- foldM attrHandler pristine               (Xeno.attributes aNode)
+  foldM                          childHandler withAttrs (Xeno.children   aNode)
 
 {-# INLINE CONLIKE getStartIndex #-}
 getStartIndex :: BS.ByteString -> Int
 getStartIndex (PS _ from _) = from
 
-{-# INLINE CONLIKE unknownAttrHandler #-}
-unknownAttrHandler :: XenoAttribute -> Result elt
-unknownAttrHandler (splitNS -> (ns, aName), aVal) = ("Unhandled attribute in namespace '" <> ns
-                                                  <> "' : '" <> aName <> "' = '" <> aVal <> "'")
-                                                       `failHere` aName
+{-# NOINLINE unknownAttrHandler #-}
+unknownAttrHandler :: BS.ByteString -> XenoAttribute -> Result elt
+unknownAttrHandler desc (splitNS -> (ns, aName), aVal) =
+  (  "Unhandled attribute of " <> desc
+  <> " in namespace '" <> ns
+  <> "' : '" <> aName <> "' = '" <> aVal <> "'")
+        `failHere` aName
 
 bshow :: Show a => a -> BS.ByteString
 bshow = BS.pack . show
@@ -96,10 +98,10 @@ revTake i (PS ptr from to) = PS ptr (end-len) len
 stripNS :: ByteString -> ByteString
 stripNS = snd . splitNS
 
-{-# INLINE CONLIKE unknownChildHandler #-}
-unknownChildHandler     :: Xeno.Node -> Result elt
-unknownChildHandler node = ("Unhandled node '" <> eltName <> "'")
-                              `failHere` eltName
+{-# NOINLINE unknownChildHandler #-}
+unknownChildHandler          :: BS.ByteString -> Xeno.Node -> Result elt
+unknownChildHandler desc node = ("Unhandled child of " <> desc <> " '" <> eltName <> "'")
+                                   `failHere` eltName
   where
     eltName = Xeno.name node
 
