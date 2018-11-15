@@ -55,8 +55,8 @@ decodeXML input = case Xeno.parse input of
 -- | There isn't much point in keeping this one uninlined!
 {-# INLINE CONLIKE makeFromXML #-}
 -- {-# CONLIKE   makeFromXML #-}
-makeFromXML :: (e, AttrHandler e, ChildHandler e) -> Xeno.Node -> Result e
-makeFromXML (pristine, attrHandler, childHandler) aNode = do
+makeFromXML :: (AttrHandler e, ChildHandler e) -> e -> Xeno.Node -> Result e
+makeFromXML (attrHandler, childHandler) pristine aNode = do
   withAttrs <- foldM attrHandler pristine  (Xeno.attributes aNode)
   foldM                          childHandler  withAttrs (Xeno.children   aNode)
 
@@ -73,10 +73,10 @@ getStartIndex :: BS.ByteString -> Int
 getStartIndex (PS _ from _) = from
 
 {-# INLINE CONLIKE unknownAttrHandler #-}
-unknownAttrHandler :: AttrHandler elt
-unknownAttrHandler   _ (splitNS -> (ns, aName), aVal) = ("Unhandled attribute in namespace '" <> ns
-                                                      <> "' : '" <> aName <> "' = '" <> aVal <> "'")
-                                                           `failHere` aName
+unknownAttrHandler :: XenoAttribute -> Result elt
+unknownAttrHandler (splitNS -> (ns, aName), aVal) = ("Unhandled attribute in namespace '" <> ns
+                                                  <> "' : '" <> aName <> "' = '" <> aVal <> "'")
+                                                       `failHere` aName
 
 bshow :: Show a => a -> BS.ByteString
 bshow = BS.pack . show
@@ -104,8 +104,9 @@ stripNS :: ByteString -> ByteString
 stripNS = snd . splitNS
 
 {-# INLINE CONLIKE unknownChildHandler #-}
-unknownChildHandler :: ChildHandler elt
-unknownChildHandler  _  node = ("Unhandled node '" <> eltName <> "'") `failHere` eltName
+unknownChildHandler     :: Xeno.Node -> Result elt
+unknownChildHandler node = ("Unhandled node '" <> eltName <> "'")
+                              `failHere` eltName
   where
     eltName = Xeno.name node
 

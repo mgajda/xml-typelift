@@ -6,6 +6,7 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE ViewPatterns        #-}
+{-# GHC_OPTIONS -fno-warn-orphans #-}
 module Parser where
 
 import Prelude hiding (id)
@@ -24,23 +25,98 @@ import           Schema
 import           Errors
 import           FromXML
 
+-- * These are internal types used only for convenient class definition.
+--   Should not be exposed, but rather Schema types should be.
 data TypeDesc =
-  TypeDesc { tName :: BS.ByteString
-           , ty    :: Type }
+  TypeDesc { tName :: !BS.ByteString
+           , ty    :: !Type
+           }
+
+
 
 instance FromXML TypeDesc where
-  fromXML' node = makeFromXML (TypeDesc "" $ Complex [] def, typeAttr, typeElt) node
+  fromXML' node = goTypeDesc init node
     where
+      init :: TypeDesc
+      init = TypeDesc "" $ Complex [] def
+      goTypeDesc :: TypeDesc -> Node -> Result TypeDesc
+      goTypeDesc = makeFromXML (typeAttr, typeElt)
       typeAttr tyd attr@(aName, aVal) =
         case stripNS aName of
-          "name" -> return $ tyd { tName = aVal }
-          _  -> unknownAttrHandler tyd attr
-      typeElt  = unknownChildHandler
+          "name"     -> return $ tyd { tName = aVal }
+          "abstract" -> return tyd -- ignore for now
+          "final"    -> return tyd -- ignore for now
+          "block"    -> return tyd -- ignore for now
+          "type"     -> return $ tyd { ty = Ref aVal }
+          "ref"      -> return $ tyd { ty = Ref aVal }
+          _          -> unknownAttrHandler attr
+      typeElt tyd node =
+        case nodeName node of
+          "annotation"  -> return tyd -- ignore annotations
+          "attribute"   -> do
+             attr <- fromXML' node
+             return $ let ty@TypeDesc { ty = cpl@Complex { attrs, subs } } = tyd
+                      in tyd { ty = cpl { attrs = attr:attrs } }
+          "complexType"    -> nested
+          "complexContent" -> nested
+          "simpleContent"  -> nested
+          otherwise     -> unknownChildHandler node
+        where
+          nested = do
+             ComplexType ty <- fromXML' node
+             return tyd { ty = ty }
   fromXML  node = case nodeName node of
                     "simpleType"  -> fromXML' node
                     "complexType" -> fromXML' node
                     otherName     -> ("Node expected to contain type descriptor is named '"
                                     <> otherName <> "'") `failHere` otherName
+
+newtype ComplexType = ComplexType Type
+
+instance FromXML Attr where
+  fromXML' = makeFromXML (attrAttr, attrElt) def
+    where
+      attrElt  cpl nod = case nodeName nod of
+        "annotation" -> return cpl
+        "simpleType" -> do
+          TypeDesc nam ty <- fromXML' nod
+          return $ cpl { aType = ty }
+        other        -> unknownChildHandler nod
+      attrAttr cpl attr@(aName, aVal) = case stripNS aName of
+        "id"      -> return cpl -- ignore ids for now
+        "type"    -> return $ cpl { aType = Ref aVal }
+        "use"     -> case aVal of
+                       "prohibited" -> return cpl -- we can safely ignore, since we do not fully validate
+                       "optional"   -> return cpl { use = Optional }
+                       "required"   -> return cpl { use = Required }
+                       _            -> ("Cannot parse attribute use qualifier: '" <> aVal <> "'")
+                                           `failHere` aVal
+        "default" -> return $ cpl { use = Default aVal }
+        "fixed"   -> return $ cpl { use = Default aVal } -- TODO: treat fixed as default for now
+        "form"    -> return   cpl -- ignore qualification check for now
+        other     -> unknownAttrHandler attr
+
+instance FromXML ComplexType where
+  fromXML' node = goComplex (ComplexType def) node
+    where
+      goComplex = makeFromXML (cplxAttr, cplxElt)
+      cplxAttr cpl (aName, aVal) = case stripNS aName of
+          otherwise -> unknownChildHandler node
+      cplxElt (ComplexType cpl) node = case nodeName node of
+          "attribute" -> do
+             attr <- fromXML' node
+             return $ ComplexType $ cpl { attrs = attr:attrs cpl }
+          "sequence"       -> handleContent Seq
+          "choice"         -> handleContent Choice
+          "complexContent" -> nested
+          "simpleContent"  -> nested
+          other            -> unknownChildHandler node
+        where
+          nested = goComplex (ComplexType cpl) node
+          handleContent :: ([Element] -> Schema.Content) -> Result ComplexType
+          handleContent cons = do
+             contents :: [Element] <- mapM fromXML $ children node
+             return $ ComplexType $ cpl { subs = cons contents } -- TODO: handle restricted better
 
 -- | Find line number of the error from ByteString index.
 lineNo :: Int -> BS.ByteString -> Int
@@ -61,7 +137,7 @@ parseSchema input = do
                "Decoding error in line " <> bshow (lineNo i input)
             <> " byte index "            <> bshow         i
             <> " at:\n"
-            <> revTake 16 (BS.take i input)
+            <> revTake 32 (BS.take i input)
             <> BS.takeWhile ('\n'/=) (BS.take 40 (BS.drop i input))
             <> ":\n"                     <> msg
           return Nothing
@@ -83,7 +159,7 @@ schemaAttr sch attr@(aName, aVal) =
     (_,       "attributeFormDefault") -> Right sch
     (_,       "xmlns"               ) -> Right sch
     ("xmlns", _                     ) -> Right sch
-    _                                 -> unknownAttrHandler sch attr
+    _                                 -> unknownAttrHandler attr
 
 schemaElt :: ChildHandler Schema
 schemaElt sch nod =
@@ -103,7 +179,7 @@ schemaElt sch nod =
 
 instance FromXML Element where
   fromXML  = fromXML'
-  fromXML' = makeFromXML (def , eltAttrHandler, eltChildHandler)
+  fromXML' = makeFromXML (eltAttrHandler, eltChildHandler) def
 
 eltAttrHandler elt attr@(aName, aVal) =
   case stripNS aName of
@@ -118,7 +194,7 @@ eltAttrHandler elt attr@(aName, aVal) =
        case readMaxOccurs aVal of
          Left  err -> Left     err
          Right r   -> return $ elt { maxOccurs = r }
-    otherwise   -> unknownAttrHandler elt attr
+    otherwise   -> unknownAttrHandler attr
 
 readMaxOccurs :: BS.ByteString -> Result MaxOccurs
 readMaxOccurs  "unbounded"                 = return $ MaxOccurs maxBound
@@ -126,7 +202,7 @@ readMaxOccurs (BS.readInt -> Just (v, "")) = return $ MaxOccurs v
 readMaxOccurs  other                       = ("Cannot decode '" <> other <> "' as maxoccurs value")
                                                  `failHere` other
 
-eltChildHandler = unknownChildHandler
+eltChildHandler _ = unknownChildHandler
 
 -- attrHandler  :: AttrHandler elt
 --  attrHandler   = defaultAttrHandler
@@ -139,7 +215,7 @@ instance FromXML Schema where
       "schema"  -> fromXML' n
       otherName -> ("Top element should be schema, found element:" <> bshow otherName)
                        `failHere` otherName
-  fromXML' = makeFromXML (def, schemaAttr, schemaElt)
+  fromXML' = makeFromXML (schemaAttr, schemaElt) def
 
 nodeName :: Node -> ByteString
 nodeName = stripNS . Xeno.name
