@@ -4,7 +4,7 @@ cabal-version: >= 1.10
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 50f28303355fd76a244797ab4907b3e6ccc6d50a9b52455351b513e767ab4a38
+-- hash: 6f34cfbd43eca2f9b5dd91ed9afa1bc30d2a31f6bad888f2672e15c695407875
 
 name:           xml-typelift
 version:        0.0.1
@@ -45,6 +45,7 @@ library
     , deepseq
     , filepath
     , mtl
+    , uniplate
     , xeno
   default-language: Haskell2010
 
@@ -69,6 +70,7 @@ executable xml-typelift
     , deepseq
     , filepath
     , mtl
+    , uniplate
     , xeno
   default-language: Haskell2010
 
@@ -95,6 +97,7 @@ benchmark memory
     , deepseq
     , filepath
     , mtl
+    , uniplate
     , weigh
     , xeno
   default-language: Haskell2010
@@ -122,6 +125,7 @@ benchmark speed
     , deepseq
     , filepath
     , mtl
+    , uniplate
     , weigh
     , xeno
   default-language: Haskell2010

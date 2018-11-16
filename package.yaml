@@ -32,6 +32,7 @@ dependencies:
   - filepath
   - mtl
   - xeno
+  - uniplate
 
 library:
   source-dirs:

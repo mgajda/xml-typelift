@@ -22,7 +22,7 @@ testExpr = forM_ testFiles $ \filename -> do
       putStrLn $ "Successfully parsed " <> filename
       let (analyzed, schemaErrors) = analyze schema
       null schemaErrors `unless` mapM_ print schemaErrors
-      print analyzed
+      print $ check analyzed
   where
     testFiles = ["test/person.xsd"
                 ,"test/simple.xsd"

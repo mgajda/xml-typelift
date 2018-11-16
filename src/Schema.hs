@@ -1,5 +1,6 @@
 {-# LANGUAGE BangPatterns               #-}
 {-# LANGUAGE DeriveGeneric              #-}
+{-# LANGUAGE DeriveDataTypeable         #-}
 {-# LANGUAGE DeriveAnyClass             #-}
 {-# LANGUAGE NamedFieldPuns             #-}
 {-# LANGUAGE OverloadedStrings          #-}
@@ -13,7 +14,9 @@ import Control.DeepSeq
 import Data.ByteString.Char8 as BS
 import Data.Set as Set
 import Data.Map
+import Data.Data
 import GHC.Generics
+import Data.Generics.Uniplate.Data
 
 class Default a where
   def :: a
@@ -24,7 +27,7 @@ data Schema = Schema {
   , tops      ::                ![Element]          -- ^ Possible top level elements
   , namespace :: {-# UNPACK #-} !XMLString
   }
-  deriving (Eq, Ord, Show, Generic, NFData)
+  deriving (Eq, Ord, Show, Generic, NFData, Data, Typeable)
 
 instance Default Schema where
   def = Schema Data.Map.empty [] ""
@@ -33,10 +36,10 @@ instance Default Schema where
 type XMLString = BS.ByteString
 
 newtype ID = ID XMLString
-  deriving (Show, Read, Eq, Ord, Generic, NFData)
+  deriving (Show, Read, Eq, Ord, Generic, NFData, Data, Typeable)
 
 newtype MaxOccurs = MaxOccurs Int
-  deriving (Eq, Ord, Bounded, Generic, NFData)
+  deriving (Eq, Ord, Bounded, Generic, NFData, Data, Typeable)
 
 instance Show MaxOccurs where
   showsPrec _ (isUnbounded -> True) = ("unbounded"++)
@@ -54,7 +57,7 @@ data Element = Element {
   , eType           :: !Type
   , targetNamespace :: !XMLString
   }
-  deriving (Eq, Ord, Show, Generic, NFData)
+  deriving (Eq, Ord, Show, Generic, NFData, Data, Typeable)
 
 isUnbounded :: MaxOccurs -> Bool
 isUnbounded i | i==maxBound = True
@@ -83,7 +86,7 @@ data Restriction =
     Enum    ![XMLString]
   | Pattern   XMLString
   | None -- ^ No restriction expressible here
-  deriving (Eq, Ord, Show, Generic, NFData)
+  deriving (Eq, Ord, Show, Generic, NFData, Data, Typeable)
 
 instance Default Restriction where
   def = None
@@ -102,7 +105,7 @@ data Type =
         attrs :: {-# UNPACK #-} ![Attr]
       , inner :: {-# UNPACK #-} !TyPart
       }
-  deriving (Eq, Ord, Show, Generic, NFData)
+  deriving (Eq, Ord, Show, Generic, NFData, Data, Typeable)
 
 predefinedTypes :: Set.Set XMLString
 predefinedTypes = Set.fromList [
@@ -131,7 +134,7 @@ data Attr = Attr {
   , aType :: {-# UNPACK #-} !Type
   , id    ::                 Maybe ID
   }
-  deriving (Eq, Ord, Show, Generic, NFData)
+  deriving (Eq, Ord, Show, Generic, NFData, Data, Typeable)
 
 instance Default Attr where
   def = Attr "" def def Nothing
@@ -140,7 +143,7 @@ data Use =
     Optional
   | Default XMLString
   | Required
-  deriving (Eq, Ord, Show, Generic, NFData)
+  deriving (Eq, Ord, Show, Generic, NFData, Data, Typeable)
 
 instance Default Use where
   def = Optional
@@ -150,7 +153,7 @@ data TyPart = Seq    [TyPart]
             | All    [TyPart]
             | Elt    Element
              -- no support for xs:all yet
-  deriving (Eq, Ord, Show, Generic, NFData)
+  deriving (Eq, Ord, Show, Generic, NFData, Data, Typeable)
 
 instance Default TyPart where
   def = Seq []
