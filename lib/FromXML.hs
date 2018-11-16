@@ -126,8 +126,9 @@ displayException input (Xeno.XenoParseError i msg) =
             <> lineContentAfterError
             <> "\n" <> pointer
   where
-    lineContentBeforeError = snd $ BS.spanEnd   ('\n'/=) $ revTake 40 $ BS.take i input
-    lineContentAfterError  =       BS.takeWhile ('\n'/=) $ BS.take 40 $ BS.drop i input
+    lineContentBeforeError = snd $ BS.spanEnd   eoln $ revTake 40 $ BS.take i input
+    lineContentAfterError  =       BS.takeWhile eoln $ BS.take 40 $ BS.drop i input
     pointer                = BS.replicate (BS.length lineContentBeforeError) ' ' <> "^"
+    eoln ch                = ch /= '\n' && ch /= '\r'
 displayException _      err                        = bshow err
 
