@@ -16,7 +16,7 @@ import Data.Set as Set
 import Data.Map
 import Data.Data
 import GHC.Generics
-import Data.Generics.Uniplate.Data
+import Data.Generics.Uniplate.Data()
 
 class Default a where
   def :: a

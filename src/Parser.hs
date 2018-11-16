@@ -19,7 +19,7 @@ import           Data.ByteString.Char8(ByteString)
 import           Data.List(find)
 import           Data.Maybe(catMaybes, fromMaybe)
 import qualified Data.Map as Map
-import           System.IO(stderr, hPutStrLn)
+import           System.IO(stderr)
 import           Text.Read(readMaybe)
 
 import           Xeno.DOM   as Xeno
@@ -68,9 +68,9 @@ instance FromXML TypeDesc where
              restr <- handleRestriction node
              return tyd { ty = restr }
           "extension"      -> do
-             TypeDesc _ ty <- foldM typeElt tyd $ Xeno.children     node
+             TypeDesc _ newTy <- foldM typeElt tyd $ Xeno.children     node
              return tyd { ty = Extension { base  = getBaseAttribute node
-                                         , mixin = ty } }
+                                         , mixin = newTy } }
           "all"            -> handleTyPart All
           "sequence"       -> handleTyPart Seq
           "choice"         -> handleTyPart Choice

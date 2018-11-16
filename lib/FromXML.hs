@@ -125,5 +125,5 @@ displayException input (Xeno.XenoParseError i msg) =
             <> revTake 32 (BS.take i input)
             <> BS.takeWhile ('\n'/=) (BS.take 40 (BS.drop i input))
             <> ":\n"                     <> msg
-displayException input  err                        = bshow err
+displayException _      err                        = bshow err
 

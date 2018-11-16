@@ -10,6 +10,7 @@ import Analyze
 import Parser
 import FromXML(printExceptions)
 
+whenJust :: Monad m => Maybe t -> (t -> m ()) -> m ()
 whenJust (Just x) act = act x
 whenJust  Nothing _   = return ()
 

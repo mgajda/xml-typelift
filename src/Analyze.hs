@@ -1,3 +1,4 @@
+{-# LANGUAGE MonoLocalBinds    #-}
 {-# LANGUAGE NamedFieldPuns    #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes        #-}
@@ -22,26 +23,32 @@ analyze sch = (sch, [])
 -- | Check desired properties that should be kept after flattening
 check    :: Schema -> [SchemaError]
 check sch = mconcat [
-    test isRestriction          "Restrictions present"
-  , test isExtension            "Extensions present"
+  --test isRestriction          "Restrictions present"
+    test isExtension            "Extensions present"
   , test referenceToNonBaseType "Reference to non-base type"
   ]
   where
     -- | Test predicate on entire Schema, and return index of first violation, if present.
-    test pred msg = case catMaybes $ map pred $ universeBi sch of
+    test aTest msg = case catMaybes $ map aTest $ universeBi sch of
                       (i:_) -> [XenoParseError i msg]
                       []    -> []
 
 type Test t = Biplate Schema t => t -> Maybe Int
 
+{-
 -- | Tests to be performed:
+isRestriction :: Test Type
 isRestriction (Restriction {base}) = Just $ getStartIndex base
 isRestriction  _                   = Nothing
+ -}
 
+-- | Check if there are unexpanded extensions.
+isExtension :: Test Type
 isExtension   (Extension   {base}) = Just $ getStartIndex base
 isExtension    _                   = Nothing
 
-referenceToNonBaseType :: Type -> Maybe Int
+-- | Check if there are unexpanded references to user-defined types.
+referenceToNonBaseType :: Test Type
 referenceToNonBaseType (Ref aType) | stripNS aType `elem` predefinedTypes = Nothing
 referenceToNonBaseType (Ref aType)                                        = Just $ getStartIndex aType
 referenceToNonBaseType  _                                                 = Nothing
