@@ -188,38 +188,19 @@ instance FromXML ComplexType where
              return $ ComplexType $ cpl { subs = cons contents } -- TODO: handle restricted better
  -}
 
--- | Find line number of the error from ByteString index.
-lineNo :: Int -> BS.ByteString -> Int
-lineNo index bs = BS.count '\n'
-                $ BS.take index bs
-
 parseSchema :: BS.ByteString -> IO (Maybe Schema)
 parseSchema input = do
   case Xeno.parse input of
     Left  err -> do
-      report $ show err
+      BS.hPutStrLn stderr $ displayException input err
       return Nothing
     Right dom -> do
-      --putStrLn "DOM parsed"
       case fromXML dom of
-        Left (Xeno.XenoParseError i msg) -> do
-          BS.hPutStrLn stderr $
-               "Decoding error in line " <> bshow (lineNo i input)
-            <> " byte index "            <> bshow         i
-            <> " at:\n"
-            <> revTake 32 (BS.take i input)
-            <> BS.takeWhile ('\n'/=) (BS.take 40 (BS.drop i input))
-            <> ":\n"                     <> msg
-          return Nothing
-        Left  err -> do
-          hPutStrLn stderr $ show err
-          return Nothing
-        Right schema -> do
-          --putStrLn "XML Schema extracted"
+        Left  msg    -> do
+          BS.hPutStrLn stderr $ displayException input msg
+          return   Nothing
+        Right schema ->
           return $ Just schema
-  where
-    report :: Show a => a -> IO ()
-    report = hPutStrLn stderr . show
 
 schemaAttr :: AttrHandler Schema
 schemaAttr sch attr@(aName, aVal) =

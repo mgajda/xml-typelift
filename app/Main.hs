@@ -8,6 +8,7 @@ import           System.IO(stderr, hPutStrLn)
 
 import Analyze
 import Parser
+import FromXML(printExceptions)
 
 whenJust (Just x) act = act x
 whenJust  Nothing _   = return ()
@@ -15,14 +16,14 @@ whenJust  Nothing _   = return ()
 -- | For GHCid testing:
 testExpr :: IO ()
 testExpr = forM_ testFiles $ \filename -> do
-    putStrLn $ "Starting to process " <> filename
-    input <- BS.readFile filename
+    putStrLn     $ "Starting to process " <> filename
+    input       <- BS.readFile filename
     maybeSchema <- parseSchema input
     whenJust maybeSchema $ \schema -> do
       putStrLn $ "Successfully parsed " <> filename
       let (analyzed, schemaErrors) = analyze schema
-      null schemaErrors `unless` mapM_ print schemaErrors
-      print $ check analyzed
+      null schemaErrors `unless` printExceptions input schemaErrors
+      printExceptions input $ check analyzed
   where
     testFiles = ["test/person.xsd"
                 ,"test/simple.xsd"

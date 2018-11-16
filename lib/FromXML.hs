@@ -15,12 +15,15 @@ module FromXML(FromXML(..),
                splitNS,
                stripNS,
                bshow,
-               revTake
+               revTake,
+               printExceptions,
+               displayException
               ) where
 
 import           Control.Monad(foldM)
 import qualified Data.ByteString.Char8 as BS hiding (elem)
 import           Data.ByteString.Internal(ByteString(..))
+import           System.IO(stderr)
 import           Xeno.Types as Xeno
 import           Xeno.DOM as Xeno
 
@@ -104,4 +107,23 @@ unknownChildHandler desc node = ("Unhandled child of " <> desc <> " '" <> eltNam
                                    `failHere` eltName
   where
     eltName = Xeno.name node
+
+-- | Print schema errors with excerpts
+printExceptions :: BS.ByteString -> [XenoException] -> IO ()
+printExceptions i s = (BS.hPutStrLn stderr . displayException i) `mapM_` s
+
+-- | Find line number of the error from ByteString index.
+lineNo :: Int -> BS.ByteString -> Int
+lineNo index bs = BS.count '\n'
+                $ BS.take index bs
+
+displayException :: BS.ByteString -> XenoException -> BS.ByteString
+displayException input (Xeno.XenoParseError i msg) =
+               "Decoding error in line " <> bshow (lineNo i input)
+            <> " byte index "            <> bshow         i
+            <> " at:\n"
+            <> revTake 32 (BS.take i input)
+            <> BS.takeWhile ('\n'/=) (BS.take 40 (BS.drop i input))
+            <> ":\n"                     <> msg
+displayException input  err                        = bshow err
 

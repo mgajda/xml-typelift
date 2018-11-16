@@ -9,15 +9,11 @@ import           Data.Maybe(catMaybes)
 import qualified Data.ByteString as BS
 
 import FromXML(getStartIndex, stripNS)
+import Xeno.Types(XenoException(..))
 import Schema
 import Data.Generics.Uniplate.Operations
 
-data SchemaError =
-    SchemaError { site :: Int -- ByteString index to the relevant source
-                , msg  :: BS.ByteString
-                }
-  deriving (Show)
-
+type SchemaError = XenoException
 -- | TODO: use common code to visualize errors on the source
 
 analyze    :: Schema -> (Schema, [SchemaError])
@@ -33,7 +29,7 @@ check sch = mconcat [
   where
     -- | Test predicate on entire Schema, and return index of first violation, if present.
     test pred msg = case catMaybes $ map pred $ universeBi sch of
-                      (i:_) -> [SchemaError i msg]
+                      (i:_) -> [XenoParseError i msg]
                       []    -> []
 
 type Test t = Biplate Schema t => t -> Maybe Int
