@@ -119,11 +119,15 @@ lineNo index bs = BS.count '\n'
 
 displayException :: BS.ByteString -> XenoException -> BS.ByteString
 displayException input (Xeno.XenoParseError i msg) =
-               "Decoding error in line " <> bshow (lineNo i input)
-            <> " byte index "            <> bshow         i
+               "Decoding error in line " <> bshow (lineNo i input) <> ": "
+            <> msg
             <> " at:\n"
-            <> revTake 32 (BS.take i input)
-            <> BS.takeWhile ('\n'/=) (BS.take 40 (BS.drop i input))
-            <> ":\n"                     <> msg
+            <> lineContentBeforeError
+            <> lineContentAfterError
+            <> "\n" <> pointer
+  where
+    lineContentBeforeError = snd $ BS.spanEnd   ('\n'/=) $ revTake 40 $ BS.take i input
+    lineContentAfterError  =       BS.takeWhile ('\n'/=) $ BS.take 40 $ BS.drop i input
+    pointer                = BS.replicate (BS.length lineContentBeforeError) ' ' <> "^"
 displayException _      err                        = bshow err
 
