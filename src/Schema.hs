@@ -113,6 +113,8 @@ predefinedTypes = Set.fromList [
   , "string"
   , "token"
   , "integer"
+  , "positiveInteger"
+  , "float"
   , "date"
   ]
 

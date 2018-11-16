@@ -8,7 +8,7 @@ module Analyze(analyze, check) where
 import           Data.Maybe(catMaybes)
 import qualified Data.ByteString as BS
 
-import FromXML(getStartIndex)
+import FromXML(getStartIndex, stripNS)
 import Schema
 import Data.Generics.Uniplate.Operations
 
@@ -46,6 +46,6 @@ isExtension   (Extension   {base}) = Just $ getStartIndex base
 isExtension    _                   = Nothing
 
 referenceToNonBaseType :: Type -> Maybe Int
-referenceToNonBaseType (Ref aType) | aType `elem` predefinedTypes = Nothing
-referenceToNonBaseType (Ref aType)                                = Just $ getStartIndex aType
-referenceToNonBaseType  _                                         = Nothing
+referenceToNonBaseType (Ref aType) | stripNS aType `elem` predefinedTypes = Nothing
+referenceToNonBaseType (Ref aType)                                        = Just $ getStartIndex aType
+referenceToNonBaseType  _                                                 = Nothing
