@@ -1,7 +1,6 @@
-
 resolver: lts-12.17
 packages:
-- xeno
 - .
+- xeno
 extra-deps:
 - criterion-1.5.2.0

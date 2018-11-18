@@ -58,6 +58,8 @@ before_install:
   - echo $HCNUMVER
   - rvm use 2.1 --install --binary --fuzzy
   - rake hlint:install[2.0.9]
+  - git submodule sync
+  - git submodule update
 
 install:
   - cabal --version

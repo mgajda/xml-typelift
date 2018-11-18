@@ -1,3 +1,4 @@
 [submodule "xeno"]
 	path = xeno
-	url = https://github.com/ocramz/xeno.git
+        url = https://github.com/ocramz/xeno.git
+        branch = errorReporting
