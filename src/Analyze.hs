@@ -14,12 +14,14 @@ import Xeno.Types(XenoException(..))
 import Schema
 import Data.Generics.Uniplate.Operations
 
+-- * Analysis
 type SchemaError = XenoException
 -- | TODO: use common code to visualize errors on the source
 
 analyze    :: Schema -> (Schema, [SchemaError])
 analyze sch = (sch, [])
 
+-- * Quality check after analysis
 -- | Check desired properties that should be kept after flattening
 check    :: Schema -> [SchemaError]
 check sch = mconcat [
@@ -34,6 +36,8 @@ check sch = mconcat [
                       []    -> []
 
 type Test t = Biplate Schema t => t -> Maybe Int
+
+
 
 {-
 -- | Tests to be performed:

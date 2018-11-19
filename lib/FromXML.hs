@@ -55,9 +55,10 @@ decodeXML input = case Xeno.parse input of
 {-# INLINE CONLIKE makeFromXML #-}
 -- {-# CONLIKE   makeFromXML #-}
 makeFromXML :: (AttrHandler e, ChildHandler e) -> e -> Xeno.Node -> Result e
-makeFromXML (attrHandler, childHandler) pristine aNode = do
-  withAttrs <- foldM attrHandler pristine               (Xeno.attributes aNode)
-  foldM                          childHandler withAttrs (Xeno.children   aNode)
+makeFromXML         (attrHandler,
+                     childHandler) pristine                    aNode = do
+  withAttrs <- foldM attrHandler   pristine  $ Xeno.attributes aNode
+  foldM              childHandler  withAttrs $ Xeno.children   aNode
 
 {-# NOINLINE unknownAttrHandler #-}
 unknownAttrHandler :: BS.ByteString -> XenoAttribute -> Result elt

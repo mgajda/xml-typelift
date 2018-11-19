@@ -92,10 +92,11 @@ instance FromXML TypeDesc where
 instance FromXML TyPart where
   fromXML' = fromXML
   fromXML node = case nodeName node of
-      "choice"  -> parseTyPart Choice node
-      "all"     -> parseTyPart All    node
-      "seq"     -> parseTyPart Seq    node
-      "element" -> Elt <$> fromXML    node
+      "choice"  ->  parseTyPart Choice node
+      "all"     ->  parseTyPart All    node
+      "seq"     ->  parseTyPart Seq    node
+      "element" ->  Elt <$> fromXML    node
+      other     -> ("Unknown type particle '" <> bshow other <> "'") `failHere` other
 
 -- | Parse type particle, and fix missing attribute values in case of xs:all
 parseTyPart :: ([TyPart] -> TyPart) -> Xeno.Node -> Result TyPart

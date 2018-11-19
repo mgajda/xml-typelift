@@ -4,7 +4,7 @@ cabal-version: >= 1.10
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 6f34cfbd43eca2f9b5dd91ed9afa1bc30d2a31f6bad888f2672e15c695407875
+-- hash: 92f48534c96dc6d9c9c6089164625375484e790ddef4328b41fc3a85b3faa32f
 
 name:           xml-typelift
 version:        0.0.1
@@ -32,7 +32,12 @@ source-repository head
 
 library
   exposed-modules:
+      Analyze
+      CodeGen
       FromXML
+      Identifiers
+      Parser
+      Schema
   other-modules:
       Paths_xml_typelift
   hs-source-dirs:
@@ -44,15 +49,17 @@ library
     , containers
     , deepseq
     , filepath
+    , lens
     , mtl
     , uniplate
     , xeno
   default-language: Haskell2010
 
-executable xml-typelift
+executable xml-typelift-cli
   main-is: Main.hs
   other-modules:
       Analyze
+      CodeGen
       Errors
       Parser
       Schema
@@ -69,9 +76,11 @@ executable xml-typelift
     , containers
     , deepseq
     , filepath
+    , lens
     , mtl
     , uniplate
     , xeno
+    , xml-typelift
   default-language: Haskell2010
 
 benchmark memory
@@ -79,6 +88,7 @@ benchmark memory
   main-is: Main.hs
   other-modules:
       Analyze
+      CodeGen
       Errors
       Parser
       Schema
@@ -96,6 +106,7 @@ benchmark memory
     , criterion
     , deepseq
     , filepath
+    , lens
     , mtl
     , uniplate
     , weigh
@@ -107,6 +118,7 @@ benchmark speed
   main-is: Main.hs
   other-modules:
       Analyze
+      CodeGen
       Errors
       Parser
       Schema
@@ -124,6 +136,7 @@ benchmark speed
     , criterion >=1.5.0.0
     , deepseq
     , filepath
+    , lens
     , mtl
     , uniplate
     , weigh
