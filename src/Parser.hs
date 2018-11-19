@@ -221,6 +221,9 @@ schemaElt sch nod =
         return $ sch { tops = elt:tops sch }
       "simpleType"  -> handleType
       "complexType" -> handleType
+      "key"         -> return sch
+      "unique"      -> return sch
+      "keyref"      -> return sch
       _ -> return sch -- unknownChildHandler elt val
   where
     handleType = do
@@ -261,6 +264,9 @@ eltChildHandler elt node = case nodeName node of
     "complexType" -> handleType
     "simpleType"  -> handleType
     "annotation"  -> return     elt -- ignore
+    "key"         -> return     elt
+    "unique"      -> return     elt
+    "keyref"      -> return     elt
     _             -> unknownChildHandler "element" node
   where
     handleType = do

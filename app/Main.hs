@@ -1,12 +1,14 @@
 module Main(main, testExpr) where
 
 import           Control.Monad
-import qualified Data.ByteString.Char8 as BS
+import qualified Data.ByteString.Char8   as BS
+import qualified Data.ByteString.Builder as B
 import           System.Environment
 import           System.Exit(exitFailure)
-import           System.IO(stderr, hPutStrLn)
+import           System.IO(stdout, stderr, hPutStrLn)
 
 import Analyze
+import CodeGen
 import Parser
 import FromXML(printExceptions)
 
@@ -25,11 +27,13 @@ testExpr = forM_ testFiles $ \filename -> do
       let (analyzed, schemaErrors) = analyze schema
       null schemaErrors `unless` printExceptions input schemaErrors
       printExceptions input $ check analyzed
+      B.hPutBuilder stdout $ codegen schema
   where
     testFiles = ["test/person.xsd"
                 ,"test/simple.xsd"
                 ,"test/test.xsd"
-                ,"../tuxml/tuxml_schema-883.xsd"]
+                ,"../tuxml/tuxml_schema-883.xsd"
+                ]
 
 main :: IO ()
 main  = do
