@@ -13,11 +13,10 @@ import qualified Data.Char as Char
 
 -- * Similar to JSON Autotype...
 -- Making valid Haskell identifier out of text
-normalizeFieldName ::  BS.ByteString -> BS.ByteString -> BS.ByteString
-normalizeFieldName identifier = escapeKeywords                 .
-                                uncapitalize                   .
-                               (normalizeTypeName identifier <>) .
-                                normalizeTypeName
+normalizeFieldName :: BS.ByteString -> BS.ByteString
+normalizeFieldName = escapeKeywords                 .
+                     uncapitalize                   .
+                     normalizeTypeName
 
 keywords :: Set.Set BS.ByteString
 keywords  = Set.fromList ["type", "data", "module", "class", "where", "let", "do"]

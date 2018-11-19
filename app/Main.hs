@@ -23,7 +23,7 @@ testExpr = forM_ testFiles $ \filename -> do
     input       <- BS.readFile filename
     maybeSchema <- parseSchema input
     whenJust maybeSchema $ \schema -> do
-      putStrLn $ "Successfully parsed " <> filename
+      putStrLn $ "Successfully parsed " <> filename <> ": " <> show schema
       let (analyzed, schemaErrors) = analyze schema
       null schemaErrors `unless` printExceptions input schemaErrors
       printExceptions input $ check analyzed
@@ -32,7 +32,7 @@ testExpr = forM_ testFiles $ \filename -> do
     testFiles = ["test/person.xsd"
                 ,"test/simple.xsd"
                 ,"test/test.xsd"
-                ,"../tuxml/tuxml_schema-883.xsd"
+                --,"../tuxml/tuxml_schema-883.xsd"
                 ]
 
 main :: IO ()
