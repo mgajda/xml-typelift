@@ -13,7 +13,7 @@ module CodeGen(codegen) where
 
 import           Prelude hiding(lookup)
 
-import           Control.Monad(forM)
+import           Control.Monad(forM, when)
 import qualified Control.Monad.RWS.Strict   as RWS
 import qualified Data.ByteString.Builder    as B
 import qualified Data.ByteString.Char8      as BS
@@ -42,7 +42,8 @@ generateElementInstance container elt@(Element {minOccurs, maxOccurs, eName, ..}
 generateElementInstance container _ = return ( B.byteString container
                                              , "generateElementInstanceNotFullyImplemented" )
 
-tracer lbl a = trace (lbl <> show a) a
+--tracer lbl a = trace (lbl <> show a) a
+tracer _ a = a
 
 instance Show B.Builder where
   show = BS.unpack . builderString
@@ -68,7 +69,7 @@ wrapper (Default x) ty =             ty
 
 generateContentType :: XMLString -- container name
                     -> Type -> CG B.Builder
-generateContentType container (Ref tyName) = translateType container tyName
+generateContentType container (Ref (stripNS -> tyName)) = translateType container tyName
   -- TODO: check if the type was already translated (as it should, if it was generated)
 generateContentType eName (Complex attrs content) = do
     myTypeName  <- translateType eName eName
@@ -87,13 +88,26 @@ generateContentType eName (Complex attrs content) = do
     makeFieldType  aName aType = (,) <$> translateField      eName aName
                                      <*> generateContentType eName aType
     makeAltType :: [TyPart] -> CG (B.Builder, B.Builder)
-    makeAltType ls = return ("altFields", "AltTypeNotYetImplemented")
+    makeAltType ls = return ("altFields", "**AltTypeNotYetImplemented**")
     seqInstance = mapM fun
       where
         fun (Elt (elem@(Element {eName=subName}))) = do
           generateElementInstance eName elem
-
-generateContentType _          other       = return "NotYetImplemented"
+generateContentType eName (Restriction base (Enum values)) = do
+  tyName     <- translateType eName        eName
+  translated <- translateType eName `mapM` values
+  declareSumType (tyName, (,"") <$> translated)
+  return tyName
+generateContentType eName (Restriction base (Pattern _)) = do
+  tyName <- translateType (eName <> "pattern") base
+  base   <- translateType  eName               base
+  gen ["\nnewtype ", tyName, " = ", tyName, " ", base]
+  return tyName
+generateContentType eName (Restriction base  None      ) =
+  -- Should we do `newtype` instead?
+  generateContentType eName $ Ref base
+generateContentType eName (Extension   base  _         ) = return "ExtensionNotImplemented"
+generateContentType _          other       = return "**NotYetImplemented**"
 
 -- | Make builder to generate schema code
 codegen    :: Schema -> B.Builder
@@ -104,9 +118,8 @@ generateNamedContentType :: (XMLString, Type) -> CG ()
 generateNamedContentType (name, ty) = do
   contentTypeName <- translateType    "" name
   contentTypeCode <- generateContentType name ty
-  if baseHaskellType $ builderString contentTypeCode
-    then RWS.tell $ "\nnewtype " <> contentTypeName <> " = " <> contentTypeName <> " " <> contentTypeCode
-    else RWS.tell $ "\ndata " <> contentTypeName <> " = " <> contentTypeCode
+  when (baseHaskellType $ builderString contentTypeCode) $
+    RWS.tell $ "\nnewtype " <> contentTypeName <> " = " <> contentTypeName <> " " <> contentTypeCode <> "\n"
 
 generateSchema :: Schema -> CG ()
 generateSchema sch = do

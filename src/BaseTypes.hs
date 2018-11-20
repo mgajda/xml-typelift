@@ -29,14 +29,20 @@ import           Schema
 fromBaseXMLType :: (Eq a, IsString a, IsString b) => a -> b
 fromBaseXMLType s = case s of
   "any"                -> "Xeno.Node"
-  "string"             -> "String"
-  "token"              -> "String"
+  "string"             -> "XMLString"
+  "boolean"            -> "Bool"
+  "hexBinary"          -> "BS.ByteString" -- TODO: add hex decoding
+  "base64Binary"       -> "BS.ByteString" -- TODO: add hex decoding
+  "anyURI"             -> "BS.ByteString" -- TODO: add hex decoding
+  "token"              -> "XMLString"
   "integer"            -> "Int" -- or Integer
   "positiveInteger"    -> "Int" -- or Integer
   "float"              -> "Float"
   "date"               -> "Date"
   "decimal"            -> "Int"
   "double"             -> "Double"
+  "QName"              -> "XMLString" -- TODO: split namespace from QNames
+  "NOTATION"           -> "XMLString" -- TODO: we ignore <xs:notation> definitions!
   _                    -> "Xeno.Node" -- or error?\
 
 -- | Check if builder makes Haskell base type
@@ -45,8 +51,26 @@ baseHaskellType = (`Set.member` baseHaskellTypes)
 
 -- | List of predefined Haskell types that we use.
 baseHaskellTypes :: Set.Set XMLString
-baseHaskellTypes  = Set.fromList $ map fromBaseXMLType
-                                 $ Set.toList predefinedTypes
+baseHaskellTypes  = Set.fromList $ usedBases <> otherBases
+  where
+    usedBases  = map fromBaseXMLType
+               $ Set.toList predefinedTypes
+    otherBases = ["String"
+                 ,"Integer"
+                 ,"Ordering"
+                 ,"Maybe"
+                 ,"Array"
+                 ,"IORef"
+                 ,"IO"
+                 ]
+
+reservedWords :: [XMLString]
+reservedWords  = ["do"
+                 ,"module"
+                 ,"case", "of"
+                 ,"if", "then", "else"
+                 ,"as"
+                 ]
 
 predefinedTypes :: Set.Set XMLString
 predefinedTypes = Set.fromList [

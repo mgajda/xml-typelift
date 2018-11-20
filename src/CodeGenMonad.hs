@@ -18,6 +18,7 @@ module CodeGenMonad(-- Code generation monad
                     CG
                    ,CGState
                    ,runCodeGen
+                   ,gen
 
                    -- Translating identifiers
                    ,translateType
@@ -62,6 +63,10 @@ initialState  = CGState
                (Map.fromList [(bt, fromBaseXMLType bt)
                              | bt <- Set.toList predefinedTypes ])
                 Map.empty
+
+gen     :: [B.Builder] -> CG ()
+gen args = RWS.tell $ mconcat args
+
 -- TODO: add keywords to prevent mapping of these
 
 bshow :: Show a => a -> BS.ByteString
