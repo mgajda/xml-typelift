@@ -55,11 +55,6 @@ generateElementType container (Element {eName, eType = Complex attrs content})  
   where
     makeAttrType :: Attr -> CG (B.Builder, B.Builder)
     makeAttrType Attr {..} = mapSnd (wrapper use) <$> makeFieldType aName aType
-    mapSnd f (a, b) = (a, f b)
-    wrapper :: Schema.Use -> B.Builder -> B.Builder
-    wrapper  Optional   ty = "Maybe " <> ty
-    wrapper  Required   ty =             ty
-    wrapper (Default x) ty =             ty
     makeFieldType :: XMLString -> Type -> CG (B.Builder, B.Builder)
     makeFieldType  aName aType = (,) <$> translateField      eName aName
                                      <*> generateContentType eName aType
@@ -71,6 +66,14 @@ generateElementType container (Element {eName, eType = Complex attrs content})  
           (name, ty) <- generateElementInstance eName elem
           generateElementInstance eName elem
 
+mapSnd f (a, b) = (a, f b)
+
+-- | Wraps type according to XML Schema "use" attribute value.
+wrapper :: Schema.Use -> B.Builder -> B.Builder
+wrapper  Optional   ty = "Maybe " <> ty
+wrapper  Required   ty =             ty
+wrapper (Default x) ty =             ty
+
 generateContentType :: XMLString -- container name
                     -> Type -> CG B.Builder
 generateContentType container (Ref tyName) = translateType container tyName
@@ -81,6 +84,7 @@ generateContentType _          other       = return "NotYetImplemented"
 codegen    :: Schema -> B.Builder
 codegen sch = runCodeGen sch $ generateSchema sch
 
+generateSchema :: Schema -> CG ()
 generateSchema sch = do
     RWS.tell "module XMLSchema where\n"
     RWS.tell "import FromXML\n"
