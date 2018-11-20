@@ -13,8 +13,10 @@ module CodeGen(codegen) where
 
 import           Prelude hiding(lookup)
 
+import           Control.Monad(forM)
 import qualified Control.Monad.RWS.Strict   as RWS
 import qualified Data.ByteString.Builder    as B
+import           Data.String
 
 import           FromXML(stripNS)
 
@@ -93,19 +95,21 @@ generateSchema sch = do
     -- Then generate possible top level types.
     topElementTypeNames <- generateElementType "Top" `mapM` tops sch
     case topElementTypeNames of
-      []                   -> fail "No toplevel elements found!"
-      [eltName] | baseHaskellType (builderString eltName) ->
-           RWS.tell $ "newtype TopLevel = TopLevel "    <> eltName
-      [eltName]                                           ->
+      []                                          -> fail "No toplevel elements found!"
+      [eltName]
+        | baseHaskellType (builderString eltName) ->
+           RWS.tell $ "newtype " <> topLevelConst
+                   <> " = "      <> topLevelConst
+                   <> " "        <> eltName
+      [eltName]                                   ->
            RWS.tell $ "type " <> topLevelConst <> " = " <> eltName
-      (firstAlt:otherAlts) -> RWS.tell $ "data TopLevel =\n"                 <>
-                                            genFirstAlt             firstAlt <>
-                                            mconcat (genNextAlt <$> otherAlts)
+      altTypes                                    -> do
+           -- Add constructor name for each type
+           -- TODO: We would gain from separate dictionary for constructor names!
+           alts <- (`zip` altTypes) <$> forM altTypes (translateType topLevelConst . builderString)
+           declareSumType (topLevelConst, alts)
     RWS.tell "\n"
-  where
-    genFirstAlt, genNextAlt, genAlt :: B.Builder -> B.Builder
-    genFirstAlt alt = "    " <> genAlt alt
-    genNextAlt  alt = "  | " <> genAlt alt
-    genAlt typeName = "Top" <> typeName <> " " <> typeName
-    topLevelConst = "TopLevel"
+
+topLevelConst :: IsString a => a
+topLevelConst = "TopLevel"
 

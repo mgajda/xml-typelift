@@ -12,6 +12,7 @@
 module TypeDecls(Field
                 ,Record
                 ,declareAlgebraicType
+                ,declareSumType
                 ,formatRecord
                 ,formatField
                 ,wrapList
@@ -62,4 +63,28 @@ formatRecord (name, (f:fields)) =
              $ BS.replicate (builderLength name) ' '
 formatRecord (name,  []       ) =
   error $ "Cannot format empty record syntax for " <> BS.unpack (builderString name)
+
+-- | Sum type without single record field for each constructor.
+type SumType = (B.Builder -- ^ Type name
+               ,[SumAlt]
+               )
+
+type SumAlt = (B.Builder -- ^ Constructor name
+              ,B.Builder -- ^ Type under the constructor
+              )
+
+-- | Declare sum type *without* field names.
+declareSumType :: SumType
+               -> CG ()
+declareSumType (tyName, (firstAlt:otherAlts)) =
+    RWS.tell $ "data " <> tyName <> " =\n"
+            <>          genFirstAlt    firstAlt
+            <> mconcat (genNextAlt <$> otherAlts)
+  where
+    genFirstAlt, genNextAlt, genAlt :: SumAlt -> B.Builder
+    genFirstAlt alt = "\n    " <> genAlt alt
+    genNextAlt  alt = "\n  | " <> genAlt alt
+    genAlt (consName, typeName) = consName <> " " <> typeName
+declareSumType (tyName, []) = error $ "Cannot declare sum type with no constructors: "
+                                   <> BS.unpack (builderString tyName)
 
