@@ -53,14 +53,31 @@ generateElementType :: XMLString -- container name
 -- Flatten elements with known type to their types.
 generateElementType container (eType -> Ref (stripNS -> ""    )) = return "ElementWithEmptyRefType"
 generateElementType container (eType -> Ref (stripNS -> tyName)) = translateType container tyName
-generateElementType container (Element {eName, eType = Complex attrs content})   = do
-    myTypeName  <- translateType container eName
+generateElementType container (Element {eName, eType})   =
+  case eType of
+    Complex attrs children -> generateContentType eName $ Complex attrs children
+    other -> return $ "UnimplementedType_" <> B.byteString (bshow other)
+
+mapSnd f (a, b) = (a, f b)
+
+-- | Wraps type according to XML Schema "use" attribute value.
+wrapper :: Schema.Use -> B.Builder -> B.Builder
+wrapper  Optional   ty = "Maybe " <> ty
+wrapper  Required   ty =             ty
+wrapper (Default x) ty =             ty
+
+generateContentType :: XMLString -- container name
+                    -> Type -> CG B.Builder
+generateContentType container (Ref tyName) = translateType container tyName
+  -- TODO: check if the type was already translated (as it should, if it was generated)
+generateContentType eName (Complex attrs content) = do
+    myTypeName  <- translateType eName eName
     attrFields  :: [Field] <- tracer "attr fields" <$> mapM makeAttrType attrs
 
     childFields :: [Field] <- tracer "child fields" <$> case content of -- serving only simple Seq of elts or choice of elts for now
       Seq    ls -> seqInstance ls
       Choice ls -> (:[]) <$> makeAltType ls
-    RWS.tell $ "data " <> myTypeName <> " ="
+    RWS.tell $ "\ndata " <> myTypeName <> " ="
     declareAlgebraicType [(myTypeName, attrFields <> childFields)]
     return      myTypeName
   where
@@ -76,18 +93,6 @@ generateElementType container (Element {eName, eType = Complex attrs content})  
         fun (Elt (elem@(Element {eName=subName}))) = do
           generateElementInstance eName elem
 
-mapSnd f (a, b) = (a, f b)
-
--- | Wraps type according to XML Schema "use" attribute value.
-wrapper :: Schema.Use -> B.Builder -> B.Builder
-wrapper  Optional   ty = "Maybe " <> ty
-wrapper  Required   ty =             ty
-wrapper (Default x) ty =             ty
-
-generateContentType :: XMLString -- container name
-                    -> Type -> CG B.Builder
-generateContentType container (Ref tyName) = translateType container tyName
-  -- TODO: check if the type was already translated (as it should, if it was generated)
 generateContentType _          other       = return "NotYetImplemented"
 
 -- | Make builder to generate schema code
