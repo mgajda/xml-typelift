@@ -42,13 +42,13 @@ type Record = (B.Builder, [Field])
 declareAlgebraicType :: [Record] -> CG ()
 declareAlgebraicType []                       = error "Empty list of records"
 declareAlgebraicType (firstEntry:nextEntries) = do
-    RWS.tell   $ "    " <> formatRecord firstEntry <> "\n"
+    RWS.tell   $ "\n    " <> formatRecord firstEntry <> "\n"
     forM_ nextEntries $ \nextEntry ->
       RWS.tell $ "  | " <> formatRecord nextEntry
 
 formatRecord :: Record -> B.Builder
 formatRecord (name, (f:fields)) =
-    builderUnlines
+    mconcat
       ( formatHeading f
       :(formatFollowing <$> fields))
     <> trailer
@@ -56,8 +56,8 @@ formatRecord (name, (f:fields)) =
     formatHeading   fld = header   <> formatField fld
     formatFollowing fld = follower <> formatField fld
     header, follower, leftPad, trailer :: B.Builder
-    header   =         name    <> " { "
-    follower =         leftPad <> " , "
+    header   =         name    <> " {\n" <> leftPad <> "   "
+    follower = "\n" <> leftPad <> " , "
     trailer  = "\n" <> leftPad <> " }"
     leftPad  = B.byteString
              $ BS.replicate (builderLength name) ' '
