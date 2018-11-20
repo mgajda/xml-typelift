@@ -33,58 +33,7 @@ import           Xeno.Types(XenoException(..))
 import           FromXML(getStartIndex, stripNS)
 import           Identifiers
 import           Schema
-
--- | State of code generator
-data CGState =
-  CGState {
-    -- Translation of XML Schema identifiers to Haskell identifiers
-    _translations :: Map.Map XMLString XMLString
-  }
-makeLenses ''CGState
-
-type CG a = RWS.RWS Schema B.Builder CGState a
-
-initialState = CGState
-             $ Map.fromList [(bt, fromBaseXMLType bt)
-                            | bt <- Set.toList predefinedTypes ]
-
-bshow = BS.pack . show
-
-data HDef = HType
-          | HField
-
-translateType  = translate' "UnnamedElementType" normalizeTypeName
-
-translateField :: XMLString -> XMLString -> CG B.Builder
-translateField = translate' "unnamedFieldName"   normalizeFieldName
-
--- | Translate XML Schema identifier into Haskell identifier,
---   maintaining dictionary to assure uniqueness of Haskell identifier.
-translate' ::  XMLString               -- placeholder for empty inputs
-           -> (XMLString -> XMLString) -- normalizer
-           ->  XMLString               -- input container name
-           ->  XMLString               -- input name
-           -> CG B.Builder
-translate' placeholder normalizer container xmlName = do
-    tr <- Lens.use translations
-    case Map.lookup xmlName tr of
-      Just r  -> --return $ "Translation for " <> B.byteString xmlName <> " is " <> B.byteString r <> " normalizer gave " <>
-                 return $ B.byteString $ normalizer xmlName
-      Nothing ->
-        let proposals = proposeTranslations xmlName
-        in do
-          case filter (`Map.notMember` tr) proposals of
-            (goodProposal:_) -> do
-              _ <- translations %= Map.insert xmlName goodProposal
-              return $ B.byteString goodProposal
-  where
-    proposeTranslations     :: XMLString -> [XMLString]
-    proposeTranslations (normalizer -> name) =
-        [BS.take i container <> normName | i :: Int <- [0..BS.length container]] <>
-        [normName <> bshow i | i :: Int <- [1..]]
-      where
-        normName | name==""  = placeholder
-                 | otherwise = name
+import           CodeGenMonad
 
 
 -- | Returns a pair of field name, and type code.
@@ -100,8 +49,6 @@ generateElementInstance container elt@(Element {minOccurs, maxOccurs, eName, ..}
 generateElementInstance container _ = return ( B.byteString container
                                              , "generateElementInstanceNotFullyImplemented" )
 
-type Field = (B.Builder, B.Builder)
-
 generateElementType :: XMLString -- container name
                     -> Element
                     -> CG B.Builder
@@ -115,7 +62,7 @@ generateElementType container (Element {eName, eType = Complex attrs content})  
       Seq    ls -> seqInstance ls
       Choice ls -> (:[]) <$> makeAltType ls
     RWS.tell $ "data " <> myTypeName <> " ="
-    makeSumType [(myTypeName, attrFields <> childFields)]
+    declareAlgebraicType [(myTypeName, attrFields <> childFields)]
     return      myTypeName
   where
     makeAttrType :: Attr -> CG (B.Builder, B.Builder)
@@ -136,44 +83,6 @@ generateElementType container (Element {eName, eType = Complex attrs content})  
           (name, ty) <- generateElementInstance eName elem
           generateElementInstance eName elem
 
-
-makeSumType :: [(B.Builder, [Field])] -> CG ()
-makeSumType []                       = error "Empty list of records"
-makeSumType (firstEntry:nextEntries) = do
-    RWS.tell   $ "    " <> formatRecord firstEntry <> "\n"
-    forM_ nextEntries $ \nextEntry ->
-      RWS.tell $ "  | " <> formatRecord nextEntry
-
-type Record = (B.Builder, [Field])
-
-formatRecord :: Record -> B.Builder
-formatRecord (name, (f:fields)) =
-    builderUnlines
-      ( formatHeading f
-      :(formatFollowing <$> fields))
-    <> trailer
-  where
-    formatHeading   f = header   <> formatField f
-    formatFollowing f = follower <> formatField f
-    header, follower, leftPad, trailer :: B.Builder
-    header   =         name    <> " { "
-    follower =         leftPad <> " , "
-    trailer  = "\n" <> leftPad <> " }"
-    leftPad  = B.byteString
-             $ BS.replicate (fromIntegral $ BSL.length $ B.toLazyByteString name) ' '
-
-
-builderUnlines :: [B.Builder] -> B.Builder
-builderUnlines []     = ""
-builderUnlines (l:ls) = l <> mconcat (("\n" <>) <$> ls)
-
-formatField (fName, fTypeName) = fName <> " :: " <> fTypeName
-
-wrapList  x = "["      <> x <> "]"
-wrapMaybe x = "Maybe " <> x
-
-    -- TODO: implement PROHIBITED
-
 generateContentType :: XMLString -- container name
                     -> Type -> CG B.Builder
 generateContentType container (Ref tyName) = translateType container tyName
@@ -182,11 +91,8 @@ generateContentType _          other       = return "NotYetImplemented"
 
 -- | Make builder to generate schema code
 codegen    :: Schema -> B.Builder
-codegen sch = extractBuilder $ generateSchema sch
-  where
-    extractBuilder    :: CG () -> B.Builder
-    extractBuilder rws = case RWS.runRWS rws sch initialState of
-                           ((), _state, builder) -> builder
+codegen sch = runCodeGen sch $ generateSchema sch
+
 generateSchema sch = do
     RWS.tell "module XMLSchema where\n"
     RWS.tell "import FromXML\n"
@@ -210,29 +116,4 @@ generateSchema sch = do
     genNextAlt  alt = "  | " <> genAlt alt
     genAlt typeName = "Top" <> typeName <> " " <> typeName
     topLevelConst = "TopLevel"
-
--- | Translating base XML types.
-fromBaseXMLType :: (Eq a, IsString a, IsString b) => a -> b
-fromBaseXMLType s = case s of
-  "any"                -> "Xeno.Node"
-  "string"             -> "String"
-  "token"              -> "String"
-  "integer"            -> "Int" -- or Integer
-  "positiveInteger"    -> "Int" -- or Integer
-  "float"              -> "Float"
-  "date"               -> "Date"
-  "decimal"            -> "Int"
-  "positiveInteger"    -> "Int"
-  "float"              -> "Float"
-  "double"             -> "Double"
-  otherwise            -> "Xeno.Node" -- or error?\
-
-builderString = BSL.toStrict
-              . B.toLazyByteString
-
-baseHaskellType = (`Set.member` baseHaskellTypes)
-
-baseHaskellTypes :: Set.Set XMLString
-baseHaskellTypes  = Set.fromList $ map fromBaseXMLType
-                                 $ Set.toList predefinedTypes
 

@@ -41,6 +41,7 @@ library:
   exposed-modules:
     - Analyze
     - CodeGen
+    - CodeGenMonad
     - Identifiers
     - FromXML
     - Schema
