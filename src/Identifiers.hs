@@ -11,10 +11,13 @@ import qualified Data.Set              as Set
 
 import qualified Data.Char as Char
 
+import Debug.Trace
+
 -- * Similar to JSON Autotype...
 -- Making valid Haskell identifier out of text
 normalizeFieldName :: BS.ByteString -> BS.ByteString
-normalizeFieldName = escapeKeywords                 .
+normalizeFieldName = (\t -> trace ("normalized field name:" <> show t) t) .
+                     escapeKeywords                 .
                      uncapitalize                   .
                      normalizeTypeName
 
@@ -32,7 +35,8 @@ escapeKeywords k                           = k
 -- 4. Escaping Haskell keywords if the whole identifier is such keyword.
 -- 5. If identifier is empty, then substituting "JsonEmptyKey" for its name.
 normalizeTypeName :: BS.ByteString -> BS.ByteString
-normalizeTypeName = escapeKeywords                          .
+normalizeTypeName = (\t -> trace ("normalized type name:" <> show t) t) .
+                    escapeKeywords                          .
                     escapeFirstNonAlpha                     .
                     mconcat                                 .
                     map    capitalize                       .

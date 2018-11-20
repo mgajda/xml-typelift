@@ -16,6 +16,7 @@ import           Prelude hiding(lookup)
 import           Control.Monad(forM)
 import qualified Control.Monad.RWS.Strict   as RWS
 import qualified Data.ByteString.Builder    as B
+import qualified Data.ByteString.Char8      as BS
 import           Data.String
 
 import           FromXML(stripNS)
@@ -25,10 +26,11 @@ import           CodeGenMonad
 import           BaseTypes
 import           TypeDecls
 
+import           Debug.Trace
 
 -- | Returns a pair of field name, and type code.
 generateElementInstance :: XMLString -- container name
-                        -> Element -> CG (B.Builder, B.Builder)
+                        -> Element -> CG Field
 generateElementInstance container elt@(Element {minOccurs, maxOccurs, eName, ..}) =
     (,) <$>  translateField                  container eName
         <*> (wrapper <$> generateElementType container elt  )
@@ -39,6 +41,11 @@ generateElementInstance container elt@(Element {minOccurs, maxOccurs, eName, ..}
 generateElementInstance container _ = return ( B.byteString container
                                              , "generateElementInstanceNotFullyImplemented" )
 
+tracer lbl a = trace (lbl <> show a) a
+
+instance Show B.Builder where
+  show = BS.unpack . builderString
+
 generateElementType :: XMLString -- container name
                     -> Element
                     -> CG B.Builder
@@ -47,8 +54,9 @@ generateElementType container (eType -> Ref (stripNS -> ""    )) = return "Eleme
 generateElementType container (eType -> Ref (stripNS -> tyName)) = translateType container tyName
 generateElementType container (Element {eName, eType = Complex attrs content})   = do
     myTypeName  <- translateType container eName
-    attrFields  :: [Field] <- mapM makeAttrType attrs
-    childFields :: [Field] <- case content of -- serving only simple Seq of elts or choice of elts for now
+    attrFields  :: [Field] <- tracer "attr fields" <$> mapM makeAttrType attrs
+
+    childFields :: [Field] <- tracer "child fields" <$> case content of -- serving only simple Seq of elts or choice of elts for now
       Seq    ls -> seqInstance ls
       Choice ls -> (:[]) <$> makeAltType ls
     RWS.tell $ "data " <> myTypeName <> " ="
@@ -65,7 +73,6 @@ generateElementType container (Element {eName, eType = Complex attrs content})  
     seqInstance = mapM fun
       where
         fun (Elt (elem@(Element {eName=subName}))) = do
-          (name, ty) <- generateElementInstance eName elem
           generateElementInstance eName elem
 
 mapSnd f (a, b) = (a, f b)

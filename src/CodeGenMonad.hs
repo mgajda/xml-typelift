@@ -20,7 +20,6 @@ module CodeGenMonad(-- Code generation monad
                    ,runCodeGen
 
                    -- Translating identifiers
-                   ,translations
                    ,translateType
                    ,translateField
 
@@ -45,11 +44,14 @@ import           Identifiers
 import           Schema
 import           BaseTypes
 
+type TranslationDict = Map.Map XMLString XMLString
+
 -- | State of code generator
 data CGState =
   CGState {
     -- Translation of XML Schema identifiers to Haskell identifiers
-    _translations :: Map.Map XMLString XMLString
+    _typeTranslations  :: TranslationDict
+  , _fieldTranslations :: TranslationDict
   }
 makeLenses ''CGState
 
@@ -57,8 +59,10 @@ type CG a = RWS.RWS Schema B.Builder CGState a
 
 initialState :: CGState
 initialState  = CGState
-              $ Map.fromList [(bt, fromBaseXMLType bt)
-                             | bt <- Set.toList predefinedTypes ]
+               (Map.fromList [(bt, fromBaseXMLType bt)
+                             | bt <- Set.toList predefinedTypes ])
+                Map.empty
+-- TODO: add keywords to prevent mapping of these
 
 bshow :: Show a => a -> BS.ByteString
 bshow = BS.pack . show
@@ -67,23 +71,43 @@ builderUnlines :: [B.Builder] -> B.Builder
 builderUnlines []     = ""
 builderUnlines (l:ls) = l <> mconcat (("\n" <>) <$> ls)
 
+-- | Translation environment is different for different types of names:
+--   * types and constructors (we reuse space to make it more consistent)
+--   * fields
+--   * NOTE: we might want to separate constructor namespace in the future
+data TranslationEnv =
+       TEnv { -- | Placeholder for empty inputs
+              placeholder :: XMLString
+              -- | Normalizer
+            , normalizer  :: XMLString -> XMLString
+              -- | Lens to manipulate correct dictionary in CGState
+            , dictLens    :: Lens' CGState TranslationDict
+            }
+
 -- | Translate type name from XML identifier.
 translateType :: XMLString -> XMLString -> CG B.Builder
-translateType  = translate' "UnnamedElementType" normalizeTypeName
+translateType  = translate'
+                 TEnv { placeholder = "UnnamedElementType"
+                      , normalizer  =  normalizeTypeName
+                      , dictLens    =  typeTranslations
+                      }
 
 -- | Translate field name from XML identifier.
 translateField :: XMLString -> XMLString -> CG B.Builder
-translateField = translate' "unnamedFieldName"   normalizeFieldName
+translateField = translate'
+                 TEnv { placeholder = "unnamedFieldName"
+                      , normalizer  = normalizeFieldName
+                      , dictLens    = fieldTranslations
+                      }
 
 -- | Translate XML Schema identifier into Haskell identifier,
 --   maintaining dictionary to assure uniqueness of Haskell identifier.
-translate' ::  XMLString               -- placeholder for empty inputs
-           -> (XMLString -> XMLString) -- normalizer
-           ->  XMLString               -- input container name
-           ->  XMLString               -- input name
+translate' :: TranslationEnv
+           -> XMLString               -- input container name
+           -> XMLString               -- input name
            -> CG B.Builder
-translate' placeholder normalizer container xmlName = do
-    tr <- Lens.use translations
+translate' TEnv {..} container xmlName = do
+    tr <- Lens.use dictLens
     case Map.lookup xmlName tr of
       Just r  -> return $ B.byteString r
       Nothing ->
@@ -91,13 +115,13 @@ translate' placeholder normalizer container xmlName = do
         in do
           case filter (`Map.notMember` tr) proposals of
             (goodProposal:_) -> do
-              _ <- translations %= Map.insert xmlName goodProposal
+              _ <- dictLens %= Map.insert xmlName goodProposal
               return $ B.byteString goodProposal
   where
     proposeTranslations     :: XMLString -> [XMLString]
-    proposeTranslations (normalizer -> name) =
-        [BS.take i container <> normName | i :: Int <- [0..BS.length container]] <>
-        [normName <> bshow i | i :: Int <- [1..]]
+    proposeTranslations (normalizer -> name) = normalizer <$>
+        ([BS.take i container <> normName | i :: Int <- [0..BS.length container]] <>
+         [normName <> bshow i | i :: Int <- [1..]])
       where
         normName | name==""  = placeholder
                  | otherwise = name
