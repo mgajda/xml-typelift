@@ -8,27 +8,15 @@
 {-# LANGUAGE TemplateHaskell     #-}
 {-# LANGUAGE TupleSections       #-}
 {-# LANGUAGE ViewPatterns        #-}
--- | Monad for code generation:
---   Mostly deals with keeping track of all
---   generated code as "Builder",
---   keeping track of unique translation
---   for each XML identifier into Haskell
---   type or field name.
-module CodeGenMonad(-- Code generation monad
-                    CG
-                   ,CGState
-                   ,runCodeGen
-
-                   -- Translating identifiers
-                   ,translations
-                   ,translateType
-                   ,translateField
-
-                   -- Utilities
-                   ,builderUnlines
-                   ,builderString
-                   ,bshow
-                   ) where
+-- | Generating type declarations in code generation monad.
+module TypeDecls(Field
+                ,Record
+                ,declareAlgebraicType
+                ,formatRecord
+                ,formatField
+                ,wrapList
+                ,wrapMaybe
+                ) where
 
 import           Prelude hiding(lookup)
 
@@ -46,30 +34,14 @@ import           Data.String
 
 import           Xeno.Types(XenoException(..))
 
-import           FromXML(getStartIndex, stripNS)
+import           CodeGenMonad
 import           Identifiers
 import           Schema
-import           BaseTypes
 
--- | State of code generator
-data CGState =
-  CGState {
-    -- Translation of XML Schema identifiers to Haskell identifiers
-    _translations :: Map.Map XMLString XMLString
-  }
-makeLenses ''CGState
+formatField (fName, fTypeName) = fName <> " :: " <> fTypeName
 
-type CG a = RWS.RWS Schema B.Builder CGState a
-
-initialState = CGState
-             $ Map.fromList [(bt, fromBaseXMLType bt)
-                            | bt <- Set.toList predefinedTypes ]
-
-bshow = BS.pack . show
-
-builderUnlines :: [B.Builder] -> B.Builder
-builderUnlines []     = ""
-builderUnlines (l:ls) = l <> mconcat (("\n" <>) <$> ls)
+wrapList  x = "["      <> x <> "]"
+wrapMaybe x = "Maybe " <> x
 
 -- | Translate type name from XML identifier.
 translateType  = translate' "UnnamedElementType" normalizeTypeName
@@ -105,10 +77,31 @@ translate' placeholder normalizer container xmlName = do
         normName | name==""  = placeholder
                  | otherwise = name
 
--- | Make builder to generate schema code
-runCodeGen        :: Schema -> CG () -> B.Builder
-runCodeGen sch rws = case RWS.runRWS rws sch initialState of
-                       ((), _state, builder) -> builder
+-- * Type declarations
+type Field = (B.Builder, B.Builder)
+type Record = (B.Builder, [Field])
 
-builderString :: B.Builder -> BS.ByteString
-builderString  = BSL.toStrict . B.toLazyByteString
+declareAlgebraicType :: [Record] -> CG ()
+declareAlgebraicType []                       = error "Empty list of records"
+declareAlgebraicType (firstEntry:nextEntries) = do
+    RWS.tell   $ "    " <> formatRecord firstEntry <> "\n"
+    forM_ nextEntries $ \nextEntry ->
+      RWS.tell $ "  | " <> formatRecord nextEntry
+
+
+formatRecord :: Record -> B.Builder
+formatRecord (name, (f:fields)) =
+    builderUnlines
+      ( formatHeading f
+      :(formatFollowing <$> fields))
+    <> trailer
+  where
+    formatHeading   f = header   <> formatField f
+    formatFollowing f = follower <> formatField f
+    header, follower, leftPad, trailer :: B.Builder
+    header   =         name    <> " { "
+    follower =         leftPad <> " , "
+    trailer  = "\n" <> leftPad <> " }"
+    leftPad  = B.byteString
+             $ BS.replicate (fromIntegral $ BSL.length $ B.toLazyByteString name) ' '
+

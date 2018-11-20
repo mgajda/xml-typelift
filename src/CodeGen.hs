@@ -15,9 +15,6 @@ import           Prelude hiding(lookup)
 
 import           Control.Lens as Lens
 import           Control.Monad(forM, forM_)
---import qualified Control.Monad.State.Class  as St
---import qualified Control.Monad.Writer.Class as Writer
---import qualified Control.Monad.Reader.Class as Reader
 import qualified Control.Monad.RWS.Strict   as RWS
 import qualified Data.ByteString.Char8      as BS
 import qualified Data.ByteString.Lazy       as BSL(length, toStrict)
@@ -34,6 +31,8 @@ import           FromXML(getStartIndex, stripNS)
 import           Identifiers
 import           Schema
 import           CodeGenMonad
+import           BaseTypes
+import           TypeDecls
 
 
 -- | Returns a pair of field name, and type code.

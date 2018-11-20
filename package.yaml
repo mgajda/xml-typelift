@@ -40,12 +40,14 @@ library:
     - lib
   exposed-modules:
     - Analyze
+    - BaseTypes
     - CodeGen
     - CodeGenMonad
-    - Identifiers
+    - CodeGenTypeDecls
     - FromXML
-    - Schema
+    - Identifiers
     - Parser
+    - Schema
 
 executables:
   xml-typelift-cli:
