@@ -20,12 +20,13 @@ import           Control.Monad(forM, forM_)
 --import qualified Control.Monad.Reader.Class as Reader
 import qualified Control.Monad.RWS.Strict   as RWS
 import qualified Data.ByteString.Char8      as BS
-import qualified Data.ByteString.Lazy       as BSL(length)
+import qualified Data.ByteString.Lazy       as BSL(length, toStrict)
 import qualified Data.ByteString.Builder    as B
 import           Data.Generics.Uniplate.Operations
 import qualified Data.Map.Strict            as Map
 import           Data.Maybe(catMaybes)
 import qualified Data.Set                   as Set
+import           Data.String
 
 import           Xeno.Types(XenoException(..))
 
@@ -54,6 +55,7 @@ data HDef = HType
 
 translateType  = translate' "UnnamedElementType" normalizeTypeName
 
+translateField :: XMLString -> XMLString -> CG B.Builder
 translateField = translate' "unnamedFieldName"   normalizeFieldName
 
 -- | Translate XML Schema identifier into Haskell identifier,
@@ -66,7 +68,8 @@ translate' ::  XMLString               -- placeholder for empty inputs
 translate' placeholder normalizer container xmlName = do
     tr <- Lens.use translations
     case Map.lookup xmlName tr of
-      Just r  -> return $ B.byteString r
+      Just r  -> --return $ "Translation for " <> B.byteString xmlName <> " is " <> B.byteString r <> " normalizer gave " <>
+                 return $ B.byteString $ normalizer xmlName
       Nothing ->
         let proposals = proposeTranslations xmlName
         in do
@@ -77,7 +80,7 @@ translate' placeholder normalizer container xmlName = do
   where
     proposeTranslations     :: XMLString -> [XMLString]
     proposeTranslations (normalizer -> name) =
-        [normName <> BS.take i container | i :: Int <- [0..BS.length container]] <>
+        [BS.take i container <> normName | i :: Int <- [0..BS.length container]] <>
         [normName <> bshow i | i :: Int <- [1..]]
       where
         normName | name==""  = placeholder
@@ -103,16 +106,13 @@ generateElementType :: XMLString -- container name
                     -> Element
                     -> CG B.Builder
 -- Flatten elements with known type to their types.
---generateElementType (eType -> Ref (stripNS -> ""    )) = return "ElementWithEmptyRefType"
+generateElementType container (eType -> Ref (stripNS -> ""    )) = return "ElementWithEmptyRefType"
 generateElementType container (eType -> Ref (stripNS -> tyName)) = translateType container tyName
 generateElementType container (Element {eName, eType = Complex attrs content})   = do
     myTypeName  <- translateType container eName
     attrFields  :: [Field] <- mapM makeAttrType attrs
     childFields :: [Field] <- case content of -- serving only simple Seq of elts or choice of elts for now
-      Seq    ls -> forM ls $ \elt -> case elt of
-                                       Elt (elem@(Element {eName=subName})) -> do
-                                         (name, ty) <- generateElementInstance eName elem
-                                         generateElementInstance eName elem
+      Seq    ls -> seqInstance ls
       Choice ls -> (:[]) <$> makeAltType ls
     RWS.tell $ "data " <> myTypeName <> " ="
     makeSumType [(myTypeName, attrFields <> childFields)]
@@ -130,6 +130,12 @@ generateElementType container (Element {eName, eType = Complex attrs content})  
                                      <*> generateContentType eName aType
     makeAltType :: [TyPart] -> CG (B.Builder, B.Builder)
     makeAltType ls = return ("altFields", "AltTypeNotYetImplemented")
+    seqInstance = mapM fun
+      where
+        fun (Elt (elem@(Element {eName=subName}))) = do
+          (name, ty) <- generateElementInstance eName elem
+          generateElementInstance eName elem
+
 
 makeSumType :: [(B.Builder, [Field])] -> CG ()
 makeSumType []                       = error "Empty list of records"
@@ -190,7 +196,10 @@ generateSchema sch = do
     topElementTypeNames <- generateElementType "Top" `mapM` tops sch
     case topElementTypeNames of
       []                   -> fail "No toplevel elements found!"
-      [eltName]            -> RWS.tell $ "newtype TopLevel = TopLevel " <> eltName
+      [eltName] | baseHaskellType (builderString eltName) ->
+           RWS.tell $ "newtype TopLevel = TopLevel "    <> eltName
+      [eltName]                                           ->
+           RWS.tell $ "type " <> topLevelConst <> " = " <> eltName
       (firstAlt:otherAlts) -> RWS.tell $ "data TopLevel =\n"                 <>
                                             genFirstAlt             firstAlt <>
                                             mconcat (genNextAlt <$> otherAlts)
@@ -200,8 +209,10 @@ generateSchema sch = do
     genFirstAlt alt = "    " <> genAlt alt
     genNextAlt  alt = "  | " <> genAlt alt
     genAlt typeName = "Top" <> typeName <> " " <> typeName
+    topLevelConst = "TopLevel"
 
 -- | Translating base XML types.
+fromBaseXMLType :: (Eq a, IsString a, IsString b) => a -> b
 fromBaseXMLType s = case s of
   "any"                -> "Xeno.Node"
   "string"             -> "String"
@@ -215,4 +226,13 @@ fromBaseXMLType s = case s of
   "float"              -> "Float"
   "double"             -> "Double"
   otherwise            -> "Xeno.Node" -- or error?\
+
+builderString = BSL.toStrict
+              . B.toLazyByteString
+
+baseHaskellType = (`Set.member` baseHaskellTypes)
+
+baseHaskellTypes :: Set.Set XMLString
+baseHaskellTypes  = Set.fromList $ map fromBaseXMLType
+                                 $ Set.toList predefinedTypes
 

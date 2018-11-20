@@ -36,7 +36,7 @@ normalizeTypeName = escapeKeywords                          .
                     escapeFirstNonAlpha                     .
                     mconcat                                 .
                     map    capitalize                       .
-                    filter (""==)                           .
+                    filter (""/=)                           .
                     BS.splitWith (not . acceptableInVariable)
   where
     acceptableInVariable c = Char.isAlpha c || Char.isDigit c
