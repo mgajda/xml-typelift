@@ -1,13 +1,13 @@
-{-# LANGUAGE FlexibleContexts    #-}
-{-# LANGUAGE MonoLocalBinds      #-}
-{-# LANGUAGE NamedFieldPuns      #-}
-{-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE RankNTypes          #-}
-{-# LANGUAGE RecordWildCards     #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TemplateHaskell     #-}
-{-# LANGUAGE TupleSections       #-}
-{-# LANGUAGE ViewPatterns        #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE MonoLocalBinds        #-}
+{-# LANGUAGE NamedFieldPuns        #-}
+{-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE RankNTypes            #-}
+{-# LANGUAGE RecordWildCards       #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
+{-# LANGUAGE TemplateHaskell       #-}
+{-# LANGUAGE TupleSections         #-}
+{-# LANGUAGE ViewPatterns          #-}
 -- | Here we aim to analyze the schema.
 module CodeGen(codegen) where
 
@@ -18,6 +18,7 @@ import qualified Control.Monad.RWS.Strict   as RWS
 import qualified Data.ByteString.Builder    as B
 import qualified Data.ByteString.Char8      as BS
 import           Data.String
+import qualified Data.Map.Strict            as Map
 
 import           FromXML(stripNS)
 
@@ -93,12 +94,22 @@ generateContentType _          other       = return "NotYetImplemented"
 codegen    :: Schema -> B.Builder
 codegen sch = runCodeGen sch $ generateSchema sch
 
+-- | Generate content type, and put an type name on it.
+generateNamedContentType :: (XMLString, Type) -> CG ()
+generateNamedContentType (name, ty) = do
+  contentTypeName <- translateType    "" name
+  contentTypeCode <- generateContentType name ty
+  if baseHaskellType $ builderString contentTypeCode
+    then RWS.tell $ "\nnewtype " <> contentTypeName <> " = " <> contentTypeName <> " " <> contentTypeCode
+    else RWS.tell $ "\ndata " <> contentTypeName <> " = " <> contentTypeCode
+
 generateSchema :: Schema -> CG ()
 generateSchema sch = do
+    RWS.tell "{-# LANGUAGE DuplicateRecordFields #-}"
     RWS.tell "module XMLSchema where\n"
     RWS.tell "import FromXML\n"
     -- First generate all types that may be referred by others.
-    _               <- generateContentType "Top" `mapM` types sch
+    mapM_ generateNamedContentType $ Map.toList $ types sch
     -- Then generate possible top level types.
     topElementTypeNames <- generateElementType "Top" `mapM` tops sch
     case topElementTypeNames of

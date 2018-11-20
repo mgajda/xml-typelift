@@ -16,7 +16,7 @@ import Debug.Trace
 -- * Similar to JSON Autotype...
 -- Making valid Haskell identifier out of text
 normalizeFieldName :: BS.ByteString -> BS.ByteString
-normalizeFieldName = (\t -> trace ("normalized field name:" <> show t) t) .
+normalizeFieldName = --(\t -> trace ("normalized field name:" <> show t) t) .
                      escapeKeywords                 .
                      uncapitalize                   .
                      normalizeTypeName
@@ -35,7 +35,7 @@ escapeKeywords k                           = k
 -- 4. Escaping Haskell keywords if the whole identifier is such keyword.
 -- 5. If identifier is empty, then substituting "JsonEmptyKey" for its name.
 normalizeTypeName :: BS.ByteString -> BS.ByteString
-normalizeTypeName = (\t -> trace ("normalized type name:" <> show t) t) .
+normalizeTypeName = --(\t -> trace ("normalized type name:" <> show t) t) .
                     escapeKeywords                          .
                     escapeFirstNonAlpha                     .
                     mconcat                                 .

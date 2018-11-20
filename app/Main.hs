@@ -22,10 +22,12 @@ testExpr = forM_ testFiles $ \filename -> do
     putStrLn     $ "Starting to process " <> filename
     input       <- BS.readFile filename
     maybeSchema <- parseSchema input
+    putStrLn "Got schema!"
     whenJust maybeSchema $ \schema -> do
       putStrLn $ "Successfully parsed " <> filename <> ": " <> show schema
       let (analyzed, schemaErrors) = analyze schema
       null schemaErrors `unless` printExceptions input schemaErrors
+      putStrLn "Analysis:"
       printExceptions input $ check analyzed
       putStrLn "Datatypes:"
       B.hPutBuilder stdout $ codegen schema
@@ -33,7 +35,7 @@ testExpr = forM_ testFiles $ \filename -> do
     testFiles = ["test/person.xsd"
                 ,"test/simple.xsd"
                 ,"test/test.xsd"
-                --,"../tuxml/tuxml_schema-883.xsd"
+                ,"../tuxml/tuxml_schema-883.xsd"
                 ]
 
 main :: IO ()
