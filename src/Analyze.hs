@@ -11,8 +11,10 @@ import qualified Data.ByteString as BS
 
 import FromXML(getStartIndex, stripNS)
 import Xeno.Types(XenoException(..))
-import Schema
 import Data.Generics.Uniplate.Operations
+
+import BaseTypes
+import Schema
 
 -- * Analysis
 type SchemaError = XenoException

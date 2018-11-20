@@ -14,6 +14,8 @@
 module BaseTypes(fromBaseXMLType
                 ,baseHaskellType
                 ,baseHaskellTypes
+                ,predefinedTypes
+                ,isSimple
                 ) where
 
 import           Prelude hiding(lookup)
@@ -45,4 +47,24 @@ baseHaskellType = (`Set.member` baseHaskellTypes)
 baseHaskellTypes :: Set.Set XMLString
 baseHaskellTypes  = Set.fromList $ map fromBaseXMLType
                                  $ Set.toList predefinedTypes
+
+predefinedTypes :: Set.Set XMLString
+predefinedTypes = Set.fromList [
+    "any"
+  , "string"
+  , "token"
+  , "integer"
+  , "positiveInteger"
+  , "float"
+  , "date"
+  ]
+
+isSimple :: Type -> Maybe Bool
+isSimple (Ref x)
+        | x    `Set.member` predefinedTypes = Just True
+isSimple Restriction { base }
+        | base `Set.member` predefinedTypes = Just True -- not always!!!
+isSimple  Extension {}                      = Just False
+isSimple  Complex   {}                      = Just False
+isSimple  _                                 = Nothing -- no idea, need dictionary
 

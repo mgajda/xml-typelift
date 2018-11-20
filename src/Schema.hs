@@ -107,26 +107,6 @@ data Type =
       }
   deriving (Eq, Ord, Show, Generic, NFData, Data, Typeable)
 
-predefinedTypes :: Set.Set XMLString
-predefinedTypes = Set.fromList [
-    "any"
-  , "string"
-  , "token"
-  , "integer"
-  , "positiveInteger"
-  , "float"
-  , "date"
-  ]
-
-isSimple :: Type -> Maybe Bool
-isSimple (Ref x)
-        | x    `Set.member` predefinedTypes = Just True
-isSimple Restriction { base }
-        | base `Set.member` predefinedTypes = Just True -- not always!!!
-isSimple  Extension {}                      = Just False
-isSimple  Complex   {}                      = Just False
-isSimple  _                                 = Nothing -- no idea, need dictionary
-
 instance Default Type where
   def = Ref "xs:any"
 

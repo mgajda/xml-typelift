@@ -62,3 +62,4 @@ formatRecord (name, (f:fields)) =
              $ BS.replicate (builderLength name) ' '
 formatRecord (name,  []       ) =
   error $ "Cannot format empty record syntax for " <> BS.unpack (builderString name)
+
