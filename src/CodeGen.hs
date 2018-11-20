@@ -13,22 +13,11 @@ module CodeGen(codegen) where
 
 import           Prelude hiding(lookup)
 
-import           Control.Lens as Lens
-import           Control.Monad(forM, forM_)
 import qualified Control.Monad.RWS.Strict   as RWS
-import qualified Data.ByteString.Char8      as BS
-import qualified Data.ByteString.Lazy       as BSL(length, toStrict)
 import qualified Data.ByteString.Builder    as B
-import           Data.Generics.Uniplate.Operations
-import qualified Data.Map.Strict            as Map
-import           Data.Maybe(catMaybes)
-import qualified Data.Set                   as Set
-import           Data.String
 
-import           Xeno.Types(XenoException(..))
+import           FromXML(stripNS)
 
-import           FromXML(getStartIndex, stripNS)
-import           Identifiers
 import           Schema
 import           CodeGenMonad
 import           BaseTypes

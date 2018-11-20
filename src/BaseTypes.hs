@@ -34,9 +34,8 @@ fromBaseXMLType s = case s of
   "float"              -> "Float"
   "date"               -> "Date"
   "decimal"            -> "Int"
-  "positiveInteger"    -> "Int"
   "double"             -> "Double"
-  otherwise            -> "Xeno.Node" -- or error?\
+  _                    -> "Xeno.Node" -- or error?\
 
 -- | Check if builder makes Haskell base type
 baseHaskellType :: XMLString -> Bool

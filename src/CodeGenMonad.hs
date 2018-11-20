@@ -27,6 +27,7 @@ module CodeGenMonad(-- Code generation monad
                    -- Utilities
                    ,builderUnlines
                    ,builderString
+                   ,builderLength
                    ,bshow
                    ) where
 
@@ -35,7 +36,7 @@ import           Prelude hiding(lookup)
 import           Control.Lens as Lens
 import qualified Control.Monad.RWS.Strict   as RWS
 import qualified Data.ByteString.Char8      as BS
-import qualified Data.ByteString.Lazy       as BSL(toStrict)
+import qualified Data.ByteString.Lazy       as BSL(toStrict, length)
 import qualified Data.ByteString.Builder    as B
 import qualified Data.Map.Strict            as Map
 import qualified Data.Set                   as Set
@@ -109,3 +110,7 @@ runCodeGen sch rws = case RWS.runRWS rws sch initialState of
 -- | Convert builder back to String, if you need to examine the content.
 builderString :: B.Builder -> BS.ByteString
 builderString  = BSL.toStrict . B.toLazyByteString
+
+builderLength :: B.Builder -> Int
+builderLength  = fromIntegral . BSL.length . B.toLazyByteString
+
