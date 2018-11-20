@@ -27,6 +27,7 @@ testExpr = forM_ testFiles $ \filename -> do
       let (analyzed, schemaErrors) = analyze schema
       null schemaErrors `unless` printExceptions input schemaErrors
       printExceptions input $ check analyzed
+      putStrLn "Datatypes:"
       B.hPutBuilder stdout $ codegen schema
   where
     testFiles = ["test/person.xsd"
