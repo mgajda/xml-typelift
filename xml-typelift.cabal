@@ -4,7 +4,7 @@ cabal-version: >= 1.10
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 92f48534c96dc6d9c9c6089164625375484e790ddef4328b41fc3a85b3faa32f
+-- hash: 30b85761159d7b39386a03cfc04f89eb913278f31c9bc836b61a6b90d98eab38
 
 name:           xml-typelift
 version:        0.0.1
@@ -33,7 +33,10 @@ source-repository head
 library
   exposed-modules:
       Analyze
+      BaseTypes
       CodeGen
+      CodeGenMonad
+      CodeGenTypeDecls
       FromXML
       Identifiers
       Parser
@@ -53,17 +56,20 @@ library
     , mtl
     , uniplate
     , xeno
-    , prettyprinter
   default-language: Haskell2010
 
 executable xml-typelift-cli
   main-is: Main.hs
   other-modules:
       Analyze
+      BaseTypes
       CodeGen
+      CodeGenMonad
       Errors
+      Identifiers
       Parser
       Schema
+      TypeDecls
       FromXML
       Paths_xml_typelift
   hs-source-dirs:
@@ -89,10 +95,14 @@ benchmark memory
   main-is: Main.hs
   other-modules:
       Analyze
+      BaseTypes
       CodeGen
+      CodeGenMonad
       Errors
+      Identifiers
       Parser
       Schema
+      TypeDecls
       FromXML
       Paths_xml_typelift
   hs-source-dirs:
@@ -119,10 +129,14 @@ benchmark speed
   main-is: Main.hs
   other-modules:
       Analyze
+      BaseTypes
       CodeGen
+      CodeGenMonad
       Errors
+      Identifiers
       Parser
       Schema
+      TypeDecls
       FromXML
       Paths_xml_typelift
   hs-source-dirs:
