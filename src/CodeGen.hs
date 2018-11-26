@@ -97,7 +97,7 @@ generateContentType eName (Complex attrs content) = do
         fun (Elt (elem@(Element {eName=subName}))) = do
           generateElementInstance eName elem
 generateContentType eName (Restriction base (Enum (uniq -> values))) = do
-  tyName     <- translate (ElementName,   TargetTypeName) eName        eName
+  tyName     <- translate (SchemaType ,   TargetTypeName) eName        eName -- should it be split into element and type containers?
   translated <- translate (EnumIn eName,  TargetConsName) eName `mapM` values
   -- ^ TODO: consider enum as indexed family of spaces
   declareSumType (tyName, (,"") <$> translated)
@@ -121,8 +121,8 @@ codegen sch = runCodeGen sch $ generateSchema sch
 -- | Generate content type, and put an type name on it.
 generateNamedContentType :: (XMLString, Type) -> CG ()
 generateNamedContentType (name, ty) = do
-  contentTypeName <- translate (SchemaType, TargetTypeName) "" name
-  contentConsName <- translate (SchemaType, TargetConsName) "" name
+  contentTypeName <- translate (SchemaType, TargetTypeName) name name
+  contentConsName <- translate (SchemaType, TargetConsName) name name
   contentTypeCode <- generateContentType name ty
   when (baseHaskellType $ builderString contentTypeCode) $
     RWS.tell $ "\nnewtype " <> contentTypeName <> " = " <> contentConsName <> " " <> contentTypeCode <> "\n"
