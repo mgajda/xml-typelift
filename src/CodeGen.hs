@@ -87,8 +87,8 @@ generateContentType eName (Complex attrs content) = do
     makeAttrType :: Attr -> CG (B.Builder, B.Builder)
     makeAttrType Attr {..} = mapSnd (wrapper use) <$> makeFieldType aName aType
     makeFieldType :: XMLString -> Type -> CG (B.Builder, B.Builder)
-    makeFieldType  aName aType = (,) <$> translate (AttributeName, TargetTypeName) eName aName
-                                     <*> generateContentType                       eName aType
+    makeFieldType  aName aType = (,) <$> translate (AttributeName, TargetFieldName) eName aName
+                                     <*> generateContentType                        eName aType
     makeAltType :: [TyPart] -> CG (B.Builder, B.Builder)
     makeAltType ls = return ("altFields", "**AltTypeNotYetImplemented**")
     seqInstance = mapM fun

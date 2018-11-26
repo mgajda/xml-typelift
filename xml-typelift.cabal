@@ -4,7 +4,7 @@ cabal-version: >= 1.10
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 30b85761159d7b39386a03cfc04f89eb913278f31c9bc836b61a6b90d98eab38
+-- hash: 740ecc981ed53c220b697a6edaee5591dacef0e55eaec119f96cecffd054250e
 
 name:           xml-typelift
 version:        0.0.1
@@ -32,22 +32,14 @@ source-repository head
 
 library
   exposed-modules:
-      Analyze
-      BaseTypes
-      CodeGen
-      CodeGenMonad
-      CodeGenTypeDecls
       FromXML
-      Identifiers
-      Parser
-      Schema
   other-modules:
       Paths_xml_typelift
   hs-source-dirs:
       lib
   ghc-options: -Wall
   build-depends:
-      base >=4.9 && <5
+      base >=4.8 && <5
     , bytestring
     , containers
     , deepseq
@@ -70,15 +62,13 @@ executable xml-typelift-cli
       Parser
       Schema
       TypeDecls
-      FromXML
       Paths_xml_typelift
   hs-source-dirs:
       src
       app
-      lib
   ghc-options: -Wall
   build-depends:
-      base >=4.9 && <5
+      base >=4.8 && <5
     , bytestring
     , containers
     , deepseq
@@ -103,15 +93,13 @@ benchmark memory
       Parser
       Schema
       TypeDecls
-      FromXML
       Paths_xml_typelift
   hs-source-dirs:
       bench/memory
       src
-      lib
   ghc-options: -Wall
   build-depends:
-      base >=4.9 && <5
+      base >=4.8 && <5
     , bytestring
     , containers
     , criterion
@@ -145,7 +133,7 @@ benchmark speed
       lib
   ghc-options: -Wall
   build-depends:
-      base >=4.9 && <5
+      base >=4.8 && <5
     , bytestring
     , containers
     , criterion >=1.5.0.0

@@ -5,7 +5,7 @@ import qualified Data.ByteString.Char8   as BS
 import qualified Data.ByteString.Builder as B
 import           System.Environment
 import           System.Exit(exitFailure)
-import           System.IO(stdout, stderr, hPutStrLn)
+import           System.IO(stdout, stderr, hPutStrLn, hFlush)
 
 import Analyze
 import CodeGen
@@ -30,15 +30,16 @@ processFile filename = do
     --putStrLn     $ "Starting to process " <> filename
     input       <- BS.readFile filename
     maybeSchema <- parseSchema input
-    --putStrLn "Got schema!"
     whenJust maybeSchema $ \schema -> do
-      --putStrLn $ "Successfully parsed " <> filename <> ": " <> show schema
+      putStrLn $ "Successfully parsed " <> filename <> ": " <> show schema
       let (analyzed, schemaErrors) = analyze schema
       null schemaErrors `unless` printExceptions input schemaErrors
       --putStrLn "Analysis:"
       printExceptions input $ check analyzed
-      --putStrLn "Datatypes:"
-      B.hPutBuilder stdout $ codegen schema
+      putStrLn "\n===== Datatypes:"
+      hFlush stdout
+      B.hPutBuilder stdout $ codegen analyzed
+      hFlush stdout
 
 main :: IO ()
 main  = do

@@ -25,7 +25,7 @@ extra-source-files:
 ghc-options: -Wall
 
 dependencies:
-  - base >= 4.9 && < 5
+  - base >= 4.8 && < 5
   - bytestring
   - containers
   - deepseq
@@ -39,15 +39,7 @@ library:
   source-dirs:
     - lib
   exposed-modules:
-    - Analyze
-    - BaseTypes
-    - CodeGen
-    - CodeGenMonad
-    - CodeGenTypeDecls
     - FromXML
-    - Identifiers
-    - Parser
-    - Schema
 
 executables:
   xml-typelift-cli:
@@ -55,7 +47,6 @@ executables:
     source-dirs:
       - src
       - app
-      - lib
     dependencies:
       - xml-typelift
 
@@ -73,7 +64,6 @@ benchmarks:
     source-dirs:
       - bench/memory
       - src
-      - lib
     main: Main.hs
     dependencies:
       - criterion
