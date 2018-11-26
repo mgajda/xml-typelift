@@ -51,12 +51,13 @@ fromBaseXMLType s = case s of
   "base64Binary"       -> "BS.ByteString" -- TODO: add hex decoding
   "anyURI"             -> "BS.ByteString" -- TODO: add hex decoding
   "token"              -> "XMLString"
-  "integer"            -> "Int" -- or Integer
-  "positiveInteger"    -> "Int" -- or Integer
+  "integer"            -> "Integer" -- or Integer
+  "int"                -> "Int"     -- or Integer
+  "positiveInteger"    -> "Integer" -- or Integer
   "float"              -> "Float"
   "date"               -> "Day"
   "time"               -> "DiffTime"
-  "datetime"           -> "ZonedTime"
+  "dateTime"           -> "ZonedTime"
   "decimal"            -> "Int"
   "double"             -> "Double"
   "QName"              -> "XMLString" -- TODO: split namespace from QNames
@@ -95,11 +96,22 @@ predefinedTypes :: Set.Set XMLString
 predefinedTypes = Set.fromList [
     "any"
   , "string"
+  , "boolean"
+  , "hexBinary"
+  , "base64Binary"
+  , "anyURI"
   , "token"
   , "integer"
+  , "int"
   , "positiveInteger"
   , "float"
   , "date"
+  , "time"
+  , "dateTime"
+  , "decimal"
+  , "Double"
+  , "QName"
+  , "NOTATION"
   , "" -- toplevel
   ]
 
