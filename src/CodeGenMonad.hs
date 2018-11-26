@@ -23,6 +23,7 @@ module CodeGenMonad(-- Code generation monad
                    -- Translating identifiers
                    ,translateType
                    ,translateField
+                   ,translate
 
                    -- Utilities
                    ,builderUnlines
@@ -45,14 +46,27 @@ import           Identifiers
 import           Schema
 import           BaseTypes
 
-type TranslationDict = Map.Map XMLString XMLString
+-- | Which of the XML Schema identifier namespaces do we use here
+data XMLIdNS = SchemaType
+             | ElementName
+             | AttributeName
+  deriving (Eq, Ord, Show, Enum, Bounded)
+
+-- | Which of the target language identifier namespaces do we use here
+data TargetIdNS = TargetTypeName
+                | TargetConsName
+                | TargetFieldName
+  deriving (Eq, Ord, Show, Enum, Bounded)
+
+type IdClass = (XMLIdNS, TargetIdNS)
 
 -- | State of code generator
 data CGState =
   CGState {
-    -- Translation of XML Schema identifiers to Haskell identifiers
-    _typeTranslations  :: TranslationDict
-  , _fieldTranslations :: TranslationDict
+    -- Translation of XML Schema identifiers to Haskell identifiers.
+    _translations         :: Map.Map (IdClass,    XMLString) XMLString
+    -- Set of translation target names that were used before (and are thus unavailable.)
+  , _allocatedIdentifiers :: Set.Set (TargetIdNS, XMLString)
   }
 makeLenses ''CGState
 
@@ -60,9 +74,11 @@ type CG a = RWS.RWS Schema B.Builder CGState a
 
 initialState :: CGState
 initialState  = CGState
-               (Map.fromList [(bt, fromBaseXMLType bt)
+               (Map.fromList [(((SchemaType, TargetTypeName), bt), fromBaseXMLType bt)
                              | bt <- Set.toList predefinedTypes ])
-                Map.empty
+               (trans `Set.map` predefinedTypes)
+  where
+    trans = (TargetTypeName,) . fromBaseXMLType
 
 gen     :: [B.Builder] -> CG ()
 gen args = RWS.tell $ mconcat args
@@ -76,59 +92,55 @@ builderUnlines :: [B.Builder] -> B.Builder
 builderUnlines []     = ""
 builderUnlines (l:ls) = l <> mconcat (("\n" <>) <$> ls)
 
--- | Translation environment is different for different types of names:
---   * types and constructors (we reuse space to make it more consistent)
---   * fields
---   * NOTE: we might want to separate constructor namespace in the future
-data TranslationEnv =
-       TEnv { -- | Placeholder for empty inputs
-              placeholder :: XMLString
-              -- | Normalizer
-            , normalizer  :: XMLString -> XMLString
-              -- | Lens to manipulate correct dictionary in CGState
-            , dictLens    :: Lens' CGState TranslationDict
-            }
+-- | PlaceHolder depending of class of the source and target ids
+--   Names selected to provide maximum clarity.
+placeholder :: XMLIdNS -> TargetIdNS -> XMLString
+placeholder xmlIdClass targetIdClass = classNormalizer targetIdClass $ name xmlIdClass
+  where
+    name SchemaType    = "UnnamedSchemaType"
+    name ElementName   = "UnnamedElement"    -- is not allowed by schema
+    name AttributeName = "UnnamedAttribute"
 
--- | Translate type name from XML identifier.
-translateType :: XMLString -> XMLString -> CG B.Builder
-translateType  = translate'
-                 TEnv { placeholder = "UnnamedElementType"
-                      , normalizer  =  normalizeTypeName
-                      , dictLens    =  typeTranslations
-                      }
+classNormalizer :: TargetIdNS -> XMLString -> XMLString
+classNormalizer TargetTypeName  = normalizeTypeName
+classNormalizer TargetConsName  = normalizeTypeName -- same normalization as type names, but separate space
+classNormalizer TargetFieldName = normalizeFieldName
+
+-- * These two should be phased out!
+translateType = translate (SchemaType, TargetTypeName)
 
 -- | Translate field name from XML identifier.
+-- TODO: make obsolete
 translateField :: XMLString -> XMLString -> CG B.Builder
-translateField = translate'
-                 TEnv { placeholder = "unnamedFieldName"
-                      , normalizer  = normalizeFieldName
-                      , dictLens    = fieldTranslations
-                      }
+translateField = translate (SchemaType, TargetFieldName)
 
 -- | Translate XML Schema identifier into Haskell identifier,
 --   maintaining dictionary to assure uniqueness of Haskell identifier.
-translate' :: TranslationEnv
-           -> XMLString               -- input container name
-           -> XMLString               -- input name
-           -> CG B.Builder
-translate' TEnv {..} container xmlName = do
-    tr <- Lens.use dictLens
-    case Map.lookup xmlName tr of
+translate :: IdClass
+          -> XMLString               -- input container name
+          -> XMLString               -- input name
+          -> CG B.Builder
+translate idClass@(schemaIdClass, haskellIdClass) container xmlName = do
+    tr     <- Lens.use translations
+    allocs <- Lens.use allocatedIdentifiers
+    case Map.lookup (idClass, xmlName) tr of
       Just r  -> return $ B.byteString r
       Nothing ->
         let proposals = proposeTranslations xmlName
-        in do
-          case filter (`Map.notMember` tr) proposals of
-            (goodProposal:_) -> do
-              _ <- dictLens %= Map.insert xmlName goodProposal
-              return $ B.byteString goodProposal
+        in case (`Set.notMember` allocs) `filter` proposals of
+             (goodProposal:_) -> do
+               _ <- translations         %= Map.insert (idClass, xmlName) (snd goodProposal)
+               _ <- allocatedIdentifiers %= Set.insert                         goodProposal
+               return $ B.byteString $ snd goodProposal
+             [] -> error "Impossible happened when trying to find a new identifier - file a bug!"
   where
-    proposeTranslations     :: XMLString -> [XMLString]
-    proposeTranslations (normalizer -> name) = normalizer <$>
+    normalizer = classNormalizer haskellIdClass
+    proposeTranslations                     :: XMLString -> [(TargetIdNS, XMLString)]
+    proposeTranslations (normalizer -> name) = ((haskellIdClass,) . normalizer) <$>
         ([BS.take i container <> normName | i :: Int <- [0..BS.length container]] <>
          [normName <> bshow i | i :: Int <- [1..]])
       where
-        normName | name==""  = placeholder
+        normName | name==""  = placeholder schemaIdClass haskellIdClass
                  | otherwise = name
 
 -- | Make builder to generate schema code.
