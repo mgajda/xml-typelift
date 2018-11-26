@@ -16,6 +16,7 @@ module BaseTypes(fromBaseXMLType
                 ,baseHaskellTypes
                 ,predefinedTypes
                 ,isSimple
+                ,reservedWords
                 ) where
 
 import           Prelude hiding(lookup)
@@ -42,7 +43,8 @@ fromBaseXMLType s = case s of
   "decimal"            -> "Int"
   "double"             -> "Double"
   "QName"              -> "XMLString" -- TODO: split namespace from QNames
-  "NOTATION"           -> "XMLString" -- TODO: we ignore <xs:notation> definitions!
+  "NOTATION"           -> "XMLString" -- TODO: we ignore <xs:notation> definitions?
+  ""                   -> "TopLevel"  -- Document toplevel for the parser
   _                    -> "Xeno.Node" -- or error?\
 
 -- | Check if builder makes Haskell base type
@@ -81,6 +83,7 @@ predefinedTypes = Set.fromList [
   , "positiveInteger"
   , "float"
   , "date"
+  , "" -- toplevel
   ]
 
 isSimple :: Type -> Maybe Bool

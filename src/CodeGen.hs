@@ -27,13 +27,13 @@ import           CodeGenMonad
 import           BaseTypes
 import           TypeDecls
 
-import           Debug.Trace
+--import           Debug.Trace
 
 -- | Returns a pair of field name, and type code.
 generateElementInstance :: XMLString -- container name
                         -> Element -> CG Field
 generateElementInstance container elt@(Element {minOccurs, maxOccurs, eName, ..}) =
-    (,) <$>  translateField                  container eName
+    (,) <$>  translate (ElementName, TargetFieldName) container eName
         <*> (wrapper <$> generateElementType container elt  )
   where
     wrapper tyName | minOccurs==1 && maxOccurs==MaxOccurs 1 =             tyName
@@ -53,11 +53,12 @@ generateElementType :: XMLString -- container name
                     -> CG B.Builder
 -- Flatten elements with known type to their types.
 generateElementType container (eType -> Ref (stripNS -> ""    )) = return "ElementWithEmptyRefType"
-generateElementType container (eType -> Ref (stripNS -> tyName)) = translateType container tyName
+generateElementType container (eType -> Ref (stripNS -> tyName)) =
+  translate (SchemaType, TargetTypeName) container tyName
 generateElementType container (Element {eName, eType})   =
   case eType of
     Complex attrs children -> generateContentType eName $ Complex attrs children
-    other -> return $ "UnimplementedType_" <> B.byteString (bshow other)
+    other                  -> return $ "UnimplementedType_" <> B.byteString (bshow other)
 
 mapSnd f (a, b) = (a, f b)
 
@@ -69,24 +70,25 @@ wrapper (Default x) ty =             ty
 
 generateContentType :: XMLString -- container name
                     -> Type -> CG B.Builder
-generateContentType container (Ref (stripNS -> tyName)) = translateType container tyName
+generateContentType container (Ref (stripNS -> tyName)) = translate (SchemaType, TargetTypeName) container tyName
   -- TODO: check if the type was already translated (as it should, if it was generated)
 generateContentType eName (Complex attrs content) = do
-    myTypeName  <- translateType eName eName
+    myTypeName  <- translate (ElementName, TargetTypeName) eName eName
+    myConsName  <- translate (ElementName, TargetConsName) eName eName
     attrFields  :: [Field] <- tracer "attr fields" <$> mapM makeAttrType attrs
 
     childFields :: [Field] <- tracer "child fields" <$> case content of -- serving only simple Seq of elts or choice of elts for now
       Seq    ls -> seqInstance ls
       Choice ls -> (:[]) <$> makeAltType ls
     RWS.tell $ "\ndata " <> myTypeName <> " ="
-    declareAlgebraicType [(myTypeName, attrFields <> childFields)]
+    declareAlgebraicType [(myConsName, attrFields <> childFields)]
     return      myTypeName
   where
     makeAttrType :: Attr -> CG (B.Builder, B.Builder)
     makeAttrType Attr {..} = mapSnd (wrapper use) <$> makeFieldType aName aType
     makeFieldType :: XMLString -> Type -> CG (B.Builder, B.Builder)
-    makeFieldType  aName aType = (,) <$> translateField      eName aName
-                                     <*> generateContentType eName aType
+    makeFieldType  aName aType = (,) <$> translate (AttributeName, TargetTypeName) eName aName
+                                     <*> generateContentType                       eName aType
     makeAltType :: [TyPart] -> CG (B.Builder, B.Builder)
     makeAltType ls = return ("altFields", "**AltTypeNotYetImplemented**")
     seqInstance = mapM fun
@@ -94,13 +96,14 @@ generateContentType eName (Complex attrs content) = do
         fun (Elt (elem@(Element {eName=subName}))) = do
           generateElementInstance eName elem
 generateContentType eName (Restriction base (Enum values)) = do
-  tyName     <- translateType eName        eName
-  translated <- translateType eName `mapM` values
+  tyName     <- translate (ElementName, TargetTypeName) eName        eName
+  translated <- translate (EnumIn eName,  TargetConsName) eName `mapM` values
+  -- ^ TODO: consider enum as indexed family of spaces
   declareSumType (tyName, (,"") <$> translated)
   return tyName
 generateContentType eName (Restriction base (Pattern _)) = do
-  tyName <- translateType (eName <> "pattern") base
-  base   <- translateType  eName               base
+  tyName <- translate (ElementName, TargetTypeName) (eName <> "pattern") base
+  base   <- translate (SchemaType,  TargetTypeName)  eName               base
   gen ["\nnewtype ", tyName, " = ", tyName, " ", base]
   return tyName
 generateContentType eName (Restriction base  None      ) =
@@ -116,7 +119,7 @@ codegen sch = runCodeGen sch $ generateSchema sch
 -- | Generate content type, and put an type name on it.
 generateNamedContentType :: (XMLString, Type) -> CG ()
 generateNamedContentType (name, ty) = do
-  contentTypeName <- translateType    "" name
+  contentTypeName <- translate (SchemaType, TargetTypeName) "" name
   contentTypeCode <- generateContentType name ty
   when (baseHaskellType $ builderString contentTypeCode) $
     RWS.tell $ "\nnewtype " <> contentTypeName <> " = " <> contentTypeName <> " " <> contentTypeCode <> "\n"
@@ -142,7 +145,8 @@ generateSchema sch = do
       altTypes                                    -> do
            -- Add constructor name for each type
            -- TODO: We would gain from separate dictionary for constructor names!
-           alts <- (`zip` altTypes) <$> forM altTypes (translateType topLevelConst . builderString)
+           alts <- (`zip` altTypes) <$> forM altTypes
+                                            (translate (SchemaType, TargetTypeName) topLevelConst . builderString)
            declareSumType (topLevelConst, alts)
     RWS.tell "\n"
 

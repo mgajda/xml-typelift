@@ -21,8 +21,8 @@ module CodeGenMonad(-- Code generation monad
                    ,gen
 
                    -- Translating identifiers
-                   ,translateType
-                   ,translateField
+                   ,TargetIdNS(..)
+                   ,XMLIdNS   (..)
                    ,translate
 
                    -- Utilities
@@ -50,7 +50,8 @@ import           BaseTypes
 data XMLIdNS = SchemaType
              | ElementName
              | AttributeName
-  deriving (Eq, Ord, Show, Enum, Bounded)
+             | EnumIn XMLString -- enumeration inside type/element of given name (should be path)
+  deriving (Eq, Ord, Show)
 
 -- | Which of the target language identifier namespaces do we use here
 data TargetIdNS = TargetTypeName
@@ -63,9 +64,9 @@ type IdClass = (XMLIdNS, TargetIdNS)
 -- | State of code generator
 data CGState =
   CGState {
-    -- Translation of XML Schema identifiers to Haskell identifiers.
+    -- | Translation of XML Schema identifiers to Haskell identifiers.
     _translations         :: Map.Map (IdClass,    XMLString) XMLString
-    -- Set of translation target names that were used before (and are thus unavailable.)
+    -- | Set of translation target names that were used before (and are thus unavailable.)
   , _allocatedIdentifiers :: Set.Set (TargetIdNS, XMLString)
   }
 makeLenses ''CGState
@@ -97,22 +98,15 @@ builderUnlines (l:ls) = l <> mconcat (("\n" <>) <$> ls)
 placeholder :: XMLIdNS -> TargetIdNS -> XMLString
 placeholder xmlIdClass targetIdClass = classNormalizer targetIdClass $ name xmlIdClass
   where
-    name SchemaType    = "UnnamedSchemaType"
-    name ElementName   = "UnnamedElement"    -- is not allowed by schema
-    name AttributeName = "UnnamedAttribute"
+    name  SchemaType    = "UnnamedSchemaType"
+    name  ElementName   = "UnnamedElement"    -- is not allowed by schema
+    name  AttributeName = "UnnamedAttribute"
+    name (EnumIn x)     = "EnumIn" <> x
 
 classNormalizer :: TargetIdNS -> XMLString -> XMLString
 classNormalizer TargetTypeName  = normalizeTypeName
 classNormalizer TargetConsName  = normalizeTypeName -- same normalization as type names, but separate space
 classNormalizer TargetFieldName = normalizeFieldName
-
--- * These two should be phased out!
-translateType = translate (SchemaType, TargetTypeName)
-
--- | Translate field name from XML identifier.
--- TODO: make obsolete
-translateField :: XMLString -> XMLString -> CG B.Builder
-translateField = translate (SchemaType, TargetFieldName)
 
 -- | Translate XML Schema identifier into Haskell identifier,
 --   maintaining dictionary to assure uniqueness of Haskell identifier.
