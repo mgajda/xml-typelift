@@ -26,6 +26,8 @@ import           Xeno.Types as Xeno
 import           Xeno.DOM as Xeno
 import           Xeno.Errors
 
+type XMLString = ByteString
+
 type XenoAttribute = (ByteString, ByteString)
 
 type Result elt = Either XenoException elt

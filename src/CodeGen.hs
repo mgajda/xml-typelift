@@ -19,6 +19,7 @@ import qualified Data.ByteString.Builder    as B
 import qualified Data.ByteString.Char8      as BS
 import           Data.String
 import qualified Data.Map.Strict            as Map
+import qualified Data.Set                   as Set
 
 import           FromXML(stripNS)
 
@@ -58,7 +59,7 @@ generateElementType container (eType -> Ref (stripNS -> tyName)) =
 generateElementType container (Element {eName, eType})   =
   case eType of
     Complex attrs children -> generateContentType eName $ Complex attrs children
-    other                  -> return $ "UnimplementedType_" <> B.byteString (bshow other)
+    other                  -> return "Xeno.Node" -- $ "UnimplementedTypeExtension_" <> B.byteString (bshow other)
 
 mapSnd f (a, b) = (a, f b)
 
@@ -95,16 +96,17 @@ generateContentType eName (Complex attrs content) = do
       where
         fun (Elt (elem@(Element {eName=subName}))) = do
           generateElementInstance eName elem
-generateContentType eName (Restriction base (Enum values)) = do
-  tyName     <- translate (ElementName, TargetTypeName) eName        eName
+generateContentType eName (Restriction base (Enum (uniq -> values))) = do
+  tyName     <- translate (ElementName,   TargetTypeName) eName        eName
   translated <- translate (EnumIn eName,  TargetConsName) eName `mapM` values
   -- ^ TODO: consider enum as indexed family of spaces
   declareSumType (tyName, (,"") <$> translated)
   return tyName
 generateContentType eName (Restriction base (Pattern _)) = do
-  tyName <- translate (ElementName, TargetTypeName) (eName <> "pattern") base
-  base   <- translate (SchemaType,  TargetTypeName)  eName               base
-  gen ["\nnewtype ", tyName, " = ", tyName, " ", base]
+  tyName   <- translate (ElementName, TargetTypeName) (eName <> "pattern") base
+  consName <- translate (ElementName, TargetConsName) (eName <> "pattern") base
+  base     <- translate (SchemaType,  TargetTypeName)  eName               base
+  gen ["\nnewtype ", tyName, " = ", consName, " ", base]
   return tyName
 generateContentType eName (Restriction base  None      ) =
   -- Should we do `newtype` instead?
@@ -120,13 +122,14 @@ codegen sch = runCodeGen sch $ generateSchema sch
 generateNamedContentType :: (XMLString, Type) -> CG ()
 generateNamedContentType (name, ty) = do
   contentTypeName <- translate (SchemaType, TargetTypeName) "" name
+  contentConsName <- translate (SchemaType, TargetConsName) "" name
   contentTypeCode <- generateContentType name ty
   when (baseHaskellType $ builderString contentTypeCode) $
-    RWS.tell $ "\nnewtype " <> contentTypeName <> " = " <> contentTypeName <> " " <> contentTypeCode <> "\n"
+    RWS.tell $ "\nnewtype " <> contentTypeName <> " = " <> contentConsName <> " " <> contentTypeCode <> "\n"
 
 generateSchema :: Schema -> CG ()
 generateSchema sch = do
-    RWS.tell "{-# LANGUAGE DuplicateRecordFields #-}"
+    RWS.tell "{-# LANGUAGE DuplicateRecordFields #-}\n"
     RWS.tell "module XMLSchema where\n"
     RWS.tell "import FromXML\n"
     -- First generate all types that may be referred by others.
@@ -152,4 +155,7 @@ generateSchema sch = do
 
 topLevelConst :: IsString a => a
 topLevelConst = "TopLevel"
+
+uniq :: Ord a => [a] -> [a]
+uniq  = Set.toList . Set.fromList
 

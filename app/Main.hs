@@ -31,12 +31,12 @@ processFile filename = do
     input       <- BS.readFile filename
     maybeSchema <- parseSchema input
     whenJust maybeSchema $ \schema -> do
-      putStrLn $ "Successfully parsed " <> filename <> ": " <> show schema
+      --putStrLn $ "Successfully parsed " <> filename <> ": " <> show schema
       let (analyzed, schemaErrors) = analyze schema
       null schemaErrors `unless` printExceptions input schemaErrors
       --putStrLn "Analysis:"
       printExceptions input $ check analyzed
-      putStrLn "\n===== Datatypes:"
+      --putStrLn "\n===== Datatypes:"
       hFlush stdout
       B.hPutBuilder stdout $ codegen analyzed
       hFlush stdout

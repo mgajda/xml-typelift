@@ -119,14 +119,17 @@ translate idClass@(schemaIdClass, haskellIdClass) container xmlName = do
     allocs <- Lens.use allocatedIdentifiers
     case Map.lookup (idClass, xmlName) tr of
       Just r  -> return $ B.byteString r
-      Nothing ->
-        let proposals = proposeTranslations xmlName
-        in case (`Set.notMember` allocs) `filter` proposals of
-             (goodProposal:_) -> do
-               _ <- translations         %= Map.insert (idClass, xmlName) (snd goodProposal)
-               _ <- allocatedIdentifiers %= Set.insert                         goodProposal
-               return $ B.byteString $ snd goodProposal
-             [] -> error "Impossible happened when trying to find a new identifier - file a bug!"
+      Nothing -> do
+        let isValid (_, x) | rejectInvalidTypeName x = False
+            isValid     x  | x `Set.member` allocs   = False
+            isValid  _                               = True
+            proposals = isValid `filter` proposeTranslations xmlName
+        case proposals of
+          (goodProposal:_) -> do
+            _ <- translations         %= Map.insert (idClass, xmlName) (snd goodProposal)
+            _ <- allocatedIdentifiers %= Set.insert                         goodProposal
+            return $ B.byteString $ snd goodProposal
+          [] -> error "Impossible happened when trying to find a new identifier - file a bug!"
   where
     normalizer = classNormalizer haskellIdClass
     proposeTranslations                     :: XMLString -> [(TargetIdNS, XMLString)]

@@ -1,7 +1,8 @@
 {-# LANGUAGE ViewPatterns      #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Identifiers(normalizeTypeName,
-                   normalizeFieldName
+                   normalizeFieldName,
+                   rejectInvalidTypeName
                   ) where
 
 import           Prelude               hiding(lookup)
@@ -47,6 +48,9 @@ normalizeTypeName = --(\t -> trace ("normalized type name:" <> show t) t) .
     escapeFirstNonAlpha ""                                 =        ""
     escapeFirstNonAlpha cs@(BS.head -> c) | Char.isAlpha c =        cs
     escapeFirstNonAlpha cs                                 = "_" <> cs
+
+rejectInvalidTypeName   :: BS.ByteString -> Bool
+rejectInvalidTypeName bs = BS.head bs == '_'
 
 toUpper, toLower :: BS.ByteString -> BS.ByteString
 toUpper = BS.map Char.toUpper
