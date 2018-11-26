@@ -2,6 +2,7 @@
 {-# LANGUAGE Strict            #-}
 {-# LANGUAGE ViewPatterns      #-}
 module FromXML(FromXML(..),
+               XMLString,
                makeFromXML,
                Result,
                AttrHandler,
@@ -26,6 +27,7 @@ import           Xeno.Types as Xeno
 import           Xeno.DOM as Xeno
 import           Xeno.Errors
 
+-- | Type alias to the used `String`-like type
 type XMLString = ByteString
 
 type XenoAttribute = (ByteString, ByteString)

@@ -14,6 +14,7 @@
 module BaseTypes(fromBaseXMLType
                 ,baseHaskellType
                 ,baseHaskellTypes
+                ,basePrologue
                 ,predefinedTypes
                 ,isSimple
                 ,reservedWords
@@ -24,7 +25,21 @@ import           Prelude hiding(lookup)
 import qualified Data.Set                   as Set
 import           Data.String
 
+import           FromXML
 import           Schema
+
+-- | Module prologue to import all standard types
+basePrologue :: (IsString a, Monoid a) => a
+basePrologue  = mconcat $ map makeImport modules
+  where
+    makeImport modPath = "import " <> modPath <> "\n"
+    modules = ["Data.Time.LocalTime(ZonedTime)"
+              ,"Data.ByteString.Char8"
+              ,"FromXML"
+              ,"Data.Time.Calendar"
+              ,"Data.Time.Clock"
+              ,"Xeno.DOM"
+              ]
 
 -- | Translating base XML types.
 fromBaseXMLType :: (Eq a, IsString a, IsString b) => a -> b
@@ -39,7 +54,9 @@ fromBaseXMLType s = case s of
   "integer"            -> "Int" -- or Integer
   "positiveInteger"    -> "Int" -- or Integer
   "float"              -> "Float"
-  "date"               -> "Date"
+  "date"               -> "Day"
+  "time"               -> "DiffTime"
+  "datetime"           -> "ZonedTime"
   "decimal"            -> "Int"
   "double"             -> "Double"
   "QName"              -> "XMLString" -- TODO: split namespace from QNames

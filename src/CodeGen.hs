@@ -21,7 +21,7 @@ import           Data.String
 import qualified Data.Map.Strict            as Map
 import qualified Data.Set                   as Set
 
-import           FromXML(stripNS)
+import           FromXML(stripNS, XMLString)
 
 import           Schema
 import           CodeGenMonad
@@ -31,6 +31,8 @@ import           TypeDecls
 --import           Debug.Trace
 
 -- | Returns a pair of field name, and type code.
+--   That means that type codes are in ElementName namespace, if described in-place,
+--   or standard SchemaType, if referred inside ComplexType declaration.
 generateElementInstance :: XMLString -- container name
                         -> Element -> CG Field
 generateElementInstance container elt@(Element {minOccurs, maxOccurs, eName, ..}) =
@@ -49,6 +51,7 @@ tracer _ a = a
 instance Show B.Builder where
   show = BS.unpack . builderString
 
+-- | Generate type of given <element/>, if not already declared by type="..." attribute reference.
 generateElementType :: XMLString -- container name
                     -> Element
                     -> CG B.Builder
@@ -69,16 +72,22 @@ wrapper  Optional   ty = "Maybe " <> ty
 wrapper  Required   ty =             ty
 wrapper (Default x) ty =             ty
 
+-- | Given a container with ComplexType details (attributes and children),
+--   generate the type to hold them.
+--   Or if it turns out these are referred types - just return their names.
+--   That means that our container is likely 'SchemaType' namespace
 generateContentType :: XMLString -- container name
                     -> Type -> CG B.Builder
 generateContentType container (Ref (stripNS -> tyName)) = translate (SchemaType, TargetTypeName) container tyName
   -- TODO: check if the type was already translated (as it should, if it was generated)
 generateContentType eName (Complex attrs content) = do
-    myTypeName  <- translate (ElementName, TargetTypeName) eName eName
-    myConsName  <- translate (ElementName, TargetConsName) eName eName
+    myTypeName  <- translate (SchemaType, TargetTypeName) eName eName
+    myConsName  <- translate (SchemaType, TargetConsName) eName eName
     attrFields  :: [Field] <- tracer "attr fields" <$> mapM makeAttrType attrs
 
-    childFields :: [Field] <- tracer "child fields" <$> case content of -- serving only simple Seq of elts or choice of elts for now
+    childFields :: [Field] <- tracer "child fields" <$>
+                              case content of -- serving only simple Seq of elts or choice of elts for now
+                              -- These would be in ElementType namespace.
       Seq    ls -> seqInstance ls
       Choice ls -> (:[]) <$> makeAltType ls
     RWS.tell $ "\ndata " <> myTypeName <> " ="
@@ -112,7 +121,7 @@ generateContentType eName (Restriction base  None      ) =
   -- Should we do `newtype` instead?
   generateContentType eName $ Ref base
 generateContentType eName (Extension   base  _         ) = return "ExtensionNotImplemented"
-generateContentType _          other       = return "**NotYetImplemented**"
+generateContentType _          other       = return $ "**NotYetImplemented**" <> B.string8 (show other)
 
 -- | Make builder to generate schema code
 codegen    :: Schema -> B.Builder
@@ -130,8 +139,9 @@ generateNamedContentType (name, ty) = do
 generateSchema :: Schema -> CG ()
 generateSchema sch = do
     RWS.tell "{-# LANGUAGE DuplicateRecordFields #-}\n"
-    RWS.tell "module XMLSchema where\n"
-    RWS.tell "import FromXML\n"
+    RWS.tell "module XMLSchema where\n\n"
+    RWS.tell (B.byteString basePrologue)
+    RWS.tell "\n\n"
     -- First generate all types that may be referred by others.
     mapM_ generateNamedContentType $ Map.toList $ types sch
     -- Then generate possible top level types.

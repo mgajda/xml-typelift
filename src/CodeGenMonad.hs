@@ -41,7 +41,9 @@ import qualified Data.ByteString.Lazy       as BSL(toStrict, length)
 import qualified Data.ByteString.Builder    as B
 import qualified Data.Map.Strict            as Map
 import qualified Data.Set                   as Set
+import Debug.Trace(trace)
 
+import           FromXML(XMLString)
 import           Identifiers
 import           Schema
 import           BaseTypes
@@ -125,7 +127,9 @@ translate idClass@(schemaIdClass, haskellIdClass) container xmlName = do
             isValid  _                               = True
             proposals = isValid `filter` proposeTranslations xmlName
         case proposals of
-          (goodProposal:_) -> do
+          (goodProposal:_) ->
+           trace ("translate " <> show idClass <> " " <> show container <>
+                  " "          <> show xmlName <> " -> " <> show goodProposal) $ do
             _ <- translations         %= Map.insert (idClass, xmlName) (snd goodProposal)
             _ <- allocatedIdentifiers %= Set.insert                         goodProposal
             return $ B.byteString $ snd goodProposal

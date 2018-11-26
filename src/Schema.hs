@@ -18,6 +18,8 @@ import Data.Data
 import GHC.Generics
 import Data.Generics.Uniplate.Data()
 
+import FromXML(XMLString)
+
 class Default a where
   def :: a
 
@@ -31,9 +33,6 @@ data Schema = Schema {
 
 instance Default Schema where
   def = Schema Data.Map.empty [] ""
-
--- | Type alias to the used `String`-like type
-type XMLString = BS.ByteString
 
 newtype ID = ID XMLString
   deriving (Show, Read, Eq, Ord, Generic, NFData, Data, Typeable)
