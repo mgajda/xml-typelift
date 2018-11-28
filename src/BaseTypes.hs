@@ -34,7 +34,9 @@ basePrologue  = mconcat $ map makeImport modules
   where
     makeImport modPath = "import " <> modPath <> "\n"
     modules = ["Data.Time.LocalTime(ZonedTime)"
-              ,"Data.ByteString.Char8"
+              ,"Data.ByteString.Char8 as BS"
+              ,"Data.Int(Int64)"
+              ,"Data.Time.ISO8601.Duration"
               ,"FromXML"
               ,"Data.Time.Calendar(Day)"
               ,"Data.Time.Clock"
@@ -42,27 +44,35 @@ basePrologue  = mconcat $ map makeImport modules
               ]
 
 baseTranslations :: [(BS.ByteString, BS.ByteString)]
-baseTranslations =
-  [("any"            , "Xeno.Node"    )
-  ,("string"         , "XMLString"    )
-  ,("boolean"        , "Bool"         )
-  ,("hexBinary"      , "BS.ByteString") -- TODO: add hex decoding
-  ,("base64Binary"   , "BS.ByteString") -- TODO: add hex decoding
-  ,("anyURI"         , "BS.ByteString") -- TODO: add hex decoding
-  ,("token"          , "XMLString"    )
-  ,("integer"        , "Integer"      ) -- or Integer
-  ,("int"            , "Int"          ) -- or Integer
-  ,("positiveInteger", "Integer"      ) -- or Integer
-  ,("float"          , "Float"        )
-  ,("date"           , "Day"          )
-  ,("time"           , "DiffTime"     )
-  ,("dateTime"       , "ZonedTime"    )
-  ,("decimal"        , "Int"          )
-  ,("double"         , "Double"       )
-  ,("QName"          , "XMLString"    ) -- TODO: split namespace from QNames
-  ,("NOTATION"       , "XMLString"    ) -- TODO: we ignore <xs:notation> definitions?
-  ,(""               , "TopLevel"     ) -- Document toplevel for the parser
-  ]
+baseTranslations = map addNS
+    [("any"            , "Xeno.Node"    )
+    ,("string"         , "XMLString"    )
+    ,("boolean"        , "Bool"         )
+    ,("long"           , "Int64"        ) -- or Int64
+    ,("duration"       , "Duration"     ) -- TODO: ISO8601 with minor deviations
+                                          -- https://www.w3.org/TR/xmlschema-2/#deviantformats
+    ,("gYearMonth"     , "Day"          ) -- TODO: shall parse as month and year!
+    ,("gYear"          , "Day"          ) -- TODO: shall parse as Gregorian year!
+    ,("gMonth"         , "Day"          ) -- TODO: shall parse as month
+    ,("hexBinary"      , "BS.ByteString") -- TODO: add hex decoding
+    ,("base64Binary"   , "BS.ByteString") -- TODO: add hex decoding
+    ,("anyURI"         , "BS.ByteString") -- TODO: add hex decoding
+    ,("token"          , "XMLString"    )
+    ,("integer"        , "Integer"      ) -- or Integer
+    ,("int"            , "Int"          ) -- or Integer
+    ,("positiveInteger", "Integer"      ) -- or Integer
+    ,("float"          , "Float"        )
+    ,("date"           , "Day"          )
+    ,("time"           , "DiffTime"     )
+    ,("dateTime"       , "ZonedTime"    )
+    ,("decimal"        , "Int"          )
+    ,("double"         , "Double"       )
+    ,("QName"          , "XMLString"    ) -- TODO: split namespace from QNames
+    ,("NOTATION"       , "XMLString"    ) -- TODO: we ignore <xs:notation> definitions?
+    ,(""               , "TopLevel"     ) -- Document toplevel for the parser
+    ]
+  where
+    addNS (a, b) = ("xs:" <> a, b)
 
 -- | Check if builder makes Haskell base type
 isBaseHaskellType :: XMLString -> Bool

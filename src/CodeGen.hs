@@ -49,8 +49,8 @@ generateElementType :: XMLString -- container name
                     -> Element
                     -> CG B.Builder
 -- Flatten elements with known type to their types.
-generateElementType _         (eType -> Ref (stripNS -> ""    )) = return "ElementWithEmptyRefType"
-generateElementType container (eType -> Ref (stripNS -> tyName)) =
+generateElementType _         (eType -> Ref (""    )) = return "ElementWithEmptyRefType"
+generateElementType container (eType -> Ref (tyName)) =
   translate (SchemaType, TargetTypeName) container tyName
 generateElementType _         (Element {eName, eType})   =
   case eType of
@@ -74,7 +74,7 @@ wrapAttr (Default _) ty =             ty
 --   That means that our container is likely 'SchemaType' namespace
 generateContentType :: XMLString -- container name
                     -> Type -> CG B.Builder
-generateContentType container (Ref (stripNS -> tyName)) = translate (SchemaType, TargetTypeName) container tyName
+generateContentType container (Ref (tyName)) = translate (SchemaType, TargetTypeName) container tyName
   -- TODO: check if the type was already translated (as it should, if it was generated)
 generateContentType eName (Complex attrs content) = do
     myTypeName  <- translate (SchemaType, TargetTypeName) eName eName
@@ -98,7 +98,9 @@ generateContentType eName (Complex attrs content) = do
     makeFieldType  aName aType = (,) <$> translate (AttributeName, TargetFieldName) eName aName
                                      <*> generateContentType                        eName aType
     makeAltType :: [TyPart] -> CG (B.Builder, B.Builder)
-    makeAltType ls = return ("altFields", "**AltTypeNotYetImplemented**")
+    makeAltType ls = do
+      warn ["altType not yet implemented:", show ls]
+      return ("altFields", "Xeno.Node")
     seqInstance = mapM fun
       where
         fun (Elt (elem@(Element {eName=subName}))) = do

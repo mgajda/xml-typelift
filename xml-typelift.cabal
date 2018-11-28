@@ -4,7 +4,7 @@ cabal-version: >= 1.10
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 740ecc981ed53c220b697a6edaee5591dacef0e55eaec119f96cecffd054250e
+-- hash: 85fdde9c3f793051eb213f795bfd6962a69697d93e690324cfb251a9f881d961
 
 name:           xml-typelift
 version:        0.0.1
@@ -44,6 +44,7 @@ library
     , containers
     , deepseq
     , filepath
+    , iso8601-duration
     , lens
     , mtl
     , uniplate
@@ -73,6 +74,7 @@ executable xml-typelift-cli
     , containers
     , deepseq
     , filepath
+    , iso8601-duration
     , lens
     , mtl
     , uniplate
@@ -105,6 +107,7 @@ benchmark memory
     , criterion
     , deepseq
     , filepath
+    , iso8601-duration
     , lens
     , mtl
     , uniplate
@@ -139,6 +142,7 @@ benchmark speed
     , criterion >=1.5.0.0
     , deepseq
     , filepath
+    , iso8601-duration
     , lens
     , mtl
     , uniplate
