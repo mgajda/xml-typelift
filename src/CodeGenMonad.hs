@@ -19,6 +19,7 @@ module CodeGenMonad(-- Code generation monad
                    ,CGState
                    ,runCodeGen
                    ,gen
+                   ,warn
 
                    -- Translating identifiers
                    ,TargetIdNS(..)
@@ -85,6 +86,9 @@ initialState  = CGState
 
 gen     :: [B.Builder] -> CG ()
 gen args = RWS.tell $ mconcat args
+
+warn     :: [B.Builder] -> CG ()
+warn args = gen $ mconcat [["{-# WARNING \""], args, ["\" #-}"]]
 
 -- TODO: add keywords to prevent mapping of these
 

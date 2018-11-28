@@ -14,7 +14,6 @@ module CodeGen(codegen) where
 import           Prelude hiding(lookup)
 
 import           Control.Monad(forM, when)
-import qualified Control.Monad.RWS.Strict   as RWS
 import qualified Data.ByteString.Builder    as B
 import qualified Data.ByteString.Char8      as BS
 import           Data.String
@@ -42,35 +41,32 @@ generateElementInstance container elt@(Element {minOccurs, maxOccurs, eName, ..}
     wrapper tyName | minOccurs==1 && maxOccurs==MaxOccurs 1 =             tyName
                    | minOccurs==0 && maxOccurs==MaxOccurs 1 = "Maybe " <> tyName
                    | otherwise                              = "["      <> tyName <> "]"
-generateElementInstance container _ = return ( B.byteString container
-                                             , "generateElementInstanceNotFullyImplemented" )
-
---tracer lbl a = trace (lbl <> show a) a
-tracer _ a = a
-
-instance Show B.Builder where
-  show = BS.unpack . builderString
+{-generateElementInstance container _ = return ( B.byteString container
+                                             , "generateElementInstanceNotFullyImplemented" )-}
 
 -- | Generate type of given <element/>, if not already declared by type="..." attribute reference.
 generateElementType :: XMLString -- container name
                     -> Element
                     -> CG B.Builder
 -- Flatten elements with known type to their types.
-generateElementType container (eType -> Ref (stripNS -> ""    )) = return "ElementWithEmptyRefType"
+generateElementType _         (eType -> Ref (stripNS -> ""    )) = return "ElementWithEmptyRefType"
 generateElementType container (eType -> Ref (stripNS -> tyName)) =
   translate (SchemaType, TargetTypeName) container tyName
-generateElementType container (Element {eName, eType})   =
+generateElementType _         (Element {eName, eType})   =
   case eType of
     Complex attrs children -> generateContentType eName $ Complex attrs children
-    other                  -> return "Xeno.Node" -- $ "UnimplementedTypeExtension_" <> B.byteString (bshow other)
+    other                  -> do
+      warn [ "UnimplementedTypeExtension_", B.byteString (bshow other) ]
+      return "Xeno.Node"
 
+mapSnd :: (b -> c) -> (a, b) -> (a, c)
 mapSnd f (a, b) = (a, f b)
 
 -- | Wraps type according to XML Schema "use" attribute value.
-wrapper :: Schema.Use -> B.Builder -> B.Builder
-wrapper  Optional   ty = "Maybe " <> ty
-wrapper  Required   ty =             ty
-wrapper (Default x) ty =             ty
+wrapAttr :: Schema.Use -> B.Builder -> B.Builder
+wrapAttr  Optional   ty = "Maybe " <> ty
+wrapAttr  Required   ty =             ty
+wrapAttr (Default _) ty =             ty
 
 -- | Given a container with ComplexType details (attributes and children),
 --   generate the type to hold them.
@@ -83,19 +79,21 @@ generateContentType container (Ref (stripNS -> tyName)) = translate (SchemaType,
 generateContentType eName (Complex attrs content) = do
     myTypeName  <- translate (SchemaType, TargetTypeName) eName eName
     myConsName  <- translate (SchemaType, TargetConsName) eName eName
-    attrFields  :: [Field] <- tracer "attr fields" <$> mapM makeAttrType attrs
+    attrFields  :: [Field] <- tracer "attr fields"  <$> mapM makeAttrType attrs
 
     childFields :: [Field] <- tracer "child fields" <$>
                               case content of -- serving only simple Seq of elts or choice of elts for now
                               -- These would be in ElementType namespace.
       Seq    ls -> seqInstance ls
+      All    ls -> seqInstance ls -- handling the same way
       Choice ls -> (:[]) <$> makeAltType ls
-    RWS.tell $ "\ndata " <> myTypeName <> " ="
+      Elt     e -> error  $ "Unexpected singular Elt inside content of ComplexType: " <> show e
+    gen ["\ndata ", myTypeName, " ="]
     declareAlgebraicType [(myConsName, attrFields <> childFields)]
     return      myTypeName
   where
     makeAttrType :: Attr -> CG (B.Builder, B.Builder)
-    makeAttrType Attr {..} = mapSnd (wrapper use) <$> makeFieldType aName aType
+    makeAttrType Attr {..} = mapSnd (wrapAttr use) <$> makeFieldType aName aType
     makeFieldType :: XMLString -> Type -> CG (B.Builder, B.Builder)
     makeFieldType  aName aType = (,) <$> translate (AttributeName, TargetFieldName) eName aName
                                      <*> generateContentType                        eName aType
@@ -105,6 +103,7 @@ generateContentType eName (Complex attrs content) = do
       where
         fun (Elt (elem@(Element {eName=subName}))) = do
           generateElementInstance eName elem
+        fun  x = error $ "Not yet implemented nested sequence, all or choice:" <> show x
 generateContentType eName (Restriction base (Enum (uniq -> values))) = do
   tyName     <- translate (SchemaType ,   TargetTypeName) eName        eName -- should it be split into element and type containers?
   translated <- translate (EnumIn eName,  TargetConsName) eName `mapM` values
@@ -134,14 +133,14 @@ generateNamedContentType (name, ty) = do
   contentConsName <- translate (SchemaType, TargetConsName) name name
   contentTypeCode <- generateContentType name ty
   when (baseHaskellType $ builderString contentTypeCode) $
-    RWS.tell $ "\nnewtype " <> contentTypeName <> " = " <> contentConsName <> " " <> contentTypeCode <> "\n"
+    gen ["\nnewtype ", contentTypeName, " = ", contentConsName, " ", contentTypeCode, "\n"]
 
 generateSchema :: Schema -> CG ()
 generateSchema sch = do
-    RWS.tell "{-# LANGUAGE DuplicateRecordFields #-}\n"
-    RWS.tell "module XMLSchema where\n\n"
-    RWS.tell (B.byteString basePrologue)
-    RWS.tell "\n\n"
+    gen ["{-# LANGUAGE DuplicateRecordFields #-}\n"
+        ,"module XMLSchema where\n\n"
+        ,B.byteString basePrologue
+        ,"\n\n"]
     -- First generate all types that may be referred by others.
     mapM_ generateNamedContentType $ Map.toList $ types sch
     -- Then generate possible top level types.
@@ -150,22 +149,31 @@ generateSchema sch = do
       []                                          -> fail "No toplevel elements found!"
       [eltName]
         | baseHaskellType (builderString eltName) ->
-           RWS.tell $ "newtype " <> topLevelConst
-                   <> " = "      <> topLevelConst
-                   <> " "        <> eltName
+           gen [ "newtype ", topLevelConst
+               , " = "     , topLevelConst
+               , " "       , eltName       ]
       [eltName]                                   ->
-           RWS.tell $ "type " <> topLevelConst <> " = " <> eltName
+           gen      [ "type ", topLevelConst, " = ", eltName ]
       altTypes                                    -> do
            -- Add constructor name for each type
            -- TODO: We would gain from separate dictionary for constructor names!
            alts <- (`zip` altTypes) <$> forM altTypes
                                             (translate (SchemaType, TargetTypeName) topLevelConst . builderString)
            declareSumType (topLevelConst, alts)
-    RWS.tell "\n"
+    gen     ["\n"]
 
 topLevelConst :: IsString a => a
 topLevelConst = "TopLevel"
 
+-- | Eliminate duplicates from the list
 uniq :: Ord a => [a] -> [a]
 uniq  = Set.toList . Set.fromList
+
+-- * Debugging
+tracer :: String -> p2 -> p2
+--tracer lbl a = trace (lbl <> show a) a
+tracer _ a = a
+
+instance Show B.Builder where
+  show = BS.unpack . builderString
 
