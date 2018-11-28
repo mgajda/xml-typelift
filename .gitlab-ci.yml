@@ -33,6 +33,7 @@ build_8_6_2:
   variables:
     GHC_VER: 8.6.2
   extends: .build_exe
+  allow_failure: true
 
 build_8_4_4:
   variables:
@@ -44,6 +45,7 @@ build_8_4_4:
       - hackage-docs/xml-typelift-*-docs.tar.gz
       - bin/xml-typelift-cli
     expire_in: 2 weeks
+  allow_failure: true
 
 build_8_2_2:
   variables:
@@ -66,6 +68,7 @@ build_7_8_4:
   variables:
     GHC_VER: 7.8.4
   extends: .build_exe
+  allow_failure: true
 
 test_distribution:
   stage: test
