@@ -82,7 +82,7 @@ test_distribution:
     - build_8_4_4
   artifacts:
     paths:
-      - bin/xml-typelift
+      - bin/xml-typelift-cli
 
 stack_build:
   image: migamake/haskell-build:8.6.2

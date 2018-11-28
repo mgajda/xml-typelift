@@ -4,7 +4,7 @@ cabal-version: >= 1.10
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 89b810772ea397b44aa2f4b7fbf0c5d63c0e27c586027badfb6df173eea30703
+-- hash: d2b957ab22efa3d3d130237a2f21143768383227de75e652b5bc3b1e75199ede
 
 name:           xml-typelift
 version:        0.0.1
@@ -39,7 +39,7 @@ library
       lib
   ghc-options: -Wall
   build-depends:
-      base >=4.8 && <5
+      base >=4.7 && <5
     , bytestring
     , containers
     , deepseq
@@ -71,7 +71,7 @@ executable xml-typelift-cli
       bench
   ghc-options: -Wall
   build-depends:
-      base >=4.8 && <5
+      base >=4.7 && <5
     , bytestring
     , containers
     , deepseq
@@ -103,7 +103,7 @@ test-suite unit-tests
       src
   ghc-options: -Wall
   build-depends:
-      base >=4.8 && <5
+      base >=4.7 && <5
     , bytestring
     , containers
     , deepseq
@@ -138,7 +138,7 @@ benchmark memory
       src
   ghc-options: -Wall
   build-depends:
-      base >=4.8 && <5
+      base >=4.7 && <5
     , bytestring
     , containers
     , criterion
@@ -174,7 +174,7 @@ benchmark speed
       src
   ghc-options: -Wall
   build-depends:
-      base >=4.8 && <5
+      base >=4.7 && <5
     , bytestring
     , containers
     , criterion >=1.5.0.0
