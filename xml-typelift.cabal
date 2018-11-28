@@ -4,7 +4,7 @@ cabal-version: >= 1.10
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: a54058f23dd2286c6b5ef76685c4e5973b1866b0ddf008370d87c22ad144d0ad
+-- hash: 48b7b9124d67c9942eb7f8f6dbae8d99fafba698e9a2732ea54e7f9161aacfee
 
 name:           xml-typelift
 version:        0.0.1
@@ -48,7 +48,7 @@ library
     , lens
     , mtl
     , uniplate
-    , xeno
+    , xeno >=0.3.5 && <1.0.0
   default-language: Haskell2010
 
 executable xml-typelift-cli
@@ -63,10 +63,12 @@ executable xml-typelift-cli
       Parser
       Schema
       TypeDecls
+      TestSet
       Paths_xml_typelift
   hs-source-dirs:
       src
       app
+      bench
   ghc-options: -Wall
   build-depends:
       base >=4.8 && <5
@@ -78,7 +80,39 @@ executable xml-typelift-cli
     , lens
     , mtl
     , uniplate
-    , xeno
+    , xeno >=0.3.5 && <1.0.0
+    , xml-typelift
+  default-language: Haskell2010
+
+test-suite unit-tests
+  type: exitcode-stdio-1.0
+  main-is: UnitTests.hs
+  other-modules:
+      Analyze
+      BaseTypes
+      CodeGen
+      CodeGenMonad
+      Errors
+      Identifiers
+      Parser
+      Schema
+      TypeDecls
+      Paths_xml_typelift
+  hs-source-dirs:
+      test
+      src
+  ghc-options: -Wall
+  build-depends:
+      base >=4.8 && <5
+    , bytestring
+    , containers
+    , deepseq
+    , filepath
+    , iso8601-duration
+    , lens
+    , mtl
+    , uniplate
+    , xeno >=0.3.5 && <1.0.0
     , xml-typelift
   default-language: Haskell2010
 
@@ -114,7 +148,7 @@ benchmark memory
     , mtl
     , uniplate
     , weigh
-    , xeno
+    , xeno >=0.3.5 && <1.0.0
     , xml-typelift
   default-language: Haskell2010
 
@@ -150,6 +184,6 @@ benchmark speed
     , mtl
     , uniplate
     , weigh
-    , xeno
+    , xeno >=0.3.5 && <1.0.0
     , xml-typelift
   default-language: Haskell2010

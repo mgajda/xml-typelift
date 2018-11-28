@@ -22,8 +22,8 @@ import qualified Data.Map as Map
 import           System.IO(stderr)
 import           Text.Read(readMaybe)
 
-import           Xeno.DOM   as Xeno
---import           Xeno.Types as Xeno
+import           Xeno.DOM    as Xeno
+import           Xeno.Errors as Xeno
 
 import           Schema
 import           Errors
@@ -165,33 +165,9 @@ instance FromXML Attr where
         "form"    -> return   cpl -- ignore qualification check for now
         _other    -> unknownAttrHandler "attribute" attr
 
-{-
-instance FromXML ComplexType where
-  fromXML' node = goComplex (ComplexType def) node
-    where
-      goComplex = makeFromXML (cplxAttr, cplxElt)
-      cplxAttr _cpl (aName, aVal) = case stripNS aName of
-          otherwise -> unknownChildHandler node
-      cplxElt (ComplexType cpl) node = case nodeName node of
-          "attribute" -> do
-             attr <- fromXML' node
-             return $ ComplexType $ cpl { attrs = attr:attrs cpl }
-          "sequence"       -> handleContent Seq
-          "choice"         -> handleContent Choice
-          "complexContent" -> nested
-          "simpleContent"  -> nested
-          other            -> unknownChildHandler node
-        where
-          nested = goComplex (ComplexType cpl) node
-          handleContent :: ([Element] -> Schema.Content) -> Result ComplexType
-          handleContent cons = do
-             contents :: [Element] <- mapM fromXML $ children node
-             return $ ComplexType $ cpl { subs = cons contents } -- TODO: handle restricted better
- -}
-
 parseSchema :: BS.ByteString -> IO (Maybe Schema)
 parseSchema input = do
-  case Xeno.parse input of
+  case Xeno.parse =<< skipDoctype input of
     Left  err -> do
       BS.hPutStrLn stderr $ displayException input err
       return Nothing
@@ -242,6 +218,7 @@ eltAttrHandler elt attr@(aName, aVal) =
   case stripNS aName of
     "name"      -> return $ elt { eName =     aVal }
     "type"      -> return $ elt { eType = Ref aVal }
+    "ref"       -> "Element references are not implemented yet" `failHere` aName
     "minOccurs" ->
       case BS.readInt aVal of
         Just  (r, "") -> return $ elt { minOccurs = r }

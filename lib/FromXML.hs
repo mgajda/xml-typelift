@@ -15,13 +15,13 @@ module FromXML(FromXML(..),
                splitNS,
                stripNS,
                bshow,
-               printExceptions,
-               displayException
+               skipDoctype
               ) where
 
 import           Control.Monad(foldM)
 import qualified Data.ByteString.Char8 as BS hiding (elem)
 import           Data.ByteString.Internal(ByteString(..))
+import           Data.Char(isSpace)
 import           Xeno.Types as Xeno
 import           Xeno.DOM as Xeno
 import           Xeno.Errors
@@ -48,6 +48,15 @@ class FromXML elt where
   -- | For faster parsing, `fromXML'` does not check the top element name
   --   just assumes that we checked it at level above in another element.
   fromXML = fromXML'
+
+skipDoctype :: BS.ByteString -> BS.ByteString
+skipDoctype bs =
+    if "<?" `BS.isPrefixOf` skippedSpaces
+      then let (_, rest)="?>" `BS.breakSubstring` bs
+           in BS.drop 2 rest
+      else  bs 
+  where
+    skippedSpaces = BS.dropWhile isSpace bs
 
 decodeXML      :: FromXML elt => BS.ByteString -> Either XenoException elt
 decodeXML input = case Xeno.parse input of

@@ -31,7 +31,7 @@ dependencies:
   - deepseq
   - filepath
   - mtl
-  - xeno
+  - xeno >= 0.3.5 && < 1.0.0
   - uniplate
   - lens
   - iso8601-duration # for testing!
@@ -48,8 +48,18 @@ executables:
     source-dirs:
       - src
       - app
+      - bench
     dependencies:
       - xml-typelift
+
+tests:
+  unit-tests:
+    source-dirs:
+      - test
+      - src
+    main: UnitTests.hs
+    dependencies:
+      xml-typelift
 
 benchmarks:
   speed:

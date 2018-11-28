@@ -12,6 +12,8 @@ import CodeGen
 import Parser
 import FromXML(printExceptions)
 
+import TestSet
+
 whenJust :: Monad m => Maybe t -> (t -> m ()) -> m ()
 whenJust (Just x) act = act x
 whenJust  Nothing _   = return ()
@@ -19,12 +21,12 @@ whenJust  Nothing _   = return ()
 -- | For GHCid testing:
 testExpr :: IO ()
 testExpr = forM_ testFiles $ processFile
-  where
+  {-where
     testFiles = ["test/person.xsd"
                 ,"test/simple.xsd"
                 ,"test/test.xsd"
                 ,"../tuxml/tuxml_schema-883.xsd"
-                ]
+                ]-}
 
 processFile :: FilePath -> IO ()
 processFile filename = do
