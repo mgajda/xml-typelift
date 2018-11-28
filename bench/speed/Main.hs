@@ -16,11 +16,7 @@ import           Xeno.DOM(parse)
 import           Parser
 import           Schema
 
-testFiles = ["test/person.xsd"
-            ,"test/simple.xsd"
-            ,"test/test.xsd"
-            --,"../tuxml/tuxml_schema-883.xsd"
-            ]
+import           TestSet(testFiles)
 
 main :: IO ()
 main  = do

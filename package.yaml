@@ -55,18 +55,21 @@ benchmarks:
   speed:
     source-dirs:
       - bench/speed
+      - bench
       - src
-      - lib
     main: Main.hs
     dependencies:
       - criterion >= 1.5.0.0
       - weigh
+      - xml-typelift
   memory:
     source-dirs:
       - bench/memory
+      - bench
       - src
     main: Main.hs
     dependencies:
       - criterion
       - weigh
+      - xml-typelift
 
