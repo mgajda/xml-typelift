@@ -12,7 +12,7 @@ import qualified Data.Set              as Set
 
 import qualified Data.Char as Char
 
-import Debug.Trace
+--import Debug.Trace
 
 -- * Similar to JSON Autotype...
 -- Making valid Haskell identifier out of text

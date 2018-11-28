@@ -23,7 +23,7 @@ import           System.IO(stderr)
 import           Text.Read(readMaybe)
 
 import           Xeno.DOM   as Xeno
-import           Xeno.Types as Xeno
+--import           Xeno.Types as Xeno
 
 import           Schema
 import           Errors

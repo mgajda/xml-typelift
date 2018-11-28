@@ -8,7 +8,7 @@
 module Analyze(analyze, check) where
 
 import           Data.Maybe(catMaybes)
-import qualified Data.ByteString as BS
+--import qualified Data.ByteString as BS
 
 import FromXML(getStartIndex, stripNS)
 import Xeno.Types(XenoException(..))

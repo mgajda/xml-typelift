@@ -20,7 +20,7 @@ import           Data.String
 import qualified Data.Map.Strict            as Map
 import qualified Data.Set                   as Set
 
-import           FromXML(stripNS, XMLString)
+import           FromXML(XMLString)
 
 import           Schema
 import           CodeGenMonad
@@ -103,10 +103,10 @@ generateContentType eName (Complex attrs content) = do
       return ("altFields", "Xeno.Node")
     seqInstance = mapM fun
       where
-        fun (Elt (elem@(Element {eName=subName}))) = do
-          generateElementInstance eName elem
+        fun (Elt (elt@(Element {}))) = do
+          generateElementInstance eName elt
         fun  x = error $ "Not yet implemented nested sequence, all or choice:" <> show x
-generateContentType eName (Restriction base (Enum (uniq -> values))) = do
+generateContentType eName (Restriction _ (Enum (uniq -> values))) = do
   tyName     <- translate (SchemaType ,   TargetTypeName) eName        eName -- should it be split into element and type containers?
   translated <- translate (EnumIn eName,  TargetConsName) eName `mapM` values
   -- ^ TODO: consider enum as indexed family of spaces
@@ -115,13 +115,19 @@ generateContentType eName (Restriction base (Enum (uniq -> values))) = do
 generateContentType eName (Restriction base (Pattern _)) = do
   tyName   <- translate (ElementName, TargetTypeName) (eName <> "pattern") base
   consName <- translate (ElementName, TargetConsName) (eName <> "pattern") base
-  base     <- translate (SchemaType,  TargetTypeName)  eName               base
-  gen ["\nnewtype ", tyName, " = ", consName, " ", base]
+  baseTy   <- translate (SchemaType,  TargetTypeName)  eName               base
+  gen ["\nnewtype ", tyName, " = ", consName, " ", baseTy]
+  return tyName
+generateContentType eName (Extension   base (Complex [] (Seq []))) = do
+  tyName   <- translate (ElementName, TargetTypeName) eName base
+  consName <- translate (ElementName, TargetConsName) eName base
+  baseTy   <- translate (SchemaType,  TargetTypeName) eName base
+  gen ["\nnewtype ", tyName, " = ", consName, " ", baseTy]
   return tyName
 generateContentType eName (Restriction base  None      ) =
   -- Should we do `newtype` instead?
   generateContentType eName $ Ref base
-generateContentType eName (Extension   base  ext       ) = do
+generateContentType _eName (Extension   base  ext       ) = do
   warn ["Extension not yet implemented ", show ext]
   return "Xeno.Node"
 generateContentType _          other       = do

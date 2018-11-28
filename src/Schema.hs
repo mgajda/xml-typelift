@@ -11,8 +11,8 @@
 module Schema where
 
 import Control.DeepSeq
-import Data.ByteString.Char8 as BS
-import Data.Set as Set
+--import Data.ByteString.Char8 as BS
+--import Data.Set as Set
 import Data.Map
 import Data.Data
 import GHC.Generics

@@ -42,7 +42,6 @@ import qualified Data.ByteString.Lazy       as BSL(toStrict, length)
 import qualified Data.ByteString.Builder    as B
 import qualified Data.Map.Strict            as Map
 import qualified Data.Set                   as Set
-import           Data.String
 import Debug.Trace(trace)
 
 import           FromXML(XMLString)

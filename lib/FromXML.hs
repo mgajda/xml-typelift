@@ -22,7 +22,6 @@ module FromXML(FromXML(..),
 import           Control.Monad(foldM)
 import qualified Data.ByteString.Char8 as BS hiding (elem)
 import           Data.ByteString.Internal(ByteString(..))
-import           System.IO(stderr)
 import           Xeno.Types as Xeno
 import           Xeno.DOM as Xeno
 import           Xeno.Errors

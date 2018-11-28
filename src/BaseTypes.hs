@@ -21,7 +21,6 @@ module BaseTypes(baseTranslations
 import           Prelude hiding(lookup)
 
 import qualified Data.ByteString.Char8      as BS
-import qualified Data.Map                   as Map
 import qualified Data.Set                   as Set
 import           Data.String
 

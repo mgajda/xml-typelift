@@ -26,6 +26,7 @@ testExpr = forM_ testFiles $ processFile
                 ,"../tuxml/tuxml_schema-883.xsd"
                 ]
 
+processFile :: FilePath -> IO ()
 processFile filename = do
     --putStrLn     $ "Starting to process " <> filename
     input       <- BS.readFile filename
