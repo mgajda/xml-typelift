@@ -59,7 +59,8 @@ tests:
       - src
     main: UnitTests.hs
     dependencies:
-      xml-typelift
+      - hspec
+      - xml-typelift
 
 benchmarks:
   speed:

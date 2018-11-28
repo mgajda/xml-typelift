@@ -4,7 +4,7 @@ cabal-version: >= 1.10
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 48b7b9124d67c9942eb7f8f6dbae8d99fafba698e9a2732ea54e7f9161aacfee
+-- hash: 89b810772ea397b44aa2f4b7fbf0c5d63c0e27c586027badfb6df173eea30703
 
 name:           xml-typelift
 version:        0.0.1
@@ -108,6 +108,7 @@ test-suite unit-tests
     , containers
     , deepseq
     , filepath
+    , hspec
     , iso8601-duration
     , lens
     , mtl

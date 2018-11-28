@@ -6,11 +6,11 @@ import qualified Data.ByteString.Builder as B
 import           System.Environment
 import           System.Exit(exitFailure)
 import           System.IO(stdout, stderr, hPutStrLn, hFlush)
+import           Xeno.Errors(printExceptions)
 
 import Analyze
 import CodeGen
 import Parser
-import FromXML(printExceptions)
 
 import TestSet
 
