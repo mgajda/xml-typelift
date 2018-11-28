@@ -11,7 +11,7 @@
 -- | Here we aim to analyze the schema.
 module CodeGen(codegen) where
 
-import           Prelude hiding(lookup)
+import           Prelude hiding(lookup, id)
 
 import           Control.Monad(forM, when)
 import qualified Data.ByteString.Builder    as B
@@ -56,7 +56,7 @@ generateElementType _         (Element {eName, eType})   =
   case eType of
     Complex attrs children -> generateContentType eName $ Complex attrs children
     other                  -> do
-      warn [ "UnimplementedTypeExtension_", B.byteString (bshow other) ]
+      warn [ "Unimplemented type extension ", show other ]
       return "Xeno.Node"
 
 mapSnd :: (b -> c) -> (a, b) -> (a, c)
@@ -119,8 +119,12 @@ generateContentType eName (Restriction base (Pattern _)) = do
 generateContentType eName (Restriction base  None      ) =
   -- Should we do `newtype` instead?
   generateContentType eName $ Ref base
-generateContentType eName (Extension   base  _         ) = return "ExtensionNotImplemented"
-generateContentType _          other       = return $ "**NotYetImplemented**" <> B.string8 (show other)
+generateContentType eName (Extension   base  ext       ) = do
+  warn ["Extension not yet implemented ", show ext]
+  return "Xeno.Node"
+generateContentType _          other       = do
+  warn ["Not yet implemented generateContentType ", show other]
+  return "Xeno.Node"
 
 -- | Make builder to generate schema code
 codegen    :: Schema -> B.Builder
@@ -132,7 +136,7 @@ generateNamedContentType (name, ty) = do
   contentTypeName <- translate (SchemaType, TargetTypeName) name name
   contentConsName <- translate (SchemaType, TargetConsName) name name
   contentTypeCode <- generateContentType name ty
-  when (baseHaskellType $ builderString contentTypeCode) $
+  when (isBaseHaskellType $ builderString contentTypeCode) $
     gen ["\nnewtype ", contentTypeName, " = ", contentConsName, " ", contentTypeCode, "\n"]
 
 generateSchema :: Schema -> CG ()
@@ -148,7 +152,7 @@ generateSchema sch = do
     case topElementTypeNames of
       []                                          -> fail "No toplevel elements found!"
       [eltName]
-        | baseHaskellType (builderString eltName) ->
+        | isBaseHaskellType (builderString eltName) ->
            gen [ "newtype ", topLevelConst
                , " = "     , topLevelConst
                , " "       , eltName       ]

@@ -1,8 +1,9 @@
+{-# LANGUAGE FlexibleContexts  #-}
 {-# LANGUAGE MonoLocalBinds    #-}
 {-# LANGUAGE NamedFieldPuns    #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes        #-}
-{-# LANGUAGE FlexibleContexts  #-}
+{-# LANGUAGE ViewPatterns      #-}
 -- | Here we aim to analyze the schema.
 module Analyze(analyze, check) where
 
@@ -55,6 +56,7 @@ isExtension    _                   = Nothing
 
 -- | Check if there are unexpanded references to user-defined types.
 referenceToNonBaseType :: Test Type
-referenceToNonBaseType (Ref aType) | stripNS aType `elem` predefinedTypes = Nothing
-referenceToNonBaseType (Ref aType)                                        = Just $ getStartIndex aType
-referenceToNonBaseType  _                                                 = Nothing
+referenceToNonBaseType (Ref (isBaseHaskellType . stripNS -> True)) = Nothing
+referenceToNonBaseType (Ref  aType)                                = Just $ getStartIndex aType
+referenceToNonBaseType  _                                          = Nothing
+

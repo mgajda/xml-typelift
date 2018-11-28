@@ -42,6 +42,7 @@ import qualified Data.ByteString.Lazy       as BSL(toStrict, length)
 import qualified Data.ByteString.Builder    as B
 import qualified Data.Map.Strict            as Map
 import qualified Data.Set                   as Set
+import           Data.String
 import Debug.Trace(trace)
 
 import           FromXML(XMLString)
@@ -78,17 +79,17 @@ type CG a = RWS.RWS Schema B.Builder CGState a
 
 initialState :: CGState
 initialState  = CGState
-               (Map.fromList [(((SchemaType, TargetTypeName), bt), fromBaseXMLType bt)
-                             | bt <- Set.toList predefinedTypes ])
-               (trans `Set.map` predefinedTypes)
+               (Map.fromList [(((SchemaType, TargetTypeName), schemaType), haskellType)
+                             | (schemaType, haskellType) <- baseTranslations ])
+               (Set.fromList $ map trans baseTranslations)
   where
-    trans = (TargetTypeName,) . fromBaseXMLType
+    trans = (TargetTypeName,) . snd
 
 gen     :: [B.Builder] -> CG ()
 gen args = RWS.tell $ mconcat args
 
-warn     :: [B.Builder] -> CG ()
-warn args = gen $ mconcat [["{-# WARNING \""], args, ["\" #-}"]]
+warn     :: [String] -> CG ()
+warn args = gen ["{- WARNING ", B.string8 $ show $ mconcat args, " -}"]
 
 -- TODO: add keywords to prevent mapping of these
 
