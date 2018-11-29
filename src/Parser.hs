@@ -167,6 +167,7 @@ instance FromXML Attr where
 
 parseSchema :: BS.ByteString -> IO (Maybe Schema)
 parseSchema input = do
+  print $ skipDoctype input
   case Xeno.parse $ skipDoctype input of
     Left  err -> do
       BS.hPutStrLn stderr $ displayException input err

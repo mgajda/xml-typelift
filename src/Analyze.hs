@@ -56,7 +56,7 @@ isExtension    _                   = Nothing
 
 -- | Check if there are unexpanded references to user-defined types.
 referenceToNonBaseType :: Test Type
-referenceToNonBaseType (Ref (isBaseHaskellType . stripNS -> True)) = Nothing
-referenceToNonBaseType (Ref  aType)                                = Just $ getStartIndex aType
-referenceToNonBaseType  _                                          = Nothing
+referenceToNonBaseType (Ref (isBaseHaskellType -> True)) = Nothing
+--referenceToNonBaseType (Ref  aType)                      = Just $ getStartIndex aType
+referenceToNonBaseType  _                                = Nothing
 

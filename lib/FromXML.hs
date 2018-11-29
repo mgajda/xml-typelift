@@ -51,12 +51,12 @@ class FromXML elt where
 
 skipDoctype :: BS.ByteString -> BS.ByteString
 skipDoctype bs =
-    if "<?" `BS.isPrefixOf` skippedSpaces
+    if "<?" `BS.isPrefixOf` skipSpaces bs
       then let (_, rest)="?>" `BS.breakSubstring` bs
-           in BS.drop 2 rest
-      else  bs 
+           in skipSpaces $ BS.drop 2 rest
+      else  bs
   where
-    skippedSpaces = BS.dropWhile isSpace bs
+    skipSpaces = BS.dropWhile isSpace
 
 decodeXML      :: FromXML elt => BS.ByteString -> Either XenoException elt
 decodeXML input = case Xeno.parse input of
