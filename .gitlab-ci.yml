@@ -23,7 +23,7 @@ cache:
     - cabal install --only-dependencies -j1
     - cabal test
     - mkdir -p bin sdist
-    - cabal install --bindir=bin/
+    - cabal install --bindir=bin/ -j1
     - cabal sdist   --builddir=sdist/
     - cabal haddock --builddir hackage-docs --for-hackage
 
@@ -60,9 +60,10 @@ build_8_4_4:
 test_distribution:
   stage: test
   script:
+    - ls sdist/
     - cabal update
     - mkdir -p bin
-    - cabal install sdist/xml-typelift*[0-9].tar.gz --bindir=bin/
+    - cabal install sdist/xml-typelift*[0-9].tar.gz --bindir=bin/ -j1
     - tar xzf sdist/xml-typelift*[0-9].tar.gz
     - bin/xml-typelift-cli xml-typelift-*/lib
   dependencies:
