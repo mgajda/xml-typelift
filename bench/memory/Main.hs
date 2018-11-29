@@ -13,12 +13,7 @@ import           Xeno.SAX(validate)
 
 import           Parser
 import           Schema
-
-testFiles = ["test/person.xsd"
-            ,"test/simple.xsd"
-            ,"test/test.xsd"
-            --,"../tuxml/tuxml_schema-883.xsd"
-            ]
+import           TestSet
 
 main :: IO ()
 main  = do
