@@ -122,7 +122,7 @@ generateContentType eName (Extension   base (Complex False [] (Seq []))) = do
   tyName   <- translate (SchemaType,  TargetTypeName) base eName
   consName <- translate (ElementName, TargetConsName) base eName
   baseTy   <- translate (SchemaType,  TargetTypeName) base eName
-  gen ["-- Empty extension", "\n"]
+  warn ["-- Empty extension", "\n"]
   declareNewtype tyName consName baseTy
   return tyName
 generateContentType eName  (Restriction base  None      ) =
@@ -164,9 +164,7 @@ generateSchema sch = do
       [eltName]
         | isBaseHaskellType (builderString eltName) -> do
            gen ["-- Toplevel\n"]
-           gen [ "newtype ", topLevelConst
-               , " = "     , topLevelConst
-               , " "       , eltName       ]
+           declareNewtype topLevelConst topLevelConst eltName
       [eltName]                                   ->
            gen      [ "type ", topLevelConst, " = ", eltName ]
       altTypes                                    -> do
