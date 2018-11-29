@@ -26,6 +26,9 @@ cache:
     - cabal install --bindir=bin/ -j1
     - cabal sdist   --builddir=sdist/
     - cabal haddock --builddir hackage-docs --for-hackage
+  tags:
+    - haskell
+
 
 build_8_6_2:
   variables:
@@ -71,6 +74,8 @@ test_distribution:
   artifacts:
     paths:
       - bin/xml-typelift-cli
+  tags:
+    - haskell
 
 stack_build:
   image: migamake/haskell-build:8.6.2
@@ -91,6 +96,8 @@ pier_build:
     - pier build --no-shared-cache
     - pier test  --no-shared-cache --sandbox
   allow_failure: true
+  tags:
+    - haskell
 
 release_to_hackage:
   stage: release
