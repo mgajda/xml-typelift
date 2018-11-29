@@ -107,7 +107,7 @@ data Type =
   deriving (Eq, Ord, Show, Generic, NFData, Data, Typeable)
 
 instance Default Type where
-  def = Ref "xs:any"
+  def = Complex [] $ Seq []
 
 data Attr = Attr {
     aName :: {-# UNPACK #-} !XMLString
