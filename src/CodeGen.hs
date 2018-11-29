@@ -116,12 +116,14 @@ generateContentType eName (Restriction base (Pattern _)) = do
   tyName   <- translate (ElementName, TargetTypeName) (eName <> "pattern") base
   consName <- translate (ElementName, TargetConsName) (eName <> "pattern") base
   baseTy   <- translate (SchemaType,  TargetTypeName)  eName               base
+  gen ["-- Restriction pattern", "\n"]
   gen ["\nnewtype ", tyName, " = ", consName, " ", baseTy]
   return tyName
 generateContentType eName (Extension   base (Complex [] (Seq []))) = do
-  tyName   <- translate (ElementName, TargetTypeName) eName base
-  consName <- translate (ElementName, TargetConsName) eName base
-  baseTy   <- translate (SchemaType,  TargetTypeName) eName base
+  tyName   <- translate (SchemaType,  TargetTypeName) base eName
+  consName <- translate (ElementName, TargetConsName) base eName
+  baseTy   <- translate (SchemaType,  TargetTypeName) base eName
+  gen ["-- Empty extension", "\n"]
   gen ["\nnewtype ", tyName, " = ", consName, " ", baseTy]
   return tyName
 generateContentType eName (Restriction base  None      ) =
@@ -144,7 +146,8 @@ generateNamedContentType (name, ty) = do
   contentTypeName <- translate (SchemaType, TargetTypeName) name name
   contentConsName <- translate (SchemaType, TargetConsName) name name
   contentTypeCode <- generateContentType name ty
-  when (isBaseHaskellType $ builderString contentTypeCode) $
+  when (isBaseHaskellType $ builderString contentTypeCode) $ do
+    gen ["-- Named base type", "\n"]
     gen ["\nnewtype ", contentTypeName, " = ", contentConsName, " ", contentTypeCode, "\n"]
 
 generateSchema :: Schema -> CG ()
@@ -160,7 +163,8 @@ generateSchema sch = do
     case topElementTypeNames of
       []                                          -> fail "No toplevel elements found!"
       [eltName]
-        | isBaseHaskellType (builderString eltName) ->
+        | isBaseHaskellType (builderString eltName) -> do
+           gen ["-- Toplevel\n"]
            gen [ "newtype ", topLevelConst
                , " = "     , topLevelConst
                , " "       , eltName       ]
