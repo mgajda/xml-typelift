@@ -122,18 +122,34 @@ generateContentType eName (Extension   base (Complex False [] (Seq []))) = do
   tyName   <- translate (SchemaType,  TargetTypeName) base eName
   consName <- translate (ElementName, TargetConsName) base eName
   baseTy   <- translate (SchemaType,  TargetTypeName) base eName
-  warn ["-- Empty extension", "\n"]
   declareNewtype tyName consName baseTy
   return tyName
 generateContentType eName  (Restriction base  None      ) =
   -- Should we do `newtype` instead?
   generateContentType eName $ Ref base
-generateContentType _eName (Extension   base  ext       ) = do
-  warn ["Extension not yet implemented ", show ext]
-  return "Xeno.Node"
+generateContentType eName (Extension   base  (cpl@Complex {inner=Seq []})) = do
+  superTyLabel <- translate (SchemaType,TargetFieldName) eName "Super" -- should be: MetaKey instead of SchemaType
+  generateContentType eName $ cpl
+                  `appendElt` Element {eName=builderString superTyLabel
+                                      ,eType=Ref base
+                                      ,maxOccurs=MaxOccurs 1
+                                      ,minOccurs=1
+                                      ,targetNamespace=""}
+  -- TODO: Refactor for parser generation!
+generateContentType eName (Extension   base  otherType                   ) = do
+  warn ["Complex extensions are not implemented yet"]
+  tyName   <- translate (SchemaType,  TargetTypeName) base eName
+  consName <- translate (ElementName, TargetConsName) base eName
+  declareNewtype tyName consName "Xeno.Node"
+  return tyName
 generateContentType _          other       = do
   warn ["Not yet implemented generateContentType ", show other]
   return "Xeno.Node"
+
+appendElt :: Type -> Element -> Type
+appendElt cpl@Complex { inner=Seq sq } elt = cpl { inner=Seq (Elt elt:sq   ) }
+appendElt cpl@Complex { inner=other  } elt = cpl { inner=Seq [Elt elt,other] }
+appendElt other                        elt = error $ "Cannot append field for supertype to: " <> show other
 
 -- | Make builder to generate schema code
 codegen    :: Schema -> B.Builder

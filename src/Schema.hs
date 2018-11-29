@@ -10,6 +10,7 @@
 -- | Simplification of XML Schema and RelaxNG schema
 module Schema where
 
+import Prelude hiding(id)
 import Control.DeepSeq
 --import Data.ByteString.Char8 as BS
 --import Data.Set as Set
@@ -120,7 +121,11 @@ data Attr = Attr {
   deriving (Eq, Ord, Show, Generic, NFData, Data, Typeable)
 
 instance Default Attr where
-  def = Attr "" def def Nothing
+  def = Attr { aName = ""
+             , use   = Optional
+             , aType = Ref "xs:string"
+             , id    = Nothing
+             }
 
 data Use =
     Optional
