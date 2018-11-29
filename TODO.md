@@ -1,6 +1,7 @@
 Code cleanups:
 * use lens
 * make builders fully abstract outside CodeGenMonad and TypeDecl
+* replace builders with DSL
 * abstract newtype generation etc.
 * unify declareSumType and declareAlgebraicType
 

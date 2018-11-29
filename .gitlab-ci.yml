@@ -45,17 +45,17 @@ build_8_4_4:
     expire_in: 2 weeks
   allow_failure: true
 
-build_8_2_2:
-  variables:
-    GHC_VER: 8.2.2
-  extends: .build_exe
-
-build_8_0_2:
-  variables:
-    GHC_VER: 8.0.2
-  extends: .build_exe
-  retry: 2
-  allow_failure: true
+#build_8_2_2:
+#  variables:
+#    GHC_VER: 8.2.2
+#  extends: .build_exe
+#
+#build_8_0_2:
+#  variables:
+#    GHC_VER: 8.0.2
+#  extends: .build_exe
+#  retry: 2
+#  allow_failure: true
 
 test_distribution:
   stage: test
