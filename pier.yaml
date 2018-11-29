@@ -3,6 +3,7 @@ resolver: lts-11.4
 packages:
 - .
 - xeno
+- iso8601-duration
 extra-deps: []
 ghc-options:
   - -prof

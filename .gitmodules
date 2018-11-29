@@ -2,3 +2,6 @@
 	path = xeno
         url = https://github.com/mgajda/xeno.git
         branch = errorReporting
+[submodule "iso8601-duration"]
+	path = iso8601-duration
+	url = https://github.com/meteogrid/iso8601-duration.git
