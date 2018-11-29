@@ -8,7 +8,6 @@ stages:
 cache:
   paths:
     - .stack-work
-    - .cabal-sandbox
 
 .build_exe:
   image: migamake/haskell-build:$GHC_VER
@@ -17,7 +16,6 @@ cache:
     - git submodule init
     - git submodule update
   script:
-    - cabal sandbox init
     - cabal --version
     - ghc   --version
     - cabal update
