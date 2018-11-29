@@ -1,13 +1,15 @@
-{-# LANGUAGE FlexibleContexts    #-}
-{-# LANGUAGE MonoLocalBinds      #-}
-{-# LANGUAGE NamedFieldPuns      #-}
-{-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE RankNTypes          #-}
-{-# LANGUAGE RecordWildCards     #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TemplateHaskell     #-}
-{-# LANGUAGE TupleSections       #-}
-{-# LANGUAGE ViewPatterns        #-}
+{-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE MonoLocalBinds             #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
+{-# LANGUAGE NamedFieldPuns             #-}
+{-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE RankNTypes                 #-}
+{-# LANGUAGE RecordWildCards            #-}
+{-# LANGUAGE ScopedTypeVariables        #-}
+{-# LANGUAGE TemplateHaskell            #-}
+{-# LANGUAGE TupleSections              #-}
+{-# LANGUAGE ViewPatterns               #-}
 -- | Monad for code generation:
 --   Mostly deals with keeping track of all
 --   generated code as "Builder",
@@ -16,7 +18,6 @@
 --   type or field name.
 module CodeGenMonad(-- Code generation monad
                     CG
-                   ,CGState
                    ,runCodeGen
                    ,gen
                    ,warn
@@ -74,7 +75,18 @@ data CGState =
   }
 makeLenses ''CGState
 
-type CG a = RWS.RWS Schema B.Builder CGState a
+newtype CG a = CG { unCG :: (RWS.RWS Schema B.Builder CGState a) }
+  deriving (Functor, Applicative, Monad) -- , RWS.MonadReader, RWS.MonadWriter, RWS.MonadIO)
+
+instance RWS.MonadState CGState CG where
+  get       = CG   RWS.get
+  put   x   = CG $ RWS.put x
+  state mod = CG $ RWS.state mod
+
+instance RWS.MonadWriter B.Builder CG where
+  tell   = CG . RWS.tell
+  listen = CG . RWS.listen . unCG
+  pass   = CG . RWS.pass   . unCG
 
 initialState :: CGState
 initialState  = CGState
@@ -150,8 +162,8 @@ translate idClass@(schemaIdClass, haskellIdClass) container xmlName = do
 
 -- | Make builder to generate schema code.
 runCodeGen        :: Schema -> CG () -> B.Builder
-runCodeGen sch rws = case RWS.runRWS rws sch initialState of
-                       ((), _state, builder) -> builder
+runCodeGen sch (CG rws) = case RWS.runRWS rws sch initialState of
+                            ((), _state, builder) -> builder
 
 -- | Convert builder back to String, if you need to examine the content.
 builderString :: B.Builder -> BS.ByteString

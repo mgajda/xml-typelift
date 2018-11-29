@@ -88,8 +88,7 @@ generateContentType eName (Complex {attrs, inner=content}) = do
       All    ls -> seqInstance ls -- handling the same way
       Choice ls -> (:[]) <$> makeAltType ls
       Elt     e -> error  $ "Unexpected singular Elt inside content of ComplexType: " <> show e
-    gen ["\ndata ", myTypeName, " ="]
-    declareAlgebraicType [(myConsName, attrFields <> childFields)]
+    declareAlgebraicType (myTypeName, [(myConsName, attrFields <> childFields)])
     return      myTypeName
   where
     makeAttrType :: Attr -> CG (B.Builder, B.Builder)
@@ -116,15 +115,15 @@ generateContentType eName (Restriction base (Pattern _)) = do
   tyName   <- translate (ElementName, TargetTypeName) (eName <> "pattern") base
   consName <- translate (ElementName, TargetConsName) (eName <> "pattern") base
   baseTy   <- translate (SchemaType,  TargetTypeName)  eName               base
-  gen ["-- Restriction pattern", "\n"]
-  gen ["\nnewtype ", tyName, " = ", consName, " ", baseTy]
+  warn ["-- Restriction pattern\n"]
+  declareNewtype tyName consName baseTy
   return tyName
 generateContentType eName (Extension   base (Complex False [] (Seq []))) = do
   tyName   <- translate (SchemaType,  TargetTypeName) base eName
   consName <- translate (ElementName, TargetConsName) base eName
   baseTy   <- translate (SchemaType,  TargetTypeName) base eName
   gen ["-- Empty extension", "\n"]
-  gen ["\nnewtype ", tyName, " = ", consName, " ", baseTy]
+  declareNewtype tyName consName baseTy
   return tyName
 generateContentType eName  (Restriction base  None      ) =
   -- Should we do `newtype` instead?
@@ -147,8 +146,8 @@ generateNamedContentType (name, ty) = do
   contentConsName <- translate (SchemaType, TargetConsName) name name
   contentTypeCode <- generateContentType name ty
   when (isBaseHaskellType $ builderString contentTypeCode) $ do
-    gen ["-- Named base type", "\n"]
-    gen ["\nnewtype ", contentTypeName, " = ", contentConsName, " ", contentTypeCode, "\n"]
+    warn ["-- Named base type\n"]
+    declareNewtype contentTypeName contentConsName contentTypeCode
 
 generateSchema :: Schema -> CG ()
 generateSchema sch = do

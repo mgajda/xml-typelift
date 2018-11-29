@@ -13,6 +13,7 @@ module TypeDecls(Field
                 ,Record
                 ,declareAlgebraicType
                 ,declareSumType
+                ,declareNewtype
                 ,formatRecord
                 ,formatField
                 ,wrapList
@@ -22,7 +23,6 @@ module TypeDecls(Field
 import           Prelude hiding(lookup)
 
 import           Control.Monad(forM_)
-import qualified Control.Monad.RWS.Strict   as RWS
 import qualified Data.ByteString.Char8      as BS
 import qualified Data.ByteString.Builder    as B
 
@@ -36,15 +36,16 @@ wrapList  x = "["      <> x <> "]"
 wrapMaybe x = "Maybe " <> x
 
 -- * Type declarations
-type Field = (B.Builder, B.Builder)
-type Record = (B.Builder, [Field])
+type Field  = (B.Builder, B.Builder)
+type Record = (B.Builder, [Field]  )
 
-declareAlgebraicType :: [Record] -> CG ()
-declareAlgebraicType []                       = error "Empty list of records"
-declareAlgebraicType (firstEntry:nextEntries) = do
-    RWS.tell   $ "\n    " <> formatRecord firstEntry <> "\n"
+declareAlgebraicType :: (B.Builder, [Record]) -> CG ()
+declareAlgebraicType (_,          []                      ) = error "Empty list of records"
+declareAlgebraicType (myTypeName, (firstEntry:nextEntries)) = do
+    gen ["\ndata ", myTypeName, " ="]
+    gen ["\n    ", formatRecord firstEntry, "\n"]
     forM_ nextEntries $ \nextEntry ->
-      RWS.tell $ "  | " <> formatRecord nextEntry
+      gen ["  | ", formatRecord nextEntry]
 
 formatRecord :: Record -> B.Builder
 formatRecord (name, (f:fields)) =
@@ -76,10 +77,10 @@ type SumAlt = (B.Builder -- ^ Constructor name
 declareSumType :: SumType
                -> CG ()
 declareSumType (tyName, (firstAlt:otherAlts)) =
-    RWS.tell $ "\ndata " <> tyName <> " ="
-            <>          genFirstAlt    firstAlt
-            <> mconcat (genNextAlt <$> otherAlts)
-            <> "\n"
+    gen ["\ndata ", tyName, " ="
+        ,         genFirstAlt    firstAlt
+        ,mconcat (genNextAlt <$> otherAlts)
+        ,"\n"]
   where
     genFirstAlt, genNextAlt, genAlt :: SumAlt -> B.Builder
     genFirstAlt alt = "\n    " <> genAlt alt
@@ -87,3 +88,5 @@ declareSumType (tyName, (firstAlt:otherAlts)) =
     genAlt (consName, typeName) = consName <> " " <> typeName
 declareSumType (tyName, []) = gen ["data ", tyName, " = ", tyName]
 
+declareNewtype tyName consName baseTy = 
+  gen ["\nnewtype ", tyName, " = ", consName, " ", baseTy]
