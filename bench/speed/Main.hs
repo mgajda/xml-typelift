@@ -29,8 +29,8 @@ speedTest filename = do
     (\input ->
        bgroup
          filename
-         [ bench "speed"    $ nfAppIO parseSchema input
-         , bench "xeno"     $ nf      validate    input
-         , bench "xeno dom" $ nf      parse       input
+         [ bench "parseSchema" $ nfAppIO parseSchema input
+         , bench "xeno"        $ nf      validate    input
+         , bench "xeno dom"    $ nf      parse       input
          ])
 

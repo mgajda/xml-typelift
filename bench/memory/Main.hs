@@ -21,7 +21,7 @@ main  = do
 
 memTest :: FilePath -> Weigh ()
 memTest filename = do
-  io ("allocations for " <> filename) (\filename -> do
+  io ("schema allocations for " <> filename) (\filename -> do
     input  <- BS.readFile filename
     parseSchema input) filename
   io ("xeno allocations for " <> filename) (\filename -> do
