@@ -1,3 +1,8 @@
+Code cleanups:
+* use lens
+* make builders fully abstract outside CodeGenMonad and TypeDecl
+* abstract newtype generation etc.
+
 Yet unsupported features:
 * attribute/element groups
 * restrictions other than enumeration and pattern
