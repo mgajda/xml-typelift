@@ -37,7 +37,7 @@ data TypeDesc =
            }
 
 instance FromXML TypeDesc where
-  fromXML' = goTypeDesc $ TypeDesc "" $ Complex [] def
+  fromXML' = goTypeDesc $ TypeDesc "" $ Complex False [] def
     where
       goTypeDesc :: TypeDesc -> Node -> Result TypeDesc
       goTypeDesc = makeFromXML (typeAttr, typeElt)
@@ -48,9 +48,9 @@ instance FromXML TypeDesc where
           "abstract" -> return tyd -- ignore for now
           "final"    -> return tyd -- ignore for now
           "block"    -> return tyd -- ignore for now
-          "mixed"    -> return tyd -- TODO: ignore for now
-          "type"     -> return $ tyd { ty    = Ref aVal }
-          "ref"      -> return $ tyd { ty    = Ref aVal }
+          "mixed"    -> return $ tyd { ty = markMixed $ ty tyd } -- TODO: ignore for now
+          "type"     -> return $ tyd { ty = Ref aVal }
+          "ref"      -> return $ tyd { ty = Ref aVal }
           _          -> unknownAttrHandler "type description" attr
       typeElt :: ChildHandler TypeDesc
       typeElt tyd node =
@@ -88,6 +88,9 @@ instance FromXML TypeDesc where
                     "complexType" -> fromXML' node
                     otherName     -> ("Node expected to contain type descriptor is named '"
                                     <> otherName <> "'") `failHere` otherName
+
+markMixed cpl@(Complex {..}) = cpl { mixed=True }
+markMixed x = error $ "Cannot mark type as mixed: " <> show x
 
 instance FromXML TyPart where
   fromXML' = fromXML

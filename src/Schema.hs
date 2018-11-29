@@ -101,13 +101,15 @@ data Type =
       , mixin :: {-# UNPACK #-} !Type
       } -- ^ Extension of complexType
   | Complex {
-        attrs :: {-# UNPACK #-} ![Attr]
+        mixed :: {-# UNPACK #-}   Bool
+      , attrs :: {-# UNPACK #-} ![Attr]
       , inner :: {-# UNPACK #-} !TyPart
       }
   deriving (Eq, Ord, Show, Generic, NFData, Data, Typeable)
 
 instance Default Type where
-  def = Complex [] $ Seq []
+  -- standard declares that element without type has xs:any
+  def = Ref "xs:any"
 
 data Attr = Attr {
     aName :: {-# UNPACK #-} !XMLString

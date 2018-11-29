@@ -54,8 +54,8 @@ generateElementType container (eType -> Ref (tyName)) =
   translate (SchemaType, TargetTypeName) container tyName
 generateElementType _         (Element {eName, eType})   =
   case eType of
-    Complex attrs children -> generateContentType eName $ Complex attrs children
-    other                  -> do
+    c@Complex {} -> generateContentType eName c
+    other        -> do
       warn [ "Unimplemented type extension ", show other ]
       return "Xeno.Node"
 
@@ -76,7 +76,7 @@ generateContentType :: XMLString -- container name
                     -> Type -> CG B.Builder
 generateContentType container (Ref (tyName)) = translate (SchemaType, TargetTypeName) container tyName
   -- TODO: check if the type was already translated (as it should, if it was generated)
-generateContentType eName (Complex attrs content) = do
+generateContentType eName (Complex {attrs, inner=content}) = do
     myTypeName  <- translate (SchemaType, TargetTypeName) eName eName
     myConsName  <- translate (SchemaType, TargetConsName) eName eName
     attrFields  :: [Field] <- tracer "attr fields"  <$> mapM makeAttrType attrs
@@ -119,14 +119,14 @@ generateContentType eName (Restriction base (Pattern _)) = do
   gen ["-- Restriction pattern", "\n"]
   gen ["\nnewtype ", tyName, " = ", consName, " ", baseTy]
   return tyName
-generateContentType eName (Extension   base (Complex [] (Seq []))) = do
+generateContentType eName (Extension   base (Complex False [] (Seq []))) = do
   tyName   <- translate (SchemaType,  TargetTypeName) base eName
   consName <- translate (ElementName, TargetConsName) base eName
   baseTy   <- translate (SchemaType,  TargetTypeName) base eName
   gen ["-- Empty extension", "\n"]
   gen ["\nnewtype ", tyName, " = ", consName, " ", baseTy]
   return tyName
-generateContentType eName (Restriction base  None      ) =
+generateContentType eName  (Restriction base  None      ) =
   -- Should we do `newtype` instead?
   generateContentType eName $ Ref base
 generateContentType _eName (Extension   base  ext       ) = do
