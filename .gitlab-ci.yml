@@ -22,7 +22,7 @@ cache:
     - ghc   --version
     - cabal update
     - (cd xeno; cabal install)
-    - cabal install --verbose --only-dependencies -j1
+    - cabal install --only-dependencies -j1
     - cabal test
     - mkdir -p bin sdist
     - cabal install --bindir=bin/
