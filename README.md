@@ -1,6 +1,6 @@
 # Converting XML Schema to Haskell datatype
 
-
+[![pipeline status](https://gitlab.com/migamake/xml-typelift/badges/master/pipeline.svg)](https://gitlab.com/migamake/xml-typelift/commits/master)
 XML TypeLift will allow to use XML Schema to create Haskell data type and parser for it.
 
 That will allow us to easily handle large XML Schemas like Office OpenXML made by Microsoft.
