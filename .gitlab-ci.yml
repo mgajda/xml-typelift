@@ -20,6 +20,7 @@ cache:
     - ghc   --version
     - cabal update
     - (cd xeno; cabal install)
+    - (cd iso8601-duration; cabal install)
     - cabal install --only-dependencies -j1
     - cabal test
     - mkdir -p bin sdist
