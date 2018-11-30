@@ -1,4 +1,4 @@
-image: migamake/haskell-build:8.6.2
+image: migamake/haskell-build:8.4.4
 
 stages:
   - build
@@ -79,7 +79,6 @@ test_distribution:
     - haskell
 
 stack_build:
-  image: migamake/haskell-build:8.6.2
   stage: build
   script:
     - echo "$CI_ENVIRONMENT_SLUG"
@@ -90,7 +89,6 @@ stack_build:
   allow_failure: true
 
 pier_build:
-  image: migamake/haskell-build:8.6.2
   stage: build
   script:
     - mkdir pier; ln -s $PWD/.pier ~/.pier
