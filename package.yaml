@@ -21,6 +21,7 @@ github: DataHaskell/xml-typelift
 category: Development
 extra-source-files:
   - changelog.md
+  - test/person.xsd
 
 ghc-options: -Wall
 
