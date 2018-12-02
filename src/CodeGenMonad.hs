@@ -43,12 +43,16 @@ import qualified Data.ByteString.Lazy       as BSL(toStrict, length)
 import qualified Data.ByteString.Builder    as B
 import qualified Data.Map.Strict            as Map
 import qualified Data.Set                   as Set
-import Debug.Trace(trace)
 
 import           FromXML(XMLString)
 import           Identifiers
 import           Schema
 import           BaseTypes
+
+
+-- | To enable tracing import Debug.Trace(trace) instead:
+--import Debug.Trace(trace)
+trace _ x = x
 
 -- | Which of the XML Schema identifier namespaces do we use here
 data XMLIdNS = SchemaType

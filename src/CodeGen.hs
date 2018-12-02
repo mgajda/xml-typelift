@@ -54,9 +54,12 @@ generateElementType container (eType -> Ref (tyName)) =
   translate (SchemaType, TargetTypeName) container tyName
 generateElementType _         (Element {eName, eType})   =
   case eType of
-    c@Complex {} -> generateContentType eName c
+    Complex   {} -> generateContentType eName eType
+    Extension {} -> do
+      warn ["Did not implement elements with extension types yet", show eType ]
+      return "Xeno.Node"
     other        -> do
-      warn [ "Unimplemented type extension ", show other ]
+      warn [ "Unimplemented type ", show other ]
       return "Xeno.Node"
 
 mapSnd :: (b -> c) -> (a, b) -> (a, c)

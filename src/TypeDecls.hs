@@ -35,9 +35,21 @@ wrapList, wrapMaybe :: B.Builder -> B.Builder
 wrapList  x = "["      <> x <> "]"
 wrapMaybe x = "Maybe " <> x
 
+-- TODO: type alias these for safety
 -- * Type declarations
-type Field  = (B.Builder, B.Builder)
-type Record = (B.Builder, [Field]  )
+type TyCon     = B.Builder
+type TyName    = B.Builder
+type FieldName = B.Builder
+
+type Field  = (FieldName, -- field name
+               TyName)    -- field type
+type Record = (TyCon,     -- Constructor name
+               [Field])
+
+type TAlt = (TyCon,           -- ^ Constructor name
+             Either TyName    -- ^ Lone type under constructor
+                    [Field]   -- ^ Record under constructor
+            )
 
 declareAlgebraicType :: (B.Builder, [Record]) -> CG ()
 declareAlgebraicType (_,          []                      ) = error "Empty list of records"
@@ -88,5 +100,7 @@ declareSumType (tyName, (firstAlt:otherAlts)) =
     genAlt (consName, typeName) = consName <> " " <> typeName
 declareSumType (tyName, []) = gen ["data ", tyName, " = ", tyName]
 
+declareNewtype :: TyName -> TyCon -> TyName -> CG ()
 declareNewtype tyName consName baseTy = 
-  gen ["\nnewtype ", tyName, " = ", consName, " ", baseTy]
+  gen ["\nnewtype ", tyName, " = ", consName, " ", baseTy, "\n"]
+
