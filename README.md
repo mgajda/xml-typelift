@@ -1,8 +1,10 @@
 # Converting XML Schema to Haskell datatype
 
-[![pipeline status](https://gitlab.com/migamake/xml-typelift/badges/master/pipeline.svg)](https://gitlab.com/migamake/xml-typelift/commits/master)
+GitLab build: [![pipeline status](https://gitlab.com/migamake/xml-typelift/badges/master/pipeline.svg)](https://gitlab.com/migamake/xml-typelift/commits/master)
 
-[![Travis (.org)](https://img.shields.io/travis/mgajda/xml-typelift.svg)](https://travis-ci.org/mgajda/xml-typelift)
+
+Travis CI: [![Travis (.org)](https://img.shields.io/travis/mgajda/xml-typelift.svg)](https://travis-ci.org/mgajda/xml-typelift)
+
 
 XML TypeLift will allow to use XML Schema to create Haskell data type and parser for it.
 
