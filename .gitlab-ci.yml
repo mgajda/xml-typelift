@@ -69,7 +69,7 @@ test_distribution:
     - mkdir -p bin
     - cabal install sdist/xml-typelift*[0-9].tar.gz --bindir=bin/ -j1
     - tar xzf sdist/xml-typelift*[0-9].tar.gz
-    - bin/xml-typelift-cli xml-typelift-*/lib
+    - bin/xml-typelift-cli xml-typelift-*/test/*.xsd
   dependencies:
     - build_8_4_4
   artifacts:
