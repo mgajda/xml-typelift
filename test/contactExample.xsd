@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+    targetNamespace="http://www.example.org/contactExample"
+    xmlns:tns="http://www.example.org/contactExample"
+    elementFormDefault="qualified">
+
+  <xs:element name="Contacts">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="Person">
+          <xs:complexType>
+            <xs:sequence>
+              <xs:element name="PersonGivenName" />
+              <xs:element name="PersonFamilyName" />
+              <xs:element name="PersonBirthDate" />
+            </xs:sequence>
+          </xs:complexType>
+        </xs:element>
+      </xs:sequence>
+      <xs:attribute name="LastUpdate">
+        <xs:simpleType>
+          <xs:restriction base="xs:date">
+            <xs:minExclusive value="2003-05-06"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:attribute>
+    </xs:complexType>
+  </xs:element>
+
+</xs:schema>

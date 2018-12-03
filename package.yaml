@@ -1,0 +1,87 @@
+name:                xml-typelift
+version:             0.0.1
+synopsis:            Converting XML Schema to Haskell datatype
+description: |
+    Generates datatype declarations and parser/prettyprinter
+    for it from XML Schema.
+    .
+    Addresses handling of large documents with large schemas, like Office Open XML.
+homepage:            https://github.com/DataHaskell/xml-typelift
+license:             BSD3
+license-file:        LICENSE
+stability:           stable
+author:              Michal Gajda
+maintainer:          dataopt@example.com
+copyright:           Copyright by Michal Gajda 2018
+category:            Data, Tools
+build-type:          Simple
+extra-source-files:  README.md changelog.md
+bug-reports:         https://github.com/DataHaskell/xml-typelift/issues
+github: DataHaskell/xml-typelift
+category: Development
+extra-source-files:
+  - changelog.md
+  - test/person.xsd
+
+ghc-options: -Wall
+
+dependencies:
+  - base >= 4.7 && < 5
+  - bytestring
+  - containers
+  - deepseq
+  - filepath
+  - mtl
+  - xeno >= 0.3.5 && < 1.0.0
+  - uniplate
+  - lens
+  - iso8601-duration # for testing!
+
+library:
+  source-dirs:
+    - lib
+  exposed-modules:
+    - FromXML
+
+executables:
+  xml-typelift-cli:
+    main: Main.hs
+    source-dirs:
+      - src
+      - app
+      - bench
+    dependencies:
+      - xml-typelift
+
+tests:
+  unit-tests:
+    source-dirs:
+      - test
+      - src
+    main: UnitTests.hs
+    dependencies:
+      - hspec
+      - xml-typelift
+
+benchmarks:
+  speed:
+    source-dirs:
+      - bench/speed
+      - bench
+      - src
+    main: Main.hs
+    dependencies:
+      - criterion >= 1.5.0.0
+      - weigh
+      - xml-typelift
+  memory:
+    source-dirs:
+      - bench/memory
+      - bench
+      - src
+    main: Main.hs
+    dependencies:
+      - criterion
+      - weigh
+      - xml-typelift
+

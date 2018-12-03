@@ -1,42 +1,190 @@
--- Build information for the package.
-name:                xml-typelift
-version:             0.0.1
-synopsis:            Converting XML Schema to Haskell datatype
-description:         Generates datatype declarations and parser/prettyprinter
-                     for it from XML Schema.
-                     .
-                     Addresses handling of large documents with large schemas, like Office Open XML.
-homepage:            https://github.com/DataHaskell/xml-typelift
-license:             BSD3
-license-file:        LICENSE
-stability:           stable
-author:              Kevin Cheung, Michal Gajda
-maintainer:          dataopt@example.com
-copyright:           Copyright by Kevin Cheung '2018
-category:            Data, Tools
-build-type:          Simple
-extra-source-files:  README.md changelog.md
-cabal-version:       >=1.10
-bug-reports:         https://github.com/DataHaskell/xml-typelift/issues
+cabal-version: >= 1.10
+
+-- This file has been generated from package.yaml by hpack version 0.29.0.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: d2b957ab22efa3d3d130237a2f21143768383227de75e652b5bc3b1e75199ede
+
+name:           xml-typelift
+version:        0.0.1
+synopsis:       Converting XML Schema to Haskell datatype
+description:    Generates datatype declarations and parser/prettyprinter
+                for it from XML Schema.
+                .
+                Addresses handling of large documents with large schemas, like Office Open XML.
+category:       Development
+stability:      stable
+homepage:       https://github.com/DataHaskell/xml-typelift
+bug-reports:    https://github.com/DataHaskell/xml-typelift/issues
+author:         Michal Gajda
+maintainer:     dataopt@example.com
+copyright:      Copyright by Michal Gajda 2018
+license:        BSD3
+license-file:   LICENSE
+build-type:     Simple
+extra-source-files:
+    changelog.md
+
 source-repository head
-  type:     git
-  location: https://github.com/DataHaskell/xml-typelif.git
+  type: git
+  location: https://github.com/DataHaskell/xml-typelift
 
---library
---  exposed-modules:     Data.XML.TypeLift
---  build-depends:       base                 >=4.3  && <4.12,
---                       containers           >=0.3  && <0.6,
---                       mtl                  >=2.1  && <2.3,
---                       text                 >=1.1  && <1.4,
---                       tagsoup              >=0.14 && <1.0
---  default-language:    Haskell2010
+library
+  exposed-modules:
+      FromXML
+  other-modules:
+      Paths_xml_typelift
+  hs-source-dirs:
+      lib
+  ghc-options: -Wall
+  build-depends:
+      base >=4.7 && <5
+    , bytestring
+    , containers
+    , deepseq
+    , filepath
+    , iso8601-duration
+    , lens
+    , mtl
+    , uniplate
+    , xeno >=0.3.5 && <1.0.0
+  default-language: Haskell2010
 
-executable playground
-  main-is:             playground/ParseXMLSchema.hs
-  --other-modules:       Data.XML.TypeLift
-  build-depends:       base                 >=4.3  && <4.12,
-                       containers           >=0.3  && <0.6,
-                       mtl                  >=2.1  && <2.3,
-                       text                 >=1.1  && <1.4,
-                       tagsoup              >=0.14 && <1.0
-  default-language:    Haskell2010
+executable xml-typelift-cli
+  main-is: Main.hs
+  other-modules:
+      Analyze
+      BaseTypes
+      CodeGen
+      CodeGenMonad
+      Errors
+      Identifiers
+      Parser
+      Schema
+      TypeDecls
+      TestSet
+      Paths_xml_typelift
+  hs-source-dirs:
+      src
+      app
+      bench
+  ghc-options: -Wall
+  build-depends:
+      base >=4.7 && <5
+    , bytestring
+    , containers
+    , deepseq
+    , filepath
+    , iso8601-duration
+    , lens
+    , mtl
+    , uniplate
+    , xeno >=0.3.5 && <1.0.0
+    , xml-typelift
+  default-language: Haskell2010
+
+test-suite unit-tests
+  type: exitcode-stdio-1.0
+  main-is: UnitTests.hs
+  other-modules:
+      Analyze
+      BaseTypes
+      CodeGen
+      CodeGenMonad
+      Errors
+      Identifiers
+      Parser
+      Schema
+      TypeDecls
+      Paths_xml_typelift
+  hs-source-dirs:
+      test
+      src
+  ghc-options: -Wall
+  build-depends:
+      base >=4.7 && <5
+    , bytestring
+    , containers
+    , deepseq
+    , filepath
+    , hspec
+    , iso8601-duration
+    , lens
+    , mtl
+    , uniplate
+    , xeno >=0.3.5 && <1.0.0
+    , xml-typelift
+  default-language: Haskell2010
+
+benchmark memory
+  type: exitcode-stdio-1.0
+  main-is: Main.hs
+  other-modules:
+      TestSet
+      Analyze
+      BaseTypes
+      CodeGen
+      CodeGenMonad
+      Errors
+      Identifiers
+      Parser
+      Schema
+      TypeDecls
+      Paths_xml_typelift
+  hs-source-dirs:
+      bench/memory
+      bench
+      src
+  ghc-options: -Wall
+  build-depends:
+      base >=4.7 && <5
+    , bytestring
+    , containers
+    , criterion
+    , deepseq
+    , filepath
+    , iso8601-duration
+    , lens
+    , mtl
+    , uniplate
+    , weigh
+    , xeno >=0.3.5 && <1.0.0
+    , xml-typelift
+  default-language: Haskell2010
+
+benchmark speed
+  type: exitcode-stdio-1.0
+  main-is: Main.hs
+  other-modules:
+      TestSet
+      Analyze
+      BaseTypes
+      CodeGen
+      CodeGenMonad
+      Errors
+      Identifiers
+      Parser
+      Schema
+      TypeDecls
+      Paths_xml_typelift
+  hs-source-dirs:
+      bench/speed
+      bench
+      src
+  ghc-options: -Wall
+  build-depends:
+      base >=4.7 && <5
+    , bytestring
+    , containers
+    , criterion >=1.5.0.0
+    , deepseq
+    , filepath
+    , iso8601-duration
+    , lens
+    , mtl
+    , uniplate
+    , weigh
+    , xeno >=0.3.5 && <1.0.0
+    , xml-typelift
+  default-language: Haskell2010

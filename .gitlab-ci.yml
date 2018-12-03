@@ -1,0 +1,110 @@
+image: migamake/haskell-build:8.4.4
+
+stages:
+  - build
+  - test
+  - release
+
+cache:
+  paths:
+    - .stack-work
+
+.build_exe:
+  image: migamake/haskell-build:$GHC_VER
+  stage: build
+  before_script:
+    - git submodule init
+    - git submodule update
+  script:
+    - cabal --version
+    - ghc   --version
+    - cabal update
+    - (cd xeno; cabal install)
+    - (cd iso8601-duration; cabal install)
+    - cabal install --only-dependencies -j1
+    - cabal test
+    - mkdir -p bin sdist
+    - cabal install --bindir=bin/ -j1
+    - cabal sdist   --builddir=sdist/
+    - cabal haddock --builddir hackage-docs --for-hackage
+  tags:
+    - haskell
+
+
+build_8_6_2:
+  variables:
+    GHC_VER: 8.6.2
+  extends: .build_exe
+  allow_failure: true
+
+build_8_4_4:
+  variables:
+    GHC_VER: 8.4.4
+  extends: .build_exe
+  artifacts:
+    paths:
+      - sdist/xml-typelift-*[0-9].tar.gz
+      - hackage-docs/xml-typelift-*-docs.tar.gz
+      - bin/xml-typelift-cli
+    expire_in: 2 weeks
+  allow_failure: true
+
+#build_8_2_2:
+#  variables:
+#    GHC_VER: 8.2.2
+#  extends: .build_exe
+#
+#build_8_0_2:
+#  variables:
+#    GHC_VER: 8.0.2
+#  extends: .build_exe
+#  retry: 2
+#  allow_failure: true
+
+test_distribution:
+  stage: test
+  script:
+    - ls sdist/
+    - cabal update
+    - mkdir -p bin
+    - cabal install sdist/xml-typelift*[0-9].tar.gz --bindir=bin/ -j1
+    - tar xzf sdist/xml-typelift*[0-9].tar.gz
+    - bin/xml-typelift-cli xml-typelift-*/lib
+  dependencies:
+    - build_8_4_4
+  artifacts:
+    paths:
+      - bin/xml-typelift-cli
+  tags:
+    - haskell
+
+stack_build:
+  stage: build
+  script:
+    - echo "$CI_ENVIRONMENT_SLUG"
+    - stack --version
+    - stack setup
+    - stack build
+    - stack test --verbose
+  allow_failure: true
+
+pier_build:
+  stage: build
+  script:
+    - mkdir pier; ln -s $PWD/.pier ~/.pier
+    - pier build --no-shared-cache
+    - pier test  --no-shared-cache --sandbox
+  allow_failure: true
+  tags:
+    - haskell
+
+release_to_hackage:
+  stage: release
+  script:
+    - cabal upload --username="$HACKAGE_USER" --password="$HACKAGE_PASSWORD" sdist/xml-typelift-*[0-9].tar.gz
+    - cabal upload --username="$HACKAGE_USER" --password="$HACKAGE_PASSWORD" -d hackage-docs/xml-typelift-*-docs.tar.gz
+  dependencies:
+    - build_8_4_4
+  when: manual
+  only:
+    - master
