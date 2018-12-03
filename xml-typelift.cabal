@@ -1,10 +1,10 @@
-cabal-version: >= 1.10
+cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.29.0.
+-- This file has been generated from package.yaml by hpack version 0.31.1.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: d2b957ab22efa3d3d130237a2f21143768383227de75e652b5bc3b1e75199ede
+-- hash: af1fa72163022067d13dc0c4bdea3b813b9697fa2b8e0d3a6157cec285532c6d
 
 name:           xml-typelift
 version:        0.0.1
@@ -24,7 +24,9 @@ license:        BSD3
 license-file:   LICENSE
 build-type:     Simple
 extra-source-files:
+    README.md
     changelog.md
+    test/person.xsd
 
 source-repository head
   type: git

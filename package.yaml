@@ -15,13 +15,13 @@ maintainer:          dataopt@example.com
 copyright:           Copyright by Michal Gajda 2018
 category:            Data, Tools
 build-type:          Simple
-extra-source-files:  README.md changelog.md
+extra-source-files:
+  - README.md
+  - changelog.md
+  - test/person.xsd
 bug-reports:         https://github.com/DataHaskell/xml-typelift/issues
 github: DataHaskell/xml-typelift
 category: Development
-extra-source-files:
-  - changelog.md
-  - test/person.xsd
 
 ghc-options: -Wall
 
