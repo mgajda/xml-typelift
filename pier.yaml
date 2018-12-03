@@ -5,6 +5,6 @@ packages:
 - xeno
 - iso8601-duration
 extra-deps: []
-ghc-options:
-  - -prof
-  - -fprof-auto
+#ghc-options:
+#  - -prof
+#  - -fprof-auto
