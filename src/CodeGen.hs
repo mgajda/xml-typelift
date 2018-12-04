@@ -47,10 +47,10 @@ generateElementInstance container elt@(Element {minOccurs, maxOccurs, eName, ..}
 -- | Generate type of given <element/>, if not already declared by type="..." attribute reference.
 generateElementType :: XMLString -- container name
                     -> Element
-                    -> CG B.Builder
+                    -> CG HTyFrag
 -- Flatten elements with known type to their types.
-generateElementType _         (eType -> Ref (""    )) = return "ElementWithEmptyRefType"
-generateElementType container (eType -> Ref (tyName)) =
+generateElementType _         (eType -> Ref ""    ) = return "ElementWithEmptyRefType"
+generateElementType container (eType -> Ref tyName) =
   translate (SchemaType, TargetTypeName) container tyName
 generateElementType _         (Element {eName, eType})   =
   case eType of

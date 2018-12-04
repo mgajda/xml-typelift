@@ -15,10 +15,11 @@
 --   We have types for partial type declarations,
 --   and assemble them accordingly, while having minimum wrappers.
 module TypeDecls(Field
-                ,Record
+                ,HTyFrag(..)
+                ,HType(..)
+                ,Rec
                 ,declare
                 ,declareAlgebraicType
-                --,declareSumType
                 ,declareNewtype
                 ,formatRecord
                 ,formatField
@@ -34,6 +35,8 @@ import qualified Data.ByteString.Char8   as BS
 import qualified Data.ByteString.Builder as B
 import           Data.Function(on)
 import           Data.Semigroup(Semigroup(..))
+import           Data.Monoid hiding (Sum)
+import           Control.Applicative
 
 import           FromXML(XMLString)
 import           Code(ToCode(..), Code, TargetId, identifierLength)
@@ -72,18 +75,46 @@ data TyCtx = TyCtx {
     schemaType  :: XMLIdNS
   , containerId :: XMLString
   , ctxName     :: XMLString
+  , ty          :: HTyFrag
   }
 
-allocateTypeName, allocateConsName :: TyCtx -> CG TargetId
-(allocateTypeName, allocateConsName) =
-    (alloc TargetTypeName, alloc TargetConsName)
+-- withFields
+-- choice   :: [TyCtx] -> TyCtx
+-- sequence :: [TyCtx] -> TyCtx
+
+fragType :: TyCtx -> CG HType
+fragType       TyCtx { ty=Whole ty } = return ty
+fragType tyCtx@TyCtx { ty=Sum   _  } = declare tyCtx
+fragType _                           = error "fragType should not be applied to Rec constructor!"
+
+ctx1@TyCtx { ty=Sum _ } `seq` ctx2@TyCtx { ty=Sum _ } = do
+  field1 <- (,) <$> allocateFieldName ctx1 <*> declare ctx1
+  field2 <- (,) <$> allocateFieldName ctx2 <*> declare ctx2
+  return $ ctx1 { ty=Rec [field1, field2] }
+ctx1@TyCtx { ty=Rec r1 } `seq` ctx2@TyCtx { ty=Rec r2 } =
+  return $ ctx1 { ty=Rec (r1 <> r2) }
+ctx1@TyCtx { ty=Rec r1 } `seq` ctx2@TyCtx { ty=other } = do
+  field <- allocateFieldName $ ctx2 { ctxName="content", containerId=ctxName ctx1 }
+  f     <- fragType ctx2
+  return $ ctx1 { ty=Rec ((field, f):r1) }
+allocateTypeName,
+  allocateConsName,
+    allocateFieldName :: TyCtx -> CG TargetId
+(allocateTypeName,
+ allocateConsName,
+ allocateFieldName) =
+    (alloc TargetTypeName
+    ,alloc TargetConsName
+    ,alloc TargetFieldName)
   where
     alloc haskellNamespace TyCtx {..} = 
       translate (schemaType, haskellNamespace)
                  containerId ctxName
 
+type FieldName = TargetId
 -- | Unnamed record is just a set of fields
-type Rec = [(FieldName, HType)]
+type Field = (FieldName, HType)
+type Rec   = [Field]
 
 -- | Single record with a constructor assigned
 data NamedRec = NamedRec {
@@ -92,22 +123,20 @@ data NamedRec = NamedRec {
   }
   deriving (Show)
 
-
-
 -- | Get HTyFrag, and declare it as a named type.
-declare :: TyCtx -> HTyFrag -> CG HType
-declare tyCtx (Whole hType) = do
+declare :: TyCtx -> CG HType
+declare tyCtx@TyCtx { ty=Whole hType } = do
   ty   <- allocateTypeName tyCtx
   cons <- allocateConsName tyCtx
   declareNewtype ty cons $ "(" <> toCode hType <> ")"
   return $ Named ty
-declare tyCtx (Rec rec ) = do
+declare tyCtx@TyCtx { ty=Rec rec     } = do
   ty   <- allocateTypeName tyCtx
   cons <- allocateConsName tyCtx
   declareAlgebraicType (ty, [NamedRec cons rec])
   return $ Named ty
-declare tyCtx (Sum []  ) = error "Empty list of records"
-declare tyCtx (Sum recs) = do
+declare tyCtx@TyCtx { ty=Sum []      } = error "Empty list of records"
+declare tyCtx@TyCtx { ty=Sum recs    } = do
   ty <- allocateTypeName tyCtx
   declareAlgebraicType (ty, recs)
   return $ Named ty
@@ -124,19 +153,6 @@ declareAlgebraicType (myTypeName, (firstEntry:nextEntries)) = do
 
 -- TODO: type alias these for safety
 -- * Type declarations
-type TyCon     = Code
-type TyName    = Code
-type FieldName = Code
-
-type Field  = (FieldName, -- field name
-               TyName)    -- field type
-type Record = (TyCon,     -- Constructor name
-               [Field])
-
-type TAlt = (TyCon,           -- ^ Constructor name
-             Either TyName    -- ^ Lone type under constructor
-                    [Field]   -- ^ Record under constructor
-            )
 
 --formatRecord :: Record -> B.Builder
 formatRecord :: NamedRec -> Code
@@ -156,34 +172,9 @@ formatRecord NamedRec { cons=name, fields=f:fields } =
              $ BS.replicate (identifierLength name) ' '
 formatRecord NamedRec { cons=name, fields=[] } = toCode name -- empty record
 
-formatField                    :: (FieldName, HType) -> Code
-formatField  (fName, fTypeName) = fName <> " :: " <> toCode fTypeName
+formatField                    :: Field -> Code
+formatField  (fName, fTypeName) = toCode fName <> " :: " <> toCode fTypeName
 
--- | Sum type without single record field for each constructor.
-type SumType = (B.Builder -- ^ Type name
-               ,[SumAlt]
-               )
-
-type SumAlt = (B.Builder -- ^ Constructor name
-              ,B.Builder -- ^ Type under the constructor
-              )
-
-{-
--- | Declare sum type *without* field names.
-declareSumType :: SumType
-               -> CG ()
-declareSumType (tyName, (firstAlt:otherAlts)) =
-    gen ["\ndata ", toCode tyName, " ="
-        ,         genFirstAlt    firstAlt
-        ,mconcat (genNextAlt <$> otherAlts)
-        ,"\n"]
-  where
-    genFirstAlt, genNextAlt, genAlt :: SumAlt -> B.Builder
-    genFirstAlt alt = "\n    " <> genAlt alt
-    genNextAlt  alt = "\n  | " <> genAlt alt
-    genAlt (consName, typeName) = consName <> " " <> typeName
-declareSumType (tyName, []) = gen ["data ", toCode tyName, " = ", toCode tyName]
- -}
 declareNewtype :: TargetId -> TargetId -> Code -> CG ()
 declareNewtype tyName consName baseTy = 
   gen ["\nnewtype ", toCode tyName, " = ", toCode consName, " ", baseTy, "\n"]
