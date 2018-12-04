@@ -12,9 +12,7 @@ module Schema where
 
 import Prelude hiding(id)
 import Control.DeepSeq
---import Data.ByteString.Char8 as BS
---import Data.Set as Set
-import Data.Map
+import Data.Map hiding(map)
 import Data.Data
 import GHC.Generics
 import Data.Generics.Uniplate.Data()
@@ -142,4 +140,24 @@ data TyPart = Seq    [TyPart]
 
 instance Default TyPart where
   def = Seq []
+
+-- * Flattening nested choices and sequences.
+-- | Flatten nested xs:choice.
+flattenAlts = mconcat . map flattenAltInst
+
+flattenAltInst  (Choice alts) =  flattenAlts alts
+flattenAltInst   other        = [flatten     other]
+
+-- | Flatten nested xs:sequence and xs:all.
+flattenSeqs = mconcat
+            . map flattenSeqInst
+
+flattenSeqInst  (Seq seqElts) = flattenSeqs seqElts
+flattenSeqInst   other        = [flatten other]
+
+flatten (Seq    [e]) = flatten e
+flatten (Choice [c]) = flatten c
+flatten (Seq     s ) = Seq    $ flattenSeqs s
+flatten (Choice  a ) = Choice $ flattenAlts a
+flatten (Elt     e ) = Elt e
 

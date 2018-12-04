@@ -61,7 +61,7 @@ generateElementInstance container elt@(Element {minOccurs, maxOccurs, eName, ..}
 elementType :: TyCtx -> Type -> CG HType
 elementType tyCtx (Ref ""    ) = return "ElementWithEmptyRefType" -- error code
 elementType tyCtx (Ref tyName) = referType (tyCtx `parents` (SchemaType, tyName))
-elementType tyCtx (Complex     {}) = do
+elementType tyCtx (Complex     {attrs, inner}) = do
     warn ["ComplexType not implemented yet"]
     return anyXMLType
 elementType tyCtx (Extension   {}) = do
@@ -71,32 +71,20 @@ elementType tyCtx (Restriction {}) = do
     warn ["Restriction type not implemented yet"]
     return anyXMLType
 
--- | Generate type of given <element/>, if not already declared by type="..." attribute reference.
-generateElementType :: XMLString -- container name
-                    -> Element
-                    -> CG HTyFrag
--- Flatten elements with known type to their types.
-generateElementType _         (eType -> Ref ""    ) = return "ElementWithEmptyRefType"
-generateElementType container (eType -> Ref tyName) =
-  translate (SchemaType, TargetTypeName) container tyName
-generateElementType _         (Element {eName, eType})   =
-  case eType of
-    Complex   {} -> generateContentType eName eType
-    Extension {} -> do
-      warn ["Did not implement elements with extension types yet", show eType ]
-      return anyXMLType
-    other        -> do
-      warn [ "Unimplemented type ", show other ]
-      return anyXMLType
-
-mapSnd :: (b -> c) -> (a, b) -> (a, c)
-mapSnd f (a, b) = (a, f b)
-
 -- | Wraps type according to XML Schema "use" attribute value.
-wrapAttr :: Schema.Use -> B.Builder -> B.Builder
-wrapAttr  Optional   ty = "Maybe " <> ty
-wrapAttr  Required   ty =             ty
-wrapAttr (Default _) ty =             ty
+wrapAttr :: Schema.Use -> HType -> HType
+wrapAttr  Optional   ty = wrapMaybe ty
+wrapAttr  Required   ty =           ty
+wrapAttr (Default _) ty =           ty
+
+-- | Convert TyPart xs:sequence, xs:choice or a single xs:element into type fragment
+contentType :: TyCtx -> TyPart -> CG TyCtx
+contentType tyCtx (Elt    e) = do
+  elementInstance tyCtx e
+contentType tyCtx (Seq    s) = do
+  tySequence =<< mapM (contentType tyCtx) s
+contentType tyCtx (Choice c) = do
+  tyChoice   =<< mapM (contentType tyCtx) c
 
 -- | Given a container with ComplexType details (attributes and children),
 --   generate the type to hold them.
@@ -198,28 +186,6 @@ makeAltContentType container alts@(flattenAlts -> [Elt a, Elt b]) = do
     tyB <- generateElementType container b
     let realType = "Either " <> tyA <> " " <> tyB
     return realType
-
--- * Flattening nested choices and sequences.
--- | Flatten nested xs:choice.
-flattenAlts = mconcat . map flattenAltInst
-
-flattenAltInst  (Choice alts) =  flattenAlts alts
-flattenAltInst   other        = [flatten     other]
-
--- | Flatten nested xs:sequence and xs:all.
-flattenSeqs = mconcat
-            . map flattenSeqInst
-
-flattenSeqInst  (Seq seqElts) = flattenSeqs seqElts
-flattenSeqInst  (All seqElts) = flattenSeqs seqElts
-flattenSeqInst   other        = [flatten other]
-
-flatten (Seq    [e]) = flatten e
-flatten (Choice [c]) = flatten c
-flatten (Seq     s ) = Seq    $ flattenSeqs s
-flatten (All     s ) = All    $ flattenSeqs s
-flatten (Choice  a ) = Choice $ flattenAlts a
-flatten (Elt     e ) = Elt e
 
 appendElt :: Type -> Element -> Type
 appendElt cpl@Complex { inner=Seq sq } elt = cpl { inner=Seq (Elt elt:sq   ) }
