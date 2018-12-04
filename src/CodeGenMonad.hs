@@ -1,4 +1,5 @@
 {-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MonoLocalBinds             #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
@@ -9,6 +10,7 @@
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE TemplateHaskell            #-}
 {-# LANGUAGE TupleSections              #-}
+{-# LANGUAGE TypeSynonymInstances       #-}
 {-# LANGUAGE ViewPatterns               #-}
 -- | Monad for code generation:
 --   Mostly deals with keeping track of all
@@ -21,6 +23,10 @@ module CodeGenMonad(-- Code generation monad
                    ,runCodeGen
                    ,gen
                    ,warn
+                   ,Code
+                   ,ToCode(..)
+                   ,TargetId
+                   ,identifierLength
 
                    -- Translating identifiers
                    ,TargetIdNS(..)
@@ -38,6 +44,7 @@ import           Prelude hiding(lookup)
 
 import           Control.Lens as Lens
 import qualified Control.Monad.RWS.Strict   as RWS
+import           Data.Monoid
 import qualified Data.ByteString.Char8      as BS
 import qualified Data.ByteString.Lazy       as BSL(toStrict, length)
 import qualified Data.ByteString.Builder    as B
@@ -45,6 +52,7 @@ import qualified Data.Map.Strict            as Map
 import qualified Data.Set                   as Set
 
 import           FromXML(XMLString)
+import           Data.String
 import           Identifiers
 import           Schema
 import           BaseTypes
@@ -54,7 +62,7 @@ import           BaseTypes
 --import Debug.Trace(trace)
 trace _ x = x
 
--- | Which of the XML Schema identifier namespaces do we use here
+-- | Which of the XML Schema identifier namespaces do we use here:
 data XMLIdNS = SchemaType
              | ElementName
              | AttributeName
@@ -63,6 +71,16 @@ data XMLIdNS = SchemaType
                                 -- we treat them as separate namespaces.
   deriving (Eq, Ord, Show)
 
+-- | Wrap the generated strings in here to avoid confusion.
+newtype Code = Code { unCode :: B.Builder }
+
+instance Semigroup Code where
+  Code a <> Code b = Code (a <> b)
+
+instance Monoid Code where
+  mempty = Code mempty
+  Code a `mappend` Code b = Code (a `mappend` b)
+
 -- | Which of the target language identifier namespaces do we use here
 data TargetIdNS = TargetTypeName
                 | TargetConsName
@@ -70,6 +88,11 @@ data TargetIdNS = TargetTypeName
   deriving (Eq, Ord, Show, Enum, Bounded)
 
 type IdClass = (XMLIdNS, TargetIdNS)
+
+newtype TargetId = TargetId XMLString
+  deriving (Eq, Show)
+
+identifierLength (TargetId t) = BS.length t
 
 -- | State of code generator
 data CGState =
@@ -85,9 +108,9 @@ newtype CG a = CG { unCG :: (RWS.RWS Schema B.Builder CGState a) }
   deriving (Functor, Applicative, Monad) -- , RWS.MonadReader, RWS.MonadWriter, RWS.MonadIO)
 
 instance RWS.MonadState CGState CG where
-  get       = CG   RWS.get
-  put   x   = CG $ RWS.put x
-  state mod = CG $ RWS.state mod
+  get   = CG   RWS.get
+  put   = CG . RWS.put
+  state = CG . RWS.state
 
 instance RWS.MonadWriter B.Builder CG where
   tell   = CG . RWS.tell
@@ -102,14 +125,28 @@ initialState  = CGState
   where
     trans = (TargetTypeName,) . snd
 
-gen     :: [B.Builder] -> CG ()
-gen args = RWS.tell $ mconcat args
+class ToCode a where
+  toCode :: a -> Code
+
+instance ToCode String where
+  toCode = Code . B.string7
+
+instance ToCode XMLString where
+  toCode = Code . B.byteString
+
+instance IsString Code where
+  fromString = Code . B.string7
+
+instance ToCode TargetId where
+  toCode (TargetId s) = toCode s
+
+gen     :: [Code] -> CG ()
+gen args = RWS.tell $ mconcat $ map unCode args
 
 warn     :: [String] -> CG ()
-warn args = gen ["{- WARNING ", B.string8 $ show $ mconcat args, " -}\n"]
+warn args = gen ["{- WARNING ", toCode $ mconcat args, " -}\n"]
 
 -- TODO: add keywords to prevent mapping of these
-
 bshow :: Show a => a -> BS.ByteString
 bshow = BS.pack . show
 
@@ -137,12 +174,12 @@ classNormalizer TargetFieldName = normalizeFieldName
 translate :: IdClass
           -> XMLString               -- input container name
           -> XMLString               -- input name
-          -> CG B.Builder
+          -> CG TargetId
 translate idClass@(schemaIdClass, haskellIdClass) container xmlName = do
     tr     <- Lens.use translations
     allocs <- Lens.use allocatedIdentifiers
     case Map.lookup (idClass, xmlName) tr of
-      Just r  -> return $ B.byteString r
+      Just r  -> return $ TargetId r
       Nothing -> do
         let isValid (_, x) | rejectInvalidTypeName x = False
             isValid     x  | x `Set.member` allocs   = False
@@ -154,7 +191,7 @@ translate idClass@(schemaIdClass, haskellIdClass) container xmlName = do
                   " "          <> show xmlName <> " -> " <> show goodProposal) $ do
             _ <- translations         %= Map.insert (idClass, xmlName) (snd goodProposal)
             _ <- allocatedIdentifiers %= Set.insert                         goodProposal
-            return $ B.byteString $ snd goodProposal
+            return $ TargetId $ snd goodProposal
           [] -> error "Impossible happened when trying to find a new identifier - file a bug!"
   where
     normalizer = classNormalizer haskellIdClass
@@ -174,6 +211,9 @@ runCodeGen sch (CG rws) = case RWS.runRWS rws sch initialState of
 -- | Convert builder back to String, if you need to examine the content.
 builderString :: B.Builder -> BS.ByteString
 builderString  = BSL.toStrict . B.toLazyByteString
+
+instance Show Code where
+  show = show . builderString . unCode
 
 builderLength :: B.Builder -> Int
 builderLength  = fromIntegral . BSL.length . B.toLazyByteString

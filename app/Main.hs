@@ -8,7 +8,6 @@ import           System.Exit(exitFailure)
 import           System.IO(stdout, stderr, hPutStrLn, hFlush)
 import           Xeno.Errors(printExceptions)
 
-import Analyze
 import CodeGen
 import Parser
 
@@ -21,12 +20,6 @@ whenJust  Nothing _   = return ()
 -- | For GHCid testing:
 testExpr :: IO ()
 testExpr = forM_ testFiles $ processFile
-  {-where
-    testFiles = ["test/person.xsd"
-                ,"test/simple.xsd"
-                ,"test/test.xsd"
-                ,"../tuxml/tuxml_schema-883.xsd"
-                ]-}
 
 processFile :: FilePath -> IO ()
 processFile filename = do
@@ -34,12 +27,7 @@ processFile filename = do
     input       <- BS.readFile filename
     maybeSchema <- parseSchema input
     whenJust maybeSchema $ \schema -> do
-      --putStrLn $ "Successfully parsed " <> filename <> ": " <> show schema
-      let (analyzed, schemaErrors) = analyze schema
-      null schemaErrors `unless` printExceptions input schemaErrors
-      --putStrLn "Analysis:"
-      printExceptions input $ check analyzed
-      --putStrLn "\n===== Datatypes:"
+      printExceptions input $ check schema
       hFlush stdout
       B.hPutBuilder stdout $ codegen analyzed
       hFlush stdout

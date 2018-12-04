@@ -4,4 +4,5 @@ packages:
 - xeno
 - iso8601-duration
 extra-deps:
-- criterion-1.5.2.0
+  #- criterion-1.5.2.0
+- text-format-0.3.2@sha256:ea4e0cfd66e5a0224cbff2753eb160e71c9e383e86f293db77adeba5706bab94

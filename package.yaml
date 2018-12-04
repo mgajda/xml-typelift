@@ -13,7 +13,7 @@ stability:           stable
 author:              Michal Gajda
 maintainer:          dataopt@example.com
 copyright:           Copyright by Michal Gajda 2018
-category:            Data, Tools
+category:            Data, Development, Tools
 build-type:          Simple
 extra-source-files:
   - README.md
@@ -21,7 +21,6 @@ extra-source-files:
   - test/person.xsd
 bug-reports:         https://github.com/DataHaskell/xml-typelift/issues
 github: DataHaskell/xml-typelift
-category: Development
 
 ghc-options: -Wall
 
@@ -35,6 +34,7 @@ dependencies:
   - xeno >= 0.3.5 && < 1.0.0
   - uniplate
   - lens
+  - text-format
   - iso8601-duration # for testing!
 
 library:
