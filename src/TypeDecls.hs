@@ -19,10 +19,11 @@ module TypeDecls(Field
                 ,HType(..)
                 ,Rec
                 ,declare
-                ,declareAlgebraicType
-                ,declareNewtype
-                ,formatRecord
-                ,formatField
+                --,declareAlgebraicType
+                --,declareNewtype
+                ,tyChoice
+                ,tySequence
+                ,fragType
                 ,wrapList
                 ,wrapMaybe
                 ) where
@@ -44,8 +45,10 @@ import           Code(ToCode(..), Code, TargetId, identifierLength)
 import           CodeGenMonad
 
 --wrapList, wrapMaybe :: B.Builder -> B.Builder
-wrapList  x = "["      <> x <> "]"
-wrapMaybe x = "Maybe " <> x
+wrapList, wrapMaybe :: HType -> HType
+wrapList  ty = TyExpr $ "[" <> toCode ty <> "]"
+
+wrapMaybe ty = TyExpr $ "Maybe " <> toCode ty
 
 -- * Here we model Haskell types and their fragments,
 --   without consideration to declaration syntax,
@@ -88,12 +91,12 @@ fragType       TyCtx { ty=Whole ty } = return ty
 fragType tyCtx@TyCtx { ty=Sum   _  } = declare tyCtx
 fragType tyCtx@TyCtx { ty=Rec   _  } = declare tyCtx
 
-sequence, choice :: [TyCtx] -> CG TyCtx
-choice   [alt]      = return         alt
-choice   (alt:alts) = foldM inChoice alt alts
+tySequence, tyChoice :: [TyCtx] -> CG TyCtx
+tyChoice   [alt]      = return         alt
+tyChoice   (alt:alts) = foldM inChoice alt alts
 
-sequence [rep]      = return      rep
-sequence (rep:reps) = foldM inSeq rep reps
+tySequence [rep]      = return      rep
+tySequence (rep:reps) = foldM inSeq rep reps
 
 ctx1@TyCtx { ty=Sum s1 } `inChoice` ctx2@TyCtx { ty=Sum s2 } = do
   return $ ctx1 { ty=Sum (s1 <> s2) }
@@ -104,7 +107,6 @@ ctx1@TyCtx { ty=Sum s  } `inChoice` ctx2@TyCtx { ty=other } = do
   return $ ctx1 { ty=Sum (alt:s) }
   where
     singleField x y = [Field x y]
-
 
 inSeq, inChoice :: TyCtx -> TyCtx -> CG TyCtx
 ctx1@TyCtx { ty=Sum _  } `inSeq` ctx2@TyCtx { ty=Sum _  } = do
