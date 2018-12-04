@@ -14,11 +14,14 @@
 --
 --   We have types for partial type declarations,
 --   and assemble them accordingly, while having minimum wrappers.
-module TypeAlg(tyChoice
+module TypeAlg(TyCtx(..)
+              ,parents
+              ,tyChoice
               ,tySequence
               ,fragType
               ,wrapList
               ,wrapMaybe
+              ,referType
               ) where
 
 import           GHC.Generics
@@ -46,6 +49,10 @@ data TyCtx = TyCtx {
   , ctxName     :: XMLString
   , ty          :: HTyFrag
   }
+
+-- | Child context with a new name, and XML namespace of this name.
+parents :: TyCtx -> (XMLIdNS, XMLString) -> TyCtx
+tyCtx `parents` (schTy, name) = tyCtx { containerId=ctxName tyCtx, ctxName=name, schemaType=schTy }
 
 -- | Take type context, and return a legal Haskell type.
 --   Declares new datatype if type is too complex
@@ -106,6 +113,9 @@ declare tyCtx@TyCtx { ty=Sum recs    } = do
   ty <- allocateTypeName tyCtx
   declareAlgebraicType (ty, recs)
   return $ Named ty
+
+referType :: TyCtx -> CG HType
+referType  = fmap Named . allocateTypeName
 
 -- * These get use new identifier names.
 allocateTypeName,

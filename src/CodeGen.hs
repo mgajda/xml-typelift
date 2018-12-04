@@ -36,15 +36,40 @@ import           TypeAlg
 --   or standard SchemaType, if referred inside ComplexType declaration.
 --generateElementInstance :: XMLString -- container name
 --                        -> Element -> CG Field
+elementInstance :: TyCtx -> Element -> CG TyCtx
+elementInstance tyCtx elt@(Element {minOccurs, maxOccurs, eName, eType}) = do
+    -- After computing type context, we need to find what type to assign it...
+    ty <- (Whole . wrapper) <$> elementType myCtx eType
+    return $ myCtx { ty }
+  where
+    myCtx = tyCtx `parents` (ElementName, eName)
+    wrapper t | minOccurs==1 && maxOccurs==MaxOccurs 1 =           t
+              | minOccurs==0 && maxOccurs==MaxOccurs 1 = wrapMaybe t
+              | otherwise                              = wrapList  t
+
+{-
 generateElementInstance container elt@(Element {minOccurs, maxOccurs, eName, ..}) =
     (,) <$>  translate (ElementName, TargetFieldName) container eName
         <*> (wrapper <$> generateElementType container elt  )
   where
     wrapper tyName | minOccurs==1 && maxOccurs==MaxOccurs 1 =             tyName
                    | minOccurs==0 && maxOccurs==MaxOccurs 1 = "Maybe " <> tyName
-                   | otherwise                              = "["      <> tyName <> "]"
+                   | otherwise                              = "["      <> tyName <> "]"-}
 {-generateElementInstance container _ = return ( B.byteString container
                                              , "generateElementInstanceNotFullyImplemented" )-}
+
+elementType :: TyCtx -> Type -> CG HType
+elementType tyCtx (Ref ""    ) = return "ElementWithEmptyRefType" -- error code
+elementType tyCtx (Ref tyName) = referType (tyCtx `parents` (SchemaType, tyName))
+elementType tyCtx (Complex     {}) = do
+    warn ["ComplexType not implemented yet"]
+    return anyXMLType
+elementType tyCtx (Extension   {}) = do
+    warn ["Extension not implemented yet"]
+    return anyXMLType
+elementType tyCtx (Restriction {}) = do
+    warn ["Restriction type not implemented yet"]
+    return anyXMLType
 
 -- | Generate type of given <element/>, if not already declared by type="..." attribute reference.
 generateElementType :: XMLString -- container name
