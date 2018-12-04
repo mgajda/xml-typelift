@@ -4,6 +4,7 @@ Code cleanups:
 * replace builders with DSL
 * abstract newtype generation etc.
 * unify declareSumType and declareAlgebraicType
+* split TyCtx (with) and Ctx (without type)
 
 Yet unsupported features:
 * attribute/element groups

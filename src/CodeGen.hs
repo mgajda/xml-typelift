@@ -29,8 +29,6 @@ import           Types
 import           TypeDecls
 import           TypeAlg
 
---import           Debug.Trace
-
 -- | Returns a pair of field name, and type code.
 --   That means that type codes are in ElementName namespace, if described in-place,
 --   or standard SchemaType, if referred inside ComplexType declaration.
@@ -47,21 +45,11 @@ elementInstance tyCtx elt@(Element {minOccurs, maxOccurs, eName, eType}) = do
               | minOccurs==0 && maxOccurs==MaxOccurs 1 = wrapMaybe t
               | otherwise                              = wrapList  t
 
-{-
-generateElementInstance container elt@(Element {minOccurs, maxOccurs, eName, ..}) =
-    (,) <$>  translate (ElementName, TargetFieldName) container eName
-        <*> (wrapper <$> generateElementType container elt  )
-  where
-    wrapper tyName | minOccurs==1 && maxOccurs==MaxOccurs 1 =             tyName
-                   | minOccurs==0 && maxOccurs==MaxOccurs 1 = "Maybe " <> tyName
-                   | otherwise                              = "["      <> tyName <> "]"-}
-{-generateElementInstance container _ = return ( B.byteString container
-                                             , "generateElementInstanceNotFullyImplemented" )-}
-
 elementType :: TyCtx -> Type -> CG HType
-elementType tyCtx (Ref ""    ) = return "ElementWithEmptyRefType" -- error code
-elementType tyCtx (Ref tyName) = referType (tyCtx `parents` (SchemaType, tyName))
-elementType tyCtx (Complex     {attrs, inner}) = do
+elementType tyCtx (Ref      ""           ) = return "ElementWithEmptyRefType" -- error code
+elementType tyCtx (Ref      tyName       ) = referType (tyCtx `parents` (SchemaType, tyName))
+elementType tyCtx (Complex {attrs, inner}) = do
+    attrs <- makeAttrType
     warn ["ComplexType not implemented yet"]
     return anyXMLType
 elementType tyCtx (Extension   {}) = do
@@ -71,11 +59,25 @@ elementType tyCtx (Restriction {}) = do
     warn ["Restriction type not implemented yet"]
     return anyXMLType
 
+namedType :: TyCtx -> HType -> CG HType
+namedType tyCtx  (Named n) = do
+  areWeDone <- isTypeDefinedYet $ ctxName tyCtx
+  if areWeDone
+     then return                       $ Named n
+     else declare $ tyCtx { ty = Whole $ Named n }
+namedType tyCtx (TyExpr e) = declare $ tyCtx { ty = Whole $ TyExpr e }
+
 -- | Wraps type according to XML Schema "use" attribute value.
 wrapAttr :: Schema.Use -> HType -> HType
 wrapAttr  Optional   ty = wrapMaybe ty
 wrapAttr  Required   ty =           ty
 wrapAttr (Default _) ty =           ty
+
+(topTypeCtx,
+ topEltCtx ) = (topCtx SchemaType ,
+                topCtx ElementName)
+  where
+    topCtx klass name = TyCtx { containerId="Top", schemaType=klass, ctxName=name, ty=undefined }
 
 -- | Convert TyPart xs:sequence, xs:choice or a single xs:element into type fragment
 contentType :: TyCtx -> TyPart -> CG TyCtx
@@ -94,7 +96,7 @@ contentType tyCtx (Choice c) = do
 --         in case we use this name as reference for ComplexType!
 generateContentType :: XMLString -- container name
                     -> Type -> CG B.Builder
-generateContentType container (Ref (tyName)) = translate (SchemaType, TargetTypeName) container tyName
+generateContentType container (Ref tyName) = translate (SchemaType, TargetTypeName) container tyName
   -- TODO: check if the type was already translated (as it should, if it was generated)
 generateContentType eName (Complex {attrs, inner=content}) = do
     myTypeName  <- translate (SchemaType, TargetTypeName) eName eName
@@ -103,7 +105,6 @@ generateContentType eName (Complex {attrs, inner=content}) = do
     case flatten content of -- serving only simple Seq of elts or choice of elts for now
                     -- These would be in ElementType namespace.
       Seq    ls -> seqInstance myTypeName attrFields eName ls
-      All    ls -> seqInstance myTypeName attrFields eName ls -- handling the same way
       Choice ls -> makeAltType myTypeName attrFields eName ls
       Elt     e -> seqInstance myTypeName attrFields eName [Elt e]
   where

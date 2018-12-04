@@ -28,6 +28,7 @@ module CodeGenMonad(-- Code generation monad
                    ,TargetIdNS(..)
                    ,XMLIdNS   (..)
                    ,translate
+                   ,isTypeDefinedYet
                    ) where
 
 import           Prelude hiding(lookup)
@@ -139,7 +140,7 @@ translate idClass@(schemaIdClass, haskellIdClass) container xmlName = do
             proposals = isValid `filter` proposeTranslations xmlName
         case proposals of
           (goodProposal:_) ->
-           trace ("translate " <> show idClass <> " " <> show container <>
+           trace ("translate " <> show idClass <> " "    <> show container <>
                   " "          <> show xmlName <> " -> " <> show goodProposal) $ do
             _ <- translations         %= Map.insert (idClass, xmlName) (snd goodProposal)
             _ <- allocatedIdentifiers %= Set.insert                         goodProposal
@@ -154,6 +155,14 @@ translate idClass@(schemaIdClass, haskellIdClass) container xmlName = do
       where
         normName | name==""  = placeholder schemaIdClass haskellIdClass
                  | otherwise = name
+
+isTypeDefinedYet :: XMLString -> CG Bool
+isTypeDefinedYet xmlName = do
+    tr    <- Lens.use translations
+    return $ isJust $ Map.lookup ((SchemaType, TargetTypeName), xmlName) tr
+  where
+    isJust (Just _) = True
+    isJust Nothing  = False
 
 -- | Make builder to generate schema code.
 runCodeGen        :: Schema -> CG () -> B.Builder

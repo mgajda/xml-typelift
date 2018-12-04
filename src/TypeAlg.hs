@@ -16,6 +16,8 @@
 --   and assemble them accordingly, while having minimum wrappers.
 module TypeAlg(TyCtx(..)
               ,parents
+              ,declare
+              ,declareIfAbsent
               ,tyChoice
               ,tySequence
               ,fragType
@@ -73,13 +75,21 @@ tyChoice   (alt:alts) = foldM inChoice alt alts
 
 ctx1@TyCtx { ty=Sum s1 } `inChoice` ctx2@TyCtx { ty=Sum s2 } = do
   return $ ctx1 { ty=Sum (s1 <> s2) }
-ctx1@TyCtx { ty=Sum s  } `inChoice` ctx2@TyCtx { ty=other } = do
+ctx1@TyCtx { ty=Sum s  } `inChoice` ctx2@TyCtx { ty=other  } = do
   alt <- NamedRec <$>  allocateConsName ctx2
                   <*> (singleField <$> allocateFieldName ctx2
                                    <*> fragType          ctx2)
   return $ ctx1 { ty=Sum (alt:s) }
   where
     singleField x y = [Field x y]
+
+field :: TyCtx -> XMLString -> HTyFrag -> CG TyCtx
+field tyCtx fieldName frag =
+    singleField <$> allocateFieldName myCtx
+                <*> fragType         (myCtx { ty=frag })
+  where
+    singleField name ty = myCtx { ty=Rec [Field name ty] }
+    myCtx               = tyCtx `parents` (AttributeName, fieldName)
 
 -- | `inSeq` and `inChoice` are joins in the TyCtx lattice
 --    of types embedded in the context that allows
@@ -114,6 +124,14 @@ declare tyCtx@TyCtx { ty=Sum recs    } = do
   declareAlgebraicType (ty, recs)
   return $ Named ty
 
+declareIfAbsent tyCtx@TyCtx { ty=Whole (Named n) } = do
+  ty <- allocateTypeName tyCtx
+  if n == ty
+     then return (Named n)
+     else declare tyCtx
+declareIfAbsent tyCtx = declare tyCtx
+
+
 referType :: TyCtx -> CG HType
 referType  = fmap Named . allocateTypeName
 
@@ -128,7 +146,7 @@ allocateTypeName,
     ,alloc TargetConsName
     ,alloc TargetFieldName)
   where
-    alloc haskellNamespace TyCtx {..} = 
+    alloc haskellNamespace TyCtx {..} =
       translate (schemaType, haskellNamespace)
                  containerId ctxName
 
