@@ -71,7 +71,7 @@ instance FromXML TypeDesc where
              TypeDesc _ newTy <- foldM typeElt tyd $ Xeno.children     node
              return tyd { ty = Extension { base  = getBaseAttribute node
                                          , mixin = newTy } }
-          "all"            -> handleTyPart All
+          "all"            -> handleTyPart consAll
           "sequence"       -> handleTyPart Seq
           "choice"         -> handleTyPart Choice
           _                -> unknownChildHandler "type description" node
@@ -95,19 +95,19 @@ markMixed x = error $ "Cannot mark type as mixed: " <> show x
 instance FromXML TyPart where
   fromXML' = fromXML
   fromXML node = case nodeName node of
-      "choice"  ->  parseTyPart Choice node
-      "all"     ->  parseTyPart All    node
-      "seq"     ->  parseTyPart Seq    node
-      "element" ->  Elt <$> fromXML    node
+      "choice"  ->  parseTyPart Choice  node
+      "all"     ->  parseTyPart consAll node
+      "seq"     ->  parseTyPart Seq     node
+      "element" ->  Elt <$> fromXML     node
       other     -> ("Unknown type particle '" <> bshow other <> "'") `failHere` other
 
 -- | Parse type particle, and fix missing attribute values in case of xs:all
 parseTyPart :: ([TyPart] -> TyPart) -> Xeno.Node -> Result TyPart
-parseTyPart cons node = (postprocess . cons) <$> mapM fromXML (Xeno.children node)
+parseTyPart cons node = cons <$> mapM fromXML (Xeno.children node)
 
 -- | Fix missing minOccurs/maxOccurs in xs:all
-postprocess :: TyPart -> TyPart
-postprocess (All typas) = All (fixOccurs <$> typas)
+consAll :: [TyPart] -> TyPart
+consAll typas = Seq (fixOccurs <$> typas)
   where
     fixOccurs (Elt elt@(Schema.Element {..})) = Elt $ elt { minOccurs=1, maxOccurs=MaxOccurs 1 }
     fixOccurs other                           = other

@@ -123,10 +123,12 @@ instance Default Attr where
              , id    = Nothing
              }
 
+-- | This tries to be clever in simplified handling of two different attributes: use and default
 data Use =
-    Optional
-  | Default XMLString
-  | Required
+    Optional          -- ^ May be absent (Nothing)
+  | Default XMLString -- ^ Default value instead of `Nothing`, works even if the attribute is prohibited,
+                      --   which we ignore for now.
+  | Required          -- ^ Attribute must be present (ignored, since we are not validating parser here.)
   deriving (Eq, Ord, Show, Generic, NFData, Data, Typeable)
 
 instance Default Use where
@@ -134,24 +136,10 @@ instance Default Use where
 
 data TyPart = Seq    [TyPart]
             | Choice [TyPart]
-            | All    [TyPart]
             | Elt    Element
              -- no support for xs:all yet
   deriving (Eq, Ord, Show, Generic, NFData, Data, Typeable)
 
 instance Default TyPart where
   def = Seq []
-
-{-
-instance NFData Attr where
-  rnf (Attr a u t i) = rnf a $ rnf u $ rnf t $ rnf i
-instance NFData Content
-instance NFData Element
-instance NFData ID
-instance NFData MaxOccurs
-instance NFData Restriction
-instance NFData Schema
-instance NFData Type
-instance NFData Use
- -}
 
