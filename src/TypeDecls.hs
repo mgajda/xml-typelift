@@ -37,6 +37,7 @@ import           Data.Function(on)
 import           Data.Semigroup(Semigroup(..))
 import           Data.Monoid hiding (Sum)
 import           Control.Applicative
+import           Control.Monad
 
 import           FromXML(XMLString)
 import           Code(ToCode(..), Code, TargetId, identifierLength)
@@ -55,15 +56,15 @@ wrapMaybe x = "Maybe " <> x
 --   or needs to be wrapped in suitable declaration.
 -- | Type fragments during generation
 data HTyFrag =
-      Rec    Rec               -- ^ Record with fields
-    | Sum   [NamedRec]         -- ^ Sum type with constructor identifier
-    | Whole  HType             -- ^ Any type that can be used _standalone_, without declaring.
+      Rec    Rec       -- ^ Record with fields
+    | Sum   [NamedRec] -- ^ Sum type with constructor identifier
+    | Whole  HType     -- ^ Any type that can be used _standalone_, without declaring.
   deriving (Show)
 
 -- | Standalone Haskell types
 data HType = 
-      TyExpr Code              -- ^ Type expression that is not an identifier of standalone type
-    | Named  TargetId          -- ^ Type name that refers to unique `data` or `newtype` declaration
+      TyExpr Code      -- ^ Type expression that is not an identifier of standalone type
+    | Named  TargetId  -- ^ Type name that refers to unique `data` or `newtype` declaration
   deriving (Show)
 
 instance ToCode HType where
@@ -85,18 +86,37 @@ data TyCtx = TyCtx {
 fragType :: TyCtx -> CG HType
 fragType       TyCtx { ty=Whole ty } = return ty
 fragType tyCtx@TyCtx { ty=Sum   _  } = declare tyCtx
-fragType _                           = error "fragType should not be applied to Rec constructor!"
+fragType tyCtx@TyCtx { ty=Rec   _  } = declare tyCtx
 
-ctx1@TyCtx { ty=Sum _ } `seq` ctx2@TyCtx { ty=Sum _ } = do
-  field1 <- (,) <$> allocateFieldName ctx1 <*> declare ctx1
-  field2 <- (,) <$> allocateFieldName ctx2 <*> declare ctx2
+sequence, choice :: [TyCtx] -> CG TyCtx
+choice   [alt]      = return         alt
+choice   (alt:alts) = foldM inChoice alt alts
+
+sequence [rep]      = return      rep
+sequence (rep:reps) = foldM inSeq rep reps
+
+ctx1@TyCtx { ty=Sum s1 } `inChoice` ctx2@TyCtx { ty=Sum s2 } = do
+  return $ ctx1 { ty=Sum (s1 <> s2) }
+ctx1@TyCtx { ty=Sum s  } `inChoice` ctx2@TyCtx { ty=other } = do
+  alt <- NamedRec <$>  allocateConsName ctx2
+                  <*> (singleField <$> allocateFieldName ctx2
+                                   <*> fragType          ctx2)
+  return $ ctx1 { ty=Sum (alt:s) }
+  where
+    singleField x y = [Field x y]
+
+
+inSeq, inChoice :: TyCtx -> TyCtx -> CG TyCtx
+ctx1@TyCtx { ty=Sum _  } `inSeq` ctx2@TyCtx { ty=Sum _  } = do
+  field1 <- Field <$> allocateFieldName ctx1 <*> declare ctx1
+  field2 <- Field <$> allocateFieldName ctx2 <*> declare ctx2
   return $ ctx1 { ty=Rec [field1, field2] }
-ctx1@TyCtx { ty=Rec r1 } `seq` ctx2@TyCtx { ty=Rec r2 } =
+ctx1@TyCtx { ty=Rec r1 } `inSeq` ctx2@TyCtx { ty=Rec r2 } =
   return $ ctx1 { ty=Rec (r1 <> r2) }
-ctx1@TyCtx { ty=Rec r1 } `seq` ctx2@TyCtx { ty=other } = do
-  field <- allocateFieldName $ ctx2 { ctxName="content", containerId=ctxName ctx1 }
-  f     <- fragType ctx2
-  return $ ctx1 { ty=Rec ((field, f):r1) }
+ctx1@TyCtx { ty=Rec r1 } `inSeq` ctx2@TyCtx { ty=other  } = do
+  name  <- allocateFieldName $ ctx2 { ctxName="content", containerId=ctxName ctx1 }
+  fTy   <- fragType ctx2
+  return $ ctx1 { ty=Rec (Field name fTy:r1) }
 allocateTypeName,
   allocateConsName,
     allocateFieldName :: TyCtx -> CG TargetId
@@ -113,7 +133,10 @@ allocateTypeName,
 
 type FieldName = TargetId
 -- | Unnamed record is just a set of fields
-type Field = (FieldName, HType)
+data Field = Field { name :: FieldName
+                   , fTy  :: HType
+                   }
+  deriving (Show)
 type Rec   = [Field]
 
 -- | Single record with a constructor assigned
@@ -172,8 +195,8 @@ formatRecord NamedRec { cons=name, fields=f:fields } =
              $ BS.replicate (identifierLength name) ' '
 formatRecord NamedRec { cons=name, fields=[] } = toCode name -- empty record
 
-formatField                    :: Field -> Code
-formatField  (fName, fTypeName) = toCode fName <> " :: " <> toCode fTypeName
+formatField           :: Field -> Code
+formatField Field {..} = toCode name <> " :: " <> toCode fTy
 
 declareNewtype :: TargetId -> TargetId -> Code -> CG ()
 declareNewtype tyName consName baseTy = 
