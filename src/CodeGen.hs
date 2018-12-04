@@ -25,7 +25,9 @@ import           FromXML(XMLString)
 import           Schema
 import           CodeGenMonad
 import           BaseTypes
+import           Types
 import           TypeDecls
+import           TypeAlg
 
 --import           Debug.Trace
 

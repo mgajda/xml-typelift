@@ -11,21 +11,11 @@
 {-# LANGUAGE TupleSections       #-}
 {-# LANGUAGE ViewPatterns        #-}
 -- | Generating type declarations in code generation monad.
---
---   We have types for partial type declarations,
---   and assemble them accordingly, while having minimum wrappers.
-module TypeDecls(Field
-                ,HTyFrag(..)
-                ,HType(..)
-                ,Rec
-                ,declare
-                --,declareAlgebraicType
-                --,declareNewtype
-                ,tyChoice
-                ,tySequence
-                ,fragType
-                ,wrapList
-                ,wrapMaybe
+--   
+--   This just extracts data from `Types` and produces correct syntax,
+--   without any consideration for consistency of inputs.
+module TypeDecls(declareAlgebraicType
+                ,declareNewtype
                 ) where
 
 import           GHC.Generics
@@ -43,130 +33,9 @@ import           Control.Monad
 import           FromXML(XMLString)
 import           Code(ToCode(..), Code, TargetId, identifierLength)
 import           CodeGenMonad
+import           Types
 
---wrapList, wrapMaybe :: B.Builder -> B.Builder
-wrapList, wrapMaybe :: HType -> HType
-wrapList  ty = TyExpr $ "[" <> toCode ty <> "]"
-
-wrapMaybe ty = TyExpr $ "Maybe " <> toCode ty
-
--- * Here we model Haskell types and their fragments,
---   without consideration to declaration syntax,
---   but just to syntax of their use instances.
---
---   Thus `newtype` and single-constructor `data` will be unified,
---   and the main distinction is whether type fragment can be used as-is,
---   or needs to be wrapped in suitable declaration.
--- | Type fragments during generation
-data HTyFrag =
-      Rec    Rec       -- ^ Record with fields
-    | Sum   [NamedRec] -- ^ Sum type with constructor identifier
-    | Whole  HType     -- ^ Any type that can be used _standalone_, without declaring.
-  deriving (Show)
-
--- | Standalone Haskell types
-data HType = 
-      TyExpr Code      -- ^ Type expression that is not an identifier of standalone type
-    | Named  TargetId  -- ^ Type name that refers to unique `data` or `newtype` declaration
-  deriving (Show)
-
-instance ToCode HType where
-  toCode (Named  tid ) = toCode tid
-  toCode (TyExpr code) = code
-
--- | Type fragment, with all context necessary to correctly allocate a name for it.
-data TyCtx = TyCtx {
-    schemaType  :: XMLIdNS
-  , containerId :: XMLString
-  , ctxName     :: XMLString
-  , ty          :: HTyFrag
-  }
-
--- withFields
--- choice   :: [TyCtx] -> TyCtx
--- sequence :: [TyCtx] -> TyCtx
-
-fragType :: TyCtx -> CG HType
-fragType       TyCtx { ty=Whole ty } = return ty
-fragType tyCtx@TyCtx { ty=Sum   _  } = declare tyCtx
-fragType tyCtx@TyCtx { ty=Rec   _  } = declare tyCtx
-
-tySequence, tyChoice :: [TyCtx] -> CG TyCtx
-tyChoice   [alt]      = return         alt
-tyChoice   (alt:alts) = foldM inChoice alt alts
-
-tySequence [rep]      = return      rep
-tySequence (rep:reps) = foldM inSeq rep reps
-
-ctx1@TyCtx { ty=Sum s1 } `inChoice` ctx2@TyCtx { ty=Sum s2 } = do
-  return $ ctx1 { ty=Sum (s1 <> s2) }
-ctx1@TyCtx { ty=Sum s  } `inChoice` ctx2@TyCtx { ty=other } = do
-  alt <- NamedRec <$>  allocateConsName ctx2
-                  <*> (singleField <$> allocateFieldName ctx2
-                                   <*> fragType          ctx2)
-  return $ ctx1 { ty=Sum (alt:s) }
-  where
-    singleField x y = [Field x y]
-
-inSeq, inChoice :: TyCtx -> TyCtx -> CG TyCtx
-ctx1@TyCtx { ty=Sum _  } `inSeq` ctx2@TyCtx { ty=Sum _  } = do
-  field1 <- Field <$> allocateFieldName ctx1 <*> declare ctx1
-  field2 <- Field <$> allocateFieldName ctx2 <*> declare ctx2
-  return $ ctx1 { ty=Rec [field1, field2] }
-ctx1@TyCtx { ty=Rec r1 } `inSeq` ctx2@TyCtx { ty=Rec r2 } =
-  return $ ctx1 { ty=Rec (r1 <> r2) }
-ctx1@TyCtx { ty=Rec r1 } `inSeq` ctx2@TyCtx { ty=other  } = do
-  name  <- allocateFieldName $ ctx2 { ctxName="content", containerId=ctxName ctx1 }
-  fTy   <- fragType ctx2
-  return $ ctx1 { ty=Rec (Field name fTy:r1) }
-allocateTypeName,
-  allocateConsName,
-    allocateFieldName :: TyCtx -> CG TargetId
-(allocateTypeName,
- allocateConsName,
- allocateFieldName) =
-    (alloc TargetTypeName
-    ,alloc TargetConsName
-    ,alloc TargetFieldName)
-  where
-    alloc haskellNamespace TyCtx {..} = 
-      translate (schemaType, haskellNamespace)
-                 containerId ctxName
-
-type FieldName = TargetId
--- | Unnamed record is just a set of fields
-data Field = Field { name :: FieldName
-                   , fTy  :: HType
-                   }
-  deriving (Show)
-type Rec   = [Field]
-
--- | Single record with a constructor assigned
-data NamedRec = NamedRec {
-    cons   ::   TargetId
-  , fields ::   Rec
-  }
-  deriving (Show)
-
--- | Get HTyFrag, and declare it as a named type.
-declare :: TyCtx -> CG HType
-declare tyCtx@TyCtx { ty=Whole hType } = do
-  ty   <- allocateTypeName tyCtx
-  cons <- allocateConsName tyCtx
-  declareNewtype ty cons $ "(" <> toCode hType <> ")"
-  return $ Named ty
-declare tyCtx@TyCtx { ty=Rec rec     } = do
-  ty   <- allocateTypeName tyCtx
-  cons <- allocateConsName tyCtx
-  declareAlgebraicType (ty, [NamedRec cons rec])
-  return $ Named ty
-declare tyCtx@TyCtx { ty=Sum []      } = error "Empty list of records"
-declare tyCtx@TyCtx { ty=Sum recs    } = do
-  ty <- allocateTypeName tyCtx
-  declareAlgebraicType (ty, recs)
-  return $ Named ty
-
---declareAlgebraicType :: (B.Builder, [Record]) -> CG ()
+-- * Low level generation of type declarations
 declareAlgebraicType :: (TargetId, [NamedRec]) -> CG ()
 declareAlgebraicType (_,          []                      ) = error "Empty list of records"
 declareAlgebraicType (myTypeName, (firstEntry:nextEntries)) = do
@@ -176,10 +45,7 @@ declareAlgebraicType (myTypeName, (firstEntry:nextEntries)) = do
       gen ["  | ", formatRecord nextEntry]
 
 
--- TODO: type alias these for safety
 -- * Type declarations
-
---formatRecord :: Record -> B.Builder
 formatRecord :: NamedRec -> Code
 formatRecord NamedRec { cons=name, fields=f:fields } =
     mconcat
