@@ -16,6 +16,8 @@ module BaseTypes(baseTranslations
                 ,isSimple
                 ,reservedWords
                 ,isBaseHaskellType
+                ,isFlatXMLType
+                ,anyXMLType
                 ) where
 
 import           Prelude hiding(lookup)
@@ -41,6 +43,10 @@ basePrologue  = mconcat $ map makeImport modules
               ,"Data.Time.Clock"
               ,"Xeno.DOM as Xeno"
               ]
+
+isFlatXMLType = (`Set.member` flatXMLTypes)
+
+flatXMLTypes = Set.fromList (map fst baseTranslations) Set.\\ Set.fromList ["", "xs:any"]
 
 baseTranslations :: [(BS.ByteString, BS.ByteString)]
 baseTranslations = map addNS
@@ -109,6 +115,9 @@ reservedWords  = ["do"
                  ,"if", "then", "else"
                  ,"as"
                  ]
+
+anyXMLType :: IsString a => a
+anyXMLType = "Xeno.Node"
 
 predefinedTypes :: Set.Set XMLString
 predefinedTypes = Set.fromList $ map fst baseTranslations

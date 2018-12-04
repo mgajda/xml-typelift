@@ -57,10 +57,10 @@ generateElementType _         (Element {eName, eType})   =
     Complex   {} -> generateContentType eName eType
     Extension {} -> do
       warn ["Did not implement elements with extension types yet", show eType ]
-      return "Xeno.Node"
+      return anyXMLType
     other        -> do
       warn [ "Unimplemented type ", show other ]
-      return "Xeno.Node"
+      return anyXMLType
 
 mapSnd :: (b -> c) -> (a, b) -> (a, c)
 mapSnd f (a, b) = (a, f b)
@@ -75,39 +75,28 @@ wrapAttr (Default _) ty =             ty
 --   generate the type to hold them.
 --   Or if it turns out these are referred types - just return their names.
 --   That means that our container is likely 'SchemaType' namespace
+--   NOTE: This function *has* to *always* return a type name translated from XMLString argument,
+--         in case we use this name as reference for ComplexType!
 generateContentType :: XMLString -- container name
                     -> Type -> CG B.Builder
 generateContentType container (Ref (tyName)) = translate (SchemaType, TargetTypeName) container tyName
   -- TODO: check if the type was already translated (as it should, if it was generated)
 generateContentType eName (Complex {attrs, inner=content}) = do
     myTypeName  <- translate (SchemaType, TargetTypeName) eName eName
-    myConsName  <- translate (SchemaType, TargetConsName) eName eName
     attrFields  :: [Field] <- tracer "attr fields"  <$> mapM makeAttrType attrs
 
-    childFields :: [Field] <- tracer "child fields" <$>
-                              case content of -- serving only simple Seq of elts or choice of elts for now
-                              -- These would be in ElementType namespace.
-      Seq    ls -> seqInstance ls
-      All    ls -> seqInstance ls -- handling the same way
-      Choice ls -> (:[]) <$> makeAltType ls
-      Elt     e -> error  $ "Unexpected singular Elt inside content of ComplexType: " <> show e
-    declareAlgebraicType (myTypeName, [(myConsName, attrFields <> childFields)])
-    return      myTypeName
+    case flatten content of -- serving only simple Seq of elts or choice of elts for now
+                    -- These would be in ElementType namespace.
+      Seq    ls -> seqInstance myTypeName attrFields eName ls
+      All    ls -> seqInstance myTypeName attrFields eName ls -- handling the same way
+      Choice ls -> makeAltType myTypeName attrFields eName ls
+      Elt     e -> seqInstance myTypeName attrFields eName [Elt e]
   where
     makeAttrType :: Attr -> CG (B.Builder, B.Builder)
     makeAttrType Attr {..} = mapSnd (wrapAttr use) <$> makeFieldType aName aType
     makeFieldType :: XMLString -> Type -> CG (B.Builder, B.Builder)
     makeFieldType  aName aType = (,) <$> translate (AttributeName, TargetFieldName) eName aName
                                      <*> generateContentType                        eName aType
-    makeAltType :: [TyPart] -> CG (B.Builder, B.Builder)
-    makeAltType ls = do
-      warn ["altType not yet implemented:", show ls]
-      return ("altFields", "Xeno.Node")
-    seqInstance = mapM fun
-      where
-        fun (Elt (elt@(Element {}))) = do
-          generateElementInstance eName elt
-        fun  x = error $ "Not yet implemented nested sequence, all or choice:" <> show x
 generateContentType eName (Restriction _ (Enum (uniq -> values))) = do
   tyName     <- translate (SchemaType ,   TargetTypeName) eName        eName -- should it be split into element and type containers?
   translated <- translate (EnumIn eName,  TargetConsName) eName `mapM` values
@@ -118,13 +107,14 @@ generateContentType eName (Restriction base (Pattern _)) = do
   tyName   <- translate (ElementName, TargetTypeName) (eName <> "pattern") base
   consName <- translate (ElementName, TargetConsName) (eName <> "pattern") base
   baseTy   <- translate (SchemaType,  TargetTypeName)  eName               base
-  warn ["-- Restriction pattern\n"]
+  warn ["Restriction pattern"]
   declareNewtype tyName consName baseTy
   return tyName
 generateContentType eName (Extension   base (Complex False [] (Seq []))) = do
   tyName   <- translate (SchemaType,  TargetTypeName) base eName
   consName <- translate (ElementName, TargetConsName) base eName
   baseTy   <- translate (SchemaType,  TargetTypeName) base eName
+  warn ["Empty extension of base type"]
   declareNewtype tyName consName baseTy
   return tyName
 generateContentType eName  (Restriction base  None      ) =
@@ -143,11 +133,66 @@ generateContentType eName (Extension   base  otherType                   ) = do
   warn ["Complex extensions are not implemented yet"]
   tyName   <- translate (SchemaType,  TargetTypeName) base eName
   consName <- translate (ElementName, TargetConsName) base eName
-  declareNewtype tyName consName "Xeno.Node"
+  declareNewtype tyName consName anyXMLType
   return tyName
 generateContentType _          other       = do
   warn ["Not yet implemented generateContentType ", show other]
   return "Xeno.Node"
+
+seqInstance :: B.Builder -> [Field] -> XMLString -> [TyPart] -> CG B.Builder
+seqInstance myTypeName attrFields eName ls = do
+    myConsName  <- translate (SchemaType, TargetConsName) eName eName
+    childFields <- mapM fun ls
+    declareAlgebraicType (myTypeName, [(myConsName, attrFields <> childFields)])
+    return                myTypeName
+  where
+    fun (Elt (elt@(Element {}))) = generateElementInstance eName elt
+    fun  x = error $ "Not yet implemented nested sequence, all or choice:" <> show x
+
+-- | Make sum type if element has <xs:choice> inside
+--   Note that list of alternatives has at least one element!
+makeAltType :: B.Builder -> [Field] -> XMLString -> [TyPart] -> CG B.Builder
+makeAltType myTypeName attrFields container alts@(flattenAlts -> [Elt a, Elt b]) = do
+    contentType <- makeAltContentType container alts
+    case attrFields of
+      [] -> return contentType
+      _  -> do
+        myConsName  <- translate (SchemaType, TargetConsName) container container
+        declareAlgebraicType (myTypeName, [(myConsName, ("inner", contentType):attrFields)])
+        return myTypeName
+makeAltType myTypeName attrs container alts = do
+  warn ["xs:choice implementation is yet limited to only two elements:", show alts]
+  return anyXMLType
+
+-- | Builds union type out of elements of xs:choice
+makeAltContentType :: XMLString -> [TyPart] -> CG B.Builder
+makeAltContentType container alts@(flattenAlts -> [Elt a, Elt b]) = do
+    tyA <- generateElementType container a
+    tyB <- generateElementType container b
+    let realType = "Either " <> tyA <> " " <> tyB
+    return realType
+
+-- * Flattening nested choices and sequences.
+-- | Flatten nested xs:choice.
+flattenAlts = mconcat . map flattenAltInst
+
+flattenAltInst  (Choice alts) =  flattenAlts alts
+flattenAltInst   other        = [flatten     other]
+
+-- | Flatten nested xs:sequence and xs:all.
+flattenSeqs = mconcat
+            . map flattenSeqInst
+
+flattenSeqInst  (Seq seqElts) = flattenSeqs seqElts
+flattenSeqInst  (All seqElts) = flattenSeqs seqElts
+flattenSeqInst   other        = [flatten other]
+
+flatten (Seq    [e]) = flatten e
+flatten (Choice [c]) = flatten c
+flatten (Seq     s ) = Seq    $ flattenSeqs s
+flatten (All     s ) = All    $ flattenSeqs s
+flatten (Choice  a ) = Choice $ flattenAlts a
+flatten (Elt     e ) = Elt e
 
 appendElt :: Type -> Element -> Type
 appendElt cpl@Complex { inner=Seq sq } elt = cpl { inner=Seq (Elt elt:sq   ) }
@@ -161,16 +206,21 @@ codegen sch = runCodeGen sch $ generateSchema sch
 -- | Generate content type, and put an type name on it.
 generateNamedContentType :: (XMLString, Type) -> CG ()
 generateNamedContentType (name, ty) = do
-  contentTypeName <- translate (SchemaType, TargetTypeName) name name
-  contentConsName <- translate (SchemaType, TargetConsName) name name
-  contentTypeCode <- generateContentType name ty
-  when (isBaseHaskellType $ builderString contentTypeCode) $ do
-    warn ["-- Named base type\n"]
-    declareNewtype contentTypeName contentConsName contentTypeCode
+    contentTypeCode <- generateContentType name ty
+    when (needsWrapper $ builderString contentTypeCode) $ do
+      warn ["-- Named base type\n"]
+      contentTypeName <- translate (SchemaType, TargetTypeName) name name
+      contentConsName <- translate (SchemaType, TargetConsName) name name
+      declareNewtype contentTypeName contentConsName contentTypeCode
+  where
+    needsWrapper typeDesc = isBaseHaskellType         typeDesc
+                         || "Either " `BS.isPrefixOf` typeDesc
 
 generateSchema :: Schema -> CG ()
 generateSchema sch = do
     gen ["{-# LANGUAGE DuplicateRecordFields #-}\n"
+        ,"-- | Autogenerated by xml-typelift\n"
+        ,"--   DO NOT CHANGE - rather update the XML Schema it was made from\n"
         ,"module XMLSchema where\n\n"
         ,B.byteString basePrologue
         ,"\n\n"]
@@ -185,7 +235,7 @@ generateSchema sch = do
            gen ["-- Toplevel\n"]
            declareNewtype topLevelConst topLevelConst eltName
       [eltName]                                   ->
-           gen      [ "type ", topLevelConst, " = ", eltName ]
+           declareTypeAlias topLevelConst eltName
       altTypes                                    -> do
            -- Add constructor name for each type
            -- TODO: We would gain from separate dictionary for constructor names!
@@ -209,3 +259,5 @@ tracer _ a = a
 instance Show B.Builder where
   show = BS.unpack . builderString
 
+declareTypeAlias topLevelConst eltName =
+  gen      [ "type ", topLevelConst, " = ", eltName, "\n" ]

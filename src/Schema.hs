@@ -75,10 +75,6 @@ instance Default Element where
 simpleType :: Type -> Bool
 simpleType  = undefined
 
--- | Expand references, extensions, and restrictions
-flatten :: Type -> Map XMLString Type -> Type
-flatten = undefined
-
 validType :: Type -> Bool
 validType  = undefined
 

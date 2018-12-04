@@ -2,7 +2,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Identifiers(normalizeTypeName,
                    normalizeFieldName,
-                   rejectInvalidTypeName
+                   rejectInvalidTypeName,
+                   capitalize,
+                   uncapitalize
                   ) where
 
 import           Prelude               hiding(lookup)

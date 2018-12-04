@@ -58,7 +58,9 @@ trace _ x = x
 data XMLIdNS = SchemaType
              | ElementName
              | AttributeName
-             | EnumIn XMLString -- enumeration inside type/element of given name (should be path)
+             | EnumIn XMLString -- ^ Enumeration entry inside type/element of given name (should be path)
+                                -- Since different enumeration can have the same entry,
+                                -- we treat them as separate namespaces.
   deriving (Eq, Ord, Show)
 
 -- | Which of the target language identifier namespaces do we use here
@@ -104,7 +106,7 @@ gen     :: [B.Builder] -> CG ()
 gen args = RWS.tell $ mconcat args
 
 warn     :: [String] -> CG ()
-warn args = gen ["{- WARNING ", B.string8 $ show $ mconcat args, " -}"]
+warn args = gen ["{- WARNING ", B.string8 $ show $ mconcat args, " -}\n"]
 
 -- TODO: add keywords to prevent mapping of these
 
