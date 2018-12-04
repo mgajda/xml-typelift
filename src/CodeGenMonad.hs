@@ -23,21 +23,11 @@ module CodeGenMonad(-- Code generation monad
                    ,runCodeGen
                    ,gen
                    ,warn
-                   ,Code
-                   ,ToCode(..)
-                   ,TargetId
-                   ,identifierLength
 
                    -- Translating identifiers
                    ,TargetIdNS(..)
                    ,XMLIdNS   (..)
                    ,translate
-
-                   -- Utilities
-                   ,builderUnlines
-                   ,builderString
-                   ,builderLength
-                   ,bshow
                    ) where
 
 import           Prelude hiding(lookup)
@@ -56,7 +46,7 @@ import           Data.String
 import           Identifiers
 import           Schema
 import           BaseTypes
-
+import           Code
 
 -- | To enable tracing import Debug.Trace(trace) instead:
 --import Debug.Trace(trace)
@@ -71,16 +61,6 @@ data XMLIdNS = SchemaType
                                 -- we treat them as separate namespaces.
   deriving (Eq, Ord, Show)
 
--- | Wrap the generated strings in here to avoid confusion.
-newtype Code = Code { unCode :: B.Builder }
-
-instance Semigroup Code where
-  Code a <> Code b = Code (a <> b)
-
-instance Monoid Code where
-  mempty = Code mempty
-  Code a `mappend` Code b = Code (a `mappend` b)
-
 -- | Which of the target language identifier namespaces do we use here
 data TargetIdNS = TargetTypeName
                 | TargetConsName
@@ -88,11 +68,6 @@ data TargetIdNS = TargetTypeName
   deriving (Eq, Ord, Show, Enum, Bounded)
 
 type IdClass = (XMLIdNS, TargetIdNS)
-
-newtype TargetId = TargetId XMLString
-  deriving (Eq, Show)
-
-identifierLength (TargetId t) = BS.length t
 
 -- | State of code generator
 data CGState =
@@ -125,34 +100,11 @@ initialState  = CGState
   where
     trans = (TargetTypeName,) . snd
 
-class ToCode a where
-  toCode :: a -> Code
-
-instance ToCode String where
-  toCode = Code . B.string7
-
-instance ToCode XMLString where
-  toCode = Code . B.byteString
-
-instance IsString Code where
-  fromString = Code . B.string7
-
-instance ToCode TargetId where
-  toCode (TargetId s) = toCode s
-
 gen     :: [Code] -> CG ()
 gen args = RWS.tell $ mconcat $ map unCode args
 
 warn     :: [String] -> CG ()
 warn args = gen ["{- WARNING ", toCode $ mconcat args, " -}\n"]
-
--- TODO: add keywords to prevent mapping of these
-bshow :: Show a => a -> BS.ByteString
-bshow = BS.pack . show
-
-builderUnlines :: [B.Builder] -> B.Builder
-builderUnlines []     = ""
-builderUnlines (l:ls) = l <> mconcat (("\n" <>) <$> ls)
 
 -- | PlaceHolder depending of class of the source and target ids
 --   Names selected to provide maximum clarity.
@@ -207,14 +159,4 @@ translate idClass@(schemaIdClass, haskellIdClass) container xmlName = do
 runCodeGen        :: Schema -> CG () -> B.Builder
 runCodeGen sch (CG rws) = case RWS.runRWS rws sch initialState of
                             ((), _state, builder) -> builder
-
--- | Convert builder back to String, if you need to examine the content.
-builderString :: B.Builder -> BS.ByteString
-builderString  = BSL.toStrict . B.toLazyByteString
-
-instance Show Code where
-  show = show . builderString . unCode
-
-builderLength :: B.Builder -> Int
-builderLength  = fromIntegral . BSL.length . B.toLazyByteString
 

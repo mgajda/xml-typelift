@@ -36,21 +36,13 @@ import           Data.Function(on)
 import           Data.Semigroup(Semigroup(..))
 
 import           FromXML(XMLString)
+import           Code(ToCode(..), Code, TargetId, identifierLength)
 import           CodeGenMonad
 
 --wrapList, wrapMaybe :: B.Builder -> B.Builder
 wrapList  x = "["      <> x <> "]"
 wrapMaybe x = "Maybe " <> x
 
-{-
-instance Show B.Builder where
-  show = BS.unpack . builderString
-
-instance Eq B.Builder where
-  (==) = (==) `on` show
-
-builderShow = show . BS.unpack . builderString
- -}
 -- * Here we model Haskell types and their fragments,
 --   without consideration to declaration syntax,
 --   but just to syntax of their use instances.

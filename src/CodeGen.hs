@@ -32,8 +32,8 @@ import           TypeDecls
 -- | Returns a pair of field name, and type code.
 --   That means that type codes are in ElementName namespace, if described in-place,
 --   or standard SchemaType, if referred inside ComplexType declaration.
-generateElementInstance :: XMLString -- container name
-                        -> Element -> CG Field
+--generateElementInstance :: XMLString -- container name
+--                        -> Element -> CG Field
 generateElementInstance container elt@(Element {minOccurs, maxOccurs, eName, ..}) =
     (,) <$>  translate (ElementName, TargetFieldName) container eName
         <*> (wrapper <$> generateElementType container elt  )
