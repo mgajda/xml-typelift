@@ -51,8 +51,8 @@ complexType tyCtx (Ref      ""           ) = do
 complexType tyCtx (Ref      tyName       ) = referType (tyCtx `parents` (SchemaType, tyName))
 complexType tyCtx (Complex {attrs, inner}) = do
     attrFields <- makeAttrType  tyCtx `mapM` attrs
-    innerCtx   <- freshInnerCtx tyCtx "content"
-    innerTy    <- contentType   innerCtx inner
+    -- innerCtx   <- freshInnerCtx tyCtx "content"
+    innerTy    <- contentType   tyCtx inner
     composite  <- tySequence   (innerTy:attrFields)
     fragType    $ tyCtx { ty = ty composite }
 complexType tyCtx (Extension   {}) = do

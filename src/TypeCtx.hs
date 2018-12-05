@@ -58,6 +58,8 @@ import           CodeGenMonad
 import           Types
 import           TypeDecls
 
+import           Debug.Trace(trace)
+
 -- | Type fragment, with all context necessary to correctly allocate a name for it.
 data TyCtx = TyCtx {
     schemaType  :: XMLIdNS
@@ -144,7 +146,7 @@ ctx                      `inSeq`      TyCtx    { ty=Rec [] } = return ctx
 ctx                      `inSeq`      TyCtx    { ty=Sum [] } = return ctx
 ctx1@TyCtx { ty=Rec r1 } `inSeq` ctx2@TyCtx { ty=Rec r2 } =
   return $ ctx1 { ty=Rec (r1 <> r2) }
-ctx1@TyCtx { ty=Rec r1 } `inSeq` ctx2@TyCtx { ty=other  } = do
+ctx1@TyCtx { ty=Rec r1 } `inSeq` ctx2@TyCtx { ty=other  } = trace ("Other is " <> show other) $ do
   fTy   <- fragType ctx2
   newCtx <- freshInnerCtx ctx1 "content"
   name  <- allocateFieldName newCtx

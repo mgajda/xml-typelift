@@ -1,3 +1,9 @@
+Current issue after cleanup:
+* "content" types are tagged wrong
+* TTopLevel suggests wrong name allocation
+* typeAlias instead of newtype for TopLevel
+* missing restrictions, and extensions spill over as "content" types
+
 Code cleanups:
 * use lens
 * make builders fully abstract outside CodeGenMonad and TypeDecl
@@ -5,6 +11,7 @@ Code cleanups:
 * abstract newtype generation etc.
 * unify declareSumType and declareAlgebraicType
 * split TyCtx (with) and Ctx (without type)
+* LogicT for choosing common prefix
 
 Yet unsupported features:
 * attribute/element groups
