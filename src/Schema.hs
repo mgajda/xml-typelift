@@ -87,9 +87,9 @@ instance Default Restriction where
 
 data Type =
     Ref XMLString
-  | Restriction {
-        base       :: {-# UNPACK #-} !XMLString
-      , restricted :: {-# UNPACK #-} !Restriction
+  | Restricted  {
+        base        :: {-# UNPACK #-} !XMLString
+      , restriction :: {-# UNPACK #-} !Restriction
       }
   | Extension {
         base  :: {-# UNPACK #-} !XMLString

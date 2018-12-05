@@ -115,17 +115,18 @@ postprocess  other      = other
 
 handleRestriction :: Xeno.Node -> Result Type
 handleRestriction node = do
-    restricted <- case ((`elem` ["pattern", "enumeration", "list", "union"]) . nodeName)
+    restriction <- case ((`elem` ["pattern", "enumeration", "list", "union"]) . nodeName)
                           `find` Xeno.children node of
         Nothing -> return None
         Just n -> let err = (`failHere` nodeName n)
                   in case nodeName n of
+                      "length"      ->  err "Length restriction not yet implemented"
                       "list"        ->  err "List restriction not yet implemented"
                       "union"       ->  err "List restriction not yet implemented"
                       "pattern"     ->  Pattern <$> getValueAttr n
                       "enumeration" -> (Enum . catMaybes) <$> mapM getEnumValue (Xeno.children node)
                       _other        ->  err "Unexpected failure in parsing <restriction>"
-    return Restriction { base = getBaseAttribute node, restricted }
+    return Restricted { base = getBaseAttribute node, restriction }
   where
     getEnumValue :: Xeno.Node -> Result (Maybe XMLString)
     getEnumValue eNode@(nodeName -> "enumeration") = Just <$> getValueAttr eNode

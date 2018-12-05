@@ -52,14 +52,24 @@ complexType tyCtx (Ref      tyName       ) = referType (tyCtx `parents` (SchemaT
 complexType tyCtx (Complex {attrs, inner}) = do
     attrFields <- makeAttrType  tyCtx `mapM` attrs
     -- innerCtx   <- freshInnerCtx tyCtx "content"
-    innerTy    <- contentType   tyCtx inner
-    composite  <- tySequence   (innerTy:attrFields)
+    innerTy    <- contentType tyCtx $ flatten inner
+    composite  <- tySequence (innerTy:attrFields)
     fragType    $ tyCtx { ty = ty composite }
 complexType tyCtx (Extension   {}) = do
     warn ["Extension not implemented yet"]
     return anyXML
-complexType tyCtx (Restriction {}) = do
-    warn ["Restriction type not implemented yet"]
+complexType tyCtx (Restricted {base, restriction=None}) = do
+    warn ["Empty restriction"]
+    referType (tyCtx `parents` (SchemaType, base))
+complexType tyCtx (Restricted {base, restriction=Pattern _}) = do
+    warn ["Pattern"] -- no pattern validation yet!
+    referType (tyCtx `parents` (SchemaType, base))
+complexType tyCtx (Restricted {restriction=Enum (uniq -> values)}) = do
+    warn ["Enum ", show values]
+    tyPart  <- Sum <$> mapM (enumCons tyCtx) values
+    fragType $ tyCtx { ty=tyPart }
+complexType tyCtx (Restricted {restriction}) = do
+    warn ["Restriction type not implemented yet", show restriction]
     return anyXML
 
 makeAttrType :: TyCtx -> Attr -> CG TyCtx

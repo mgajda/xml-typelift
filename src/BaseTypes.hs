@@ -121,7 +121,7 @@ predefinedTypes = Set.fromList $ map fst baseTranslations
 isSimple :: Type -> Maybe Bool
 isSimple (Ref x)
         | x    `Set.member` predefinedTypes = Just True
-isSimple Restriction { base }
+isSimple Restricted { base }
         | base `Set.member` predefinedTypes = Just True -- not always!!!
 isSimple  Extension {}                      = Just False
 isSimple  Complex   {}                      = Just False

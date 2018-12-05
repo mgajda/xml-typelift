@@ -60,7 +60,7 @@ data HTyFrag =
 anyXML = Named $ TargetId "Xeno.Node"
 
 -- | Standalone Haskell types
-data HType = 
+data HType =
       TyExpr Code      -- ^ Type expression that is not an identifier of standalone type
     | Named  TargetId  -- ^ Type name that refers to unique `data` or `newtype` declaration
   deriving (Show)

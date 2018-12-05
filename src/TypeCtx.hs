@@ -38,6 +38,7 @@ module TypeCtx(TyCtx(..)
               ,wrapMaybe
               ,referType
               ,freshInnerCtx
+              ,enumCons
               ) where
 
 import           GHC.Generics
@@ -108,19 +109,33 @@ asAlt ctx = NamedRec <$>  allocateConsName ctx
   where
     singleField x y = [Field x y]
 
+-- | Constructor without any record data.
+enumCons             :: TyCtx -> XMLString -> CG NamedRec
+enumCons ctx@TyCtx { ctxName } consName =
+  NamedRec <$> allocateConsName enumCtx <*> pure []
+  where
+    enumCtx :: TyCtx
+    enumCtx  = ctx { containerId = ctxName
+                   , ctxName     = consName
+                   , schemaType  = EnumIn ctxName
+                   }
+
+-- TODO: handle empty types better!
 -- Discard empty types
 inChoice :: TyCtx -> TyCtx -> CG TyCtx
-TyCtx      { ty=Rec [] } `inChoice` ctx                      = return ctx
-TyCtx      { ty=Sum [] } `inChoice` ctx                      = return ctx
-ctx                      `inChoice`      TyCtx { ty=Rec [] } = return ctx
-ctx                      `inChoice`      TyCtx { ty=Sum [] } = return ctx
-ctx1@TyCtx { ty=Sum s1 } `inChoice` ctx2@TyCtx { ty=Sum s2 } = do
+TyCtx     { ty=Rec []  } `inChoice`  ctx@TyCtx { ty=Whole t } = return $ ctx { ty=Whole $ wrapMaybe t }
+TyCtx     { ty=Rec []  } `inChoice`  ctx                      = return   ctx
+TyCtx     { ty=Sum []  } `inChoice`  ctx                      = return   ctx
+TyCtx     { ty=Whole t } `inChoice`  ctx@TyCtx { ty=Rec []  } = return $ ctx { ty=Whole $ wrapMaybe t }
+ctx                      `inChoice`      TyCtx { ty=Rec []  } = return   ctx -- TODO: mark this as empty option!
+ctx                      `inChoice`      TyCtx { ty=Sum []  } = return   ctx
+ctx1@TyCtx { ty=Sum s1 } `inChoice` ctx2@TyCtx { ty=Sum s2  } = do
   return $ ctx1 { ty=Sum (s1 <> s2) }
-ctx1@TyCtx { ty=Sum s  } `inChoice` ctx2@TyCtx { ty=other  } = do
+ctx1@TyCtx { ty=Sum s  } `inChoice` ctx2@TyCtx { ty=other   } = do
     alt      <- asAlt ctx2
     innerCtx <- freshInnerCtx ctx1 "choice"
     return    $ innerCtx { ty=Sum (alt:s) }
-ctx1@TyCtx { ty=_      } `inChoice` ctx2@TyCtx { ty=_      } = do
+ctx1@TyCtx { ty=_      } `inChoice` ctx2@TyCtx { ty=_       } = do
     alt1 <- asAlt ctx1
     alt2 <- asAlt ctx2
     innerCtx <- freshInnerCtx ctx1 "choice"
@@ -167,9 +182,13 @@ ctx1@TyCtx { ty=_  } `inSeq` ctx2@TyCtx { ty=_ } = do
 declare :: TyCtx -> CG HType
 declare tyCtx@TyCtx { ty=Whole hType } = do
   ty   <- allocateTypeName tyCtx
-  cons <- allocateConsName tyCtx
-  declareNewtype ty cons $ "(" <> toCode hType <> ")"
-  return $ Named ty
+  case hType of
+    Named t | t /= ty -> do
+       cons <- allocateConsName tyCtx
+       declareNewtype ty cons $ "(" <> toCode hType <> ")"
+       return $ Named ty
+    _                 -> do
+       return   hType
 declare tyCtx@TyCtx { ty=Rec rec     } = do
   ty   <- allocateTypeName tyCtx
   cons <- allocateConsName tyCtx
