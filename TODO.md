@@ -3,6 +3,8 @@ Current issue after cleanup:
 * TTopLevel suggests wrong name allocation
 * typeAlias instead of newtype for TopLevel
 * missing restrictions, and extensions spill over as "content" types
+!!! Check for changes and regressions with respect to previous version!!!
+* add unit tests for DSLs
 
 Code cleanups:
 * use lens
