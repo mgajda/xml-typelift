@@ -17,7 +17,6 @@ module BaseTypes(baseTranslations
                 ,reservedWords
                 ,isBaseHaskellType
                 ,isFlatXMLType
-                ,anyXMLType
                 ) where
 
 import           Prelude hiding(lookup)
@@ -115,9 +114,6 @@ reservedWords  = ["do"
                  ,"if", "then", "else"
                  ,"as"
                  ]
-
-anyXMLType :: IsString a => a
-anyXMLType = "Xeno.Node"
 
 predefinedTypes :: Set.Set XMLString
 predefinedTypes = Set.fromList $ map fst baseTranslations

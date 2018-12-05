@@ -16,6 +16,7 @@
 --   without any consideration for consistency of inputs.
 module TypeDecls(declareAlgebraicType
                 ,declareNewtype
+                ,declareTypeAlias
                 ) where
 
 import           GHC.Generics
@@ -69,4 +70,7 @@ formatField Field {..} = toCode name <> " :: " <> toCode fTy
 declareNewtype :: TargetId -> TargetId -> Code -> CG ()
 declareNewtype tyName consName baseTy = 
   gen ["\nnewtype ", toCode tyName, " = ", toCode consName, " ", baseTy, "\n"]
+
+declareTypeAlias topLevelConst eltName =
+  gen      [ "type ", topLevelConst, " = ", eltName, "\n" ]
 

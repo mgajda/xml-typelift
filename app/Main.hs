@@ -27,9 +27,7 @@ processFile filename = do
     input       <- BS.readFile filename
     maybeSchema <- parseSchema input
     whenJust maybeSchema $ \schema -> do
-      printExceptions input $ check schema
-      hFlush stdout
-      B.hPutBuilder stdout $ codegen analyzed
+      B.hPutBuilder stdout $ codegen schema
       hFlush stdout
 
 main :: IO ()

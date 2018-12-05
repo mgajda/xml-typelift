@@ -26,6 +26,7 @@ module CodeGenMonad(-- Code generation monad
 
                    -- Translating identifiers
                    ,TargetIdNS(..)
+                   ,freshInnerId
                    ,XMLIdNS   (..)
                    ,translate
                    ,isTypeDefinedYet
@@ -57,9 +58,10 @@ trace _ x = x
 data XMLIdNS = SchemaType
              | ElementName
              | AttributeName
+             | Inner  Int       -- ^ Anonymous inner content inside element
              | EnumIn XMLString -- ^ Enumeration entry inside type/element of given name (should be path)
-                                -- Since different enumeration can have the same entry,
-                                -- we treat them as separate namespaces.
+                                --   Since different enumeration can have the same entry,
+                                --   we treat them as separate namespaces.
   deriving (Eq, Ord, Show)
 
 -- | Which of the target language identifier namespaces do we use here
@@ -77,6 +79,7 @@ data CGState =
     _translations         :: Map.Map (IdClass,    XMLString) XMLString
     -- | Set of translation target names that were used before (and are thus unavailable.)
   , _allocatedIdentifiers :: Set.Set (TargetIdNS, XMLString)
+  , _freshId              :: Int
   }
 makeLenses ''CGState
 
@@ -93,11 +96,20 @@ instance RWS.MonadWriter B.Builder CG where
   listen = CG . RWS.listen . unCG
   pass   = CG . RWS.pass   . unCG
 
+-- | Fresh context with a given name stem.
+--   Used for anonymous elements.
+freshInnerId :: XMLString -> CG Int
+freshInnerId stem = do
+    result  <- Lens.use freshId
+    freshId %= (+1)
+    return     result
+
 initialState :: CGState
 initialState  = CGState
                (Map.fromList [(((SchemaType, TargetTypeName), schemaType), haskellType)
                              | (schemaType, haskellType) <- baseTranslations ])
                (Set.fromList $ map trans baseTranslations)
+                0
   where
     trans = (TargetTypeName,) . snd
 

@@ -22,6 +22,7 @@ module Types(Field
             ,Rec
             ,wrapList
             ,wrapMaybe
+            ,anyXML
             ) where
 
 import           GHC.Generics
@@ -36,7 +37,7 @@ import           Data.Monoid hiding (Sum)
 import           Control.Applicative
 import           Control.Monad
 
-import           Code(ToCode(..), Code, TargetId, identifierLength)
+import           Code(ToCode(..), Code, TargetId(..), identifierLength)
 
 wrapList, wrapMaybe :: HType -> HType
 wrapList  ty = TyExpr $ "[" <> toCode ty <> "]"
@@ -56,6 +57,8 @@ data HTyFrag =
     | Sum   [NamedRec] -- ^ Sum type with constructor identifier
     | Whole  HType     -- ^ Any type that can be used _standalone_, without declaring.
   deriving (Show)
+
+anyXML = Named $ TargetId "Xeno.Node"
 
 -- | Standalone Haskell types
 data HType = 

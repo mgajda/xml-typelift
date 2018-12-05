@@ -14,7 +14,20 @@
 --
 --   We have types for partial type declarations,
 --   and assemble them accordingly, while having minimum wrappers.
-module TypeAlg(TyCtx(..)
+--
+--   Type context contains either a descriptor for standalone
+--   Haskell type declaration, or part of, *and* also context
+--   information that allows to generate name(s) for its
+--   type name, fields etc.
+--   
+--   We need to keep the context, so that we can name field
+--   or type on demand, and reduce number of unnecessary wrappers.
+--
+--   For simplicity we do not distinguish instances where we use only a context,
+--   versus those that we pass type with a context.
+--
+--   TODO: Make it a type class that both on standalone context, and context with type.
+module TypeCtx(TyCtx(..)
               ,parents
               ,declare
               ,declareIfAbsent
@@ -24,6 +37,7 @@ module TypeAlg(TyCtx(..)
               ,wrapList
               ,wrapMaybe
               ,referType
+              ,freshInnerCtx
               ) where
 
 import           GHC.Generics
@@ -50,11 +64,17 @@ data TyCtx = TyCtx {
   , containerId :: XMLString
   , ctxName     :: XMLString
   , ty          :: HTyFrag
-  }
+  } deriving (Show)
 
 -- | Child context with a new name, and XML namespace of this name.
 parents :: TyCtx -> (XMLIdNS, XMLString) -> TyCtx
 tyCtx `parents` (schTy, name) = tyCtx { containerId=ctxName tyCtx, ctxName=name, schemaType=schTy }
+
+-- | Generate fresh inner context.
+freshInnerCtx     :: TyCtx -> XMLString -> CG TyCtx
+freshInnerCtx tyCtx stem = myCtx <$> freshInnerId stem
+  where
+    myCtx innerId = tyCtx `parents` (Inner innerId, stem)
 
 -- | Take type context, and return a legal Haskell type.
 --   Declares new datatype if type is too complex
@@ -67,11 +87,15 @@ fragType tyCtx@TyCtx { ty=Rec   _  } = declare tyCtx
 -- | tySequence merges sequences or records of types.
 tySequence, tyChoice :: [TyCtx] -> CG TyCtx
 tySequence [rep]      = return      rep
-tySequence (rep:reps) = foldM inSeq rep reps
+tySequence (rep:reps) = do
+  seqs <- foldM inSeq rep reps
+  freshInnerCtx seqs "sequence"
 
 -- | tyChoice merges alternatives types.
 tyChoice   [alt]      = return         alt
-tyChoice   (alt:alts) = foldM inChoice alt alts
+tyChoice   (alt:alts) = do
+  alts <- foldM inChoice alt alts
+  freshInnerCtx alts "choice"
 
 ctx1@TyCtx { ty=Sum s1 } `inChoice` ctx2@TyCtx { ty=Sum s2 } = do
   return $ ctx1 { ty=Sum (s1 <> s2) }
@@ -79,7 +103,8 @@ ctx1@TyCtx { ty=Sum s  } `inChoice` ctx2@TyCtx { ty=other  } = do
   alt <- NamedRec <$>  allocateConsName ctx2
                   <*> (singleField <$> allocateFieldName ctx2
                                    <*> fragType          ctx2)
-  return $ ctx1 { ty=Sum (alt:s) }
+  innerCtx <- freshInnerCtx ctx1 "choice"
+  return    $ innerCtx { ty=Sum (alt:s) }
   where
     singleField x y = [Field x y]
 
@@ -95,16 +120,24 @@ field tyCtx fieldName frag =
 --    of types embedded in the context that allows
 --    to name on demand.
 inSeq, inChoice :: TyCtx -> TyCtx -> CG TyCtx
-ctx1@TyCtx { ty=Sum _  } `inSeq` ctx2@TyCtx { ty=Sum _  } = do
-  field1 <- Field <$> allocateFieldName ctx1 <*> declare ctx1
-  field2 <- Field <$> allocateFieldName ctx2 <*> declare ctx2
-  return $ ctx1 { ty=Rec [field1, field2] }
 ctx1@TyCtx { ty=Rec r1 } `inSeq` ctx2@TyCtx { ty=Rec r2 } =
   return $ ctx1 { ty=Rec (r1 <> r2) }
 ctx1@TyCtx { ty=Rec r1 } `inSeq` ctx2@TyCtx { ty=other  } = do
-  name  <- allocateFieldName $ ctx2 { ctxName="content", containerId=ctxName ctx1 }
   fTy   <- fragType ctx2
+  newCtx <- freshInnerCtx ctx1 "content"
+  name  <- allocateFieldName newCtx
   return $ ctx1 { ty=Rec (Field name fTy:r1) }
+ctx1@TyCtx { ty=other } `inSeq` ctx2@TyCtx { ty=Rec r2  } = do
+  fTy    <- fragType ctx1
+  newCtx <- freshInnerCtx ctx2 "after"
+  name   <- allocateFieldName newCtx
+  return  $ ctx2 { ty=Rec (Field name fTy:r2) }
+-- | In this case, it is probably special of attribute + simple content type
+--   No inner context name seems needed.
+ctx1@TyCtx { ty=_  } `inSeq` ctx2@TyCtx { ty=_ } = do
+  field1 <- Field <$> allocateFieldName ctx1 <*> declare ctx1
+  field2 <- Field <$> allocateFieldName ctx2 <*> declare ctx2
+  return  $ ctx1 { ty=Rec [field1, field2] }
 
 -- | Get HTyFrag, and declare it as a named type.
 declare :: TyCtx -> CG HType
