@@ -183,12 +183,16 @@ declare :: TyCtx -> CG HType
 declare tyCtx@TyCtx { ty=Whole hType } = do
   ty   <- allocateTypeName tyCtx
   case hType of
-    Named t | t /= ty -> do
+    Named t | t == ty -> do
+       return   hType
+    Named t           -> do
+       cons <- allocateConsName tyCtx
+       declareNewtype ty cons $ toCode hType
+       return $ Named ty
+    _                 -> do
        cons <- allocateConsName tyCtx
        declareNewtype ty cons $ "(" <> toCode hType <> ")"
        return $ Named ty
-    _                 -> do
-       return   hType
 declare tyCtx@TyCtx { ty=Rec rec     } = do
   ty   <- allocateTypeName tyCtx
   cons <- allocateConsName tyCtx
