@@ -14,10 +14,9 @@
 --
 --   We have types for partial type declarations,
 --   and assemble them accordingly, while having minimum wrappers.
-module Types(Field
-            ,HTyFrag(..)
-            ,HType(..)
-            ,Field(..)
+module Types(Field   (..)
+            ,HTyFrag (..)
+            ,HType   (..)
             ,NamedRec(..)
             ,Rec
             ,wrapList

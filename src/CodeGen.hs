@@ -13,21 +13,18 @@ module CodeGen(codegen) where
 
 import           Prelude hiding(lookup, id)
 
-import           Control.Monad(forM, when, void)
-import qualified Data.ByteString.Builder    as B
-import qualified Data.ByteString.Char8      as BS
+import           Control.Monad(when, void)
 import           Data.String
 import qualified Data.Map.Strict            as Map
 import qualified Data.Set                   as Set
+import qualified Data.ByteString.Builder    as B
 
 import           FromXML(XMLString)
 
 import           Schema
-import           Code(ToCode(..))
 import           CodeGenMonad
 import           BaseTypes
 import           Types
-import           TypeDecls
 import           TypeCtx
 
 -- | Returns a pair of field name, and type code.
@@ -55,11 +52,9 @@ complexType tyCtx (Ref      tyName       ) = referType (tyCtx `parents` (SchemaT
 complexType tyCtx (Complex {attrs, inner}) = do
     attrFields <- makeAttrType  tyCtx `mapM` attrs
     innerCtx   <- freshInnerCtx tyCtx "content"
-    inner      <- contentType   innerCtx inner
-    composite  <- tySequence          (inner:attrFields)
+    innerTy    <- contentType   innerCtx inner
+    composite  <- tySequence   (innerTy:attrFields)
     fragType    $ tyCtx { ty = ty composite }
-  where
-    myCtx innerId = tyCtx `parents` (innerId, "content")
 complexType tyCtx (Extension   {}) = do
     warn ["Extension not implemented yet"]
     return anyXML
@@ -80,11 +75,12 @@ wrapAttr  Optional   ty = wrapMaybe ty
 wrapAttr  Required   ty =           ty
 wrapAttr (Default _) ty =           ty
 
+topTypeCtx, topEltCtx :: XMLString -> TyCtx
 (topTypeCtx,
  topEltCtx ) = (topCtx SchemaType ,
                 topCtx ElementName)
   where
-    topCtx klass name = TyCtx { containerId="Top", schemaType=klass, ctxName=name, ty=undefined }
+    topCtx klass name = TyCtx { containerId=topLevelConst, schemaType=klass, ctxName=name, ty=undefined }
 
 -- | Convert TyPart xs:sequence, xs:choice or a single xs:element into type fragment
 contentType :: TyCtx -> TyPart -> CG TyCtx
@@ -95,25 +91,23 @@ contentType tyCtx (Seq    s) = do
 contentType tyCtx (Choice c) = do
   tyChoice   =<< mapM (contentType tyCtx) c
 
-ensureTypeIsNamed :: XMLString -> HType -> CG ()
-ensureTypeIsNamed name ty = case ty of
+ensureTypeIsNamed :: XMLString -> HType -> XMLIdNS -> CG ()
+ensureTypeIsNamed name ty klass = case ty of
     Named  n -> do
      undeclared <- not <$> isTypeDefinedYet name
      undeclared `when` void (declare tyCtx)
     TyExpr e -> void $ declare $ tyCtx
   where
-    tyCtx = TyCtx { ty = Whole ty, containerId = topLevelConst, ctxName = name }
+    tyCtx = TyCtx { ty = Whole ty, containerId = topLevelConst, ctxName = name, schemaType=klass }
 
 namedType :: (XMLString, Type) -> CG ()
 namedType (name, ty) = do
-    hTy <- complexType (topCtx undefined name) ty
-    ensureTypeIsNamed   name hTy
+    hTy <- complexType (topTypeCtx name) ty
+    ensureTypeIsNamed   name hTy SchemaType
 
 topElement :: Element -> CG TyCtx
 topElement elt@(Element { eName, eType }) = do
-    elementInstance (topCtx undefined eName) elt
-
-topCtx ty name = TyCtx { ty, containerId=topLevelConst, ctxName = name }
+    elementInstance (topEltCtx eName) elt
 
 generateSchema :: Schema -> CG ()
 generateSchema sch = do
@@ -129,7 +123,7 @@ generateSchema sch = do
     tops <- topElement `mapM` tops sch
     null tops `when` fail "No toplevel elements found!"
     compositeTop <- fragType =<< tyChoice tops
-    ensureTypeIsNamed topLevelConst compositeTop
+    ensureTypeIsNamed topLevelConst compositeTop ElementName
     return ()
 
 topLevelConst :: IsString a => a

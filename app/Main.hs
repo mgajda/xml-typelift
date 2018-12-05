@@ -23,7 +23,7 @@ testExpr = forM_ testFiles $ processFile
 
 processFile :: FilePath -> IO ()
 processFile filename = do
-    --putStrLn     $ "Starting to process " <> filename
+    putStrLn     $ "Starting to process " <> filename
     input       <- BS.readFile filename
     maybeSchema <- parseSchema input
     whenJust maybeSchema $ \schema -> do

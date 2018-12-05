@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 5921875d5f95ef78ccd3191b0a8e606ffaa45b20e0a9159ab3f50f10548546de
+-- hash: 21ea9c64f1e4a7a8b2aa21ab61ca934f5284b89f842e2c88636278dbe77d3b1f
 
 name:           xml-typelift
 version:        0.0.1
@@ -39,7 +39,7 @@ library
       Paths_xml_typelift
   hs-source-dirs:
       lib
-  ghc-options: -Wall
+  ghc-options: -Wincomplete-patterns
   build-depends:
       base >=4.7 && <5
     , bytestring
@@ -58,20 +58,23 @@ executable xml-typelift-cli
   main-is: Main.hs
   other-modules:
       BaseTypes
+      Code
       CodeGen
       CodeGenMonad
       Errors
       Identifiers
       Parser
       Schema
+      TypeCtx
       TypeDecls
+      Types
       TestSet
       Paths_xml_typelift
   hs-source-dirs:
       src
       app
       bench
-  ghc-options: -Wall
+  ghc-options: -Wincomplete-patterns
   build-depends:
       base >=4.7 && <5
     , bytestring
@@ -92,18 +95,21 @@ test-suite unit-tests
   main-is: UnitTests.hs
   other-modules:
       BaseTypes
+      Code
       CodeGen
       CodeGenMonad
       Errors
       Identifiers
       Parser
       Schema
+      TypeCtx
       TypeDecls
+      Types
       Paths_xml_typelift
   hs-source-dirs:
       test
       src
-  ghc-options: -Wall
+  ghc-options: -Wincomplete-patterns
   build-depends:
       base >=4.7 && <5
     , bytestring
@@ -126,19 +132,22 @@ benchmark memory
   other-modules:
       TestSet
       BaseTypes
+      Code
       CodeGen
       CodeGenMonad
       Errors
       Identifiers
       Parser
       Schema
+      TypeCtx
       TypeDecls
+      Types
       Paths_xml_typelift
   hs-source-dirs:
       bench/memory
       bench
       src
-  ghc-options: -Wall
+  ghc-options: -Wincomplete-patterns
   build-depends:
       base >=4.7 && <5
     , bytestring
@@ -162,19 +171,22 @@ benchmark speed
   other-modules:
       TestSet
       BaseTypes
+      Code
       CodeGen
       CodeGenMonad
       Errors
       Identifiers
       Parser
       Schema
+      TypeCtx
       TypeDecls
+      Types
       Paths_xml_typelift
   hs-source-dirs:
       bench/speed
       bench
       src
-  ghc-options: -Wall
+  ghc-options: -Wincomplete-patterns
   build-depends:
       base >=4.7 && <5
     , bytestring

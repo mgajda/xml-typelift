@@ -86,25 +86,43 @@ fragType tyCtx@TyCtx { ty=Rec   _  } = declare tyCtx
 
 -- | tySequence merges sequences or records of types.
 tySequence, tyChoice :: [TyCtx] -> CG TyCtx
+tySequence []         = error "tySequence applied to empty list of arguments"
 tySequence [rep]      = return      rep
 tySequence (rep:reps) = do
   seqs <- foldM inSeq rep reps
   freshInnerCtx seqs "sequence"
 
 -- | tyChoice merges alternatives types.
-tyChoice   [alt]      = return         alt
+tyChoice   []         = error "tyChoice applied to empty list of arguments"
+tyChoice   [alt]      = return alt
 tyChoice   (alt:alts) = do
   alts <- foldM inChoice alt alts
   freshInnerCtx alts "choice"
 
+asAlt :: TyCtx -> CG NamedRec
+asAlt ctx = NamedRec <$>  allocateConsName ctx
+                     <*> (singleField <$> allocateFieldName ctx
+                                      <*> fragType          ctx)
+  where
+    singleField x y = [Field x y]
+
+-- Discard empty types
+inChoice :: TyCtx -> TyCtx -> CG TyCtx
+TyCtx      { ty=Rec [] } `inChoice` ctx                      = return ctx
+TyCtx      { ty=Sum [] } `inChoice` ctx                      = return ctx
+ctx                      `inChoice`      TyCtx { ty=Rec [] } = return ctx
+ctx                      `inChoice`      TyCtx { ty=Sum [] } = return ctx
 ctx1@TyCtx { ty=Sum s1 } `inChoice` ctx2@TyCtx { ty=Sum s2 } = do
   return $ ctx1 { ty=Sum (s1 <> s2) }
 ctx1@TyCtx { ty=Sum s  } `inChoice` ctx2@TyCtx { ty=other  } = do
-  alt <- NamedRec <$>  allocateConsName ctx2
-                  <*> (singleField <$> allocateFieldName ctx2
-                                   <*> fragType          ctx2)
-  innerCtx <- freshInnerCtx ctx1 "choice"
-  return    $ innerCtx { ty=Sum (alt:s) }
+    alt      <- asAlt ctx2
+    innerCtx <- freshInnerCtx ctx1 "choice"
+    return    $ innerCtx { ty=Sum (alt:s) }
+ctx1@TyCtx { ty=_      } `inChoice` ctx2@TyCtx { ty=_      } = do
+    alt1 <- asAlt ctx1
+    alt2 <- asAlt ctx2
+    innerCtx <- freshInnerCtx ctx1 "choice"
+    return    $ innerCtx { ty=Sum [alt1, alt2] }
   where
     singleField x y = [Field x y]
 
@@ -119,7 +137,11 @@ field tyCtx fieldName frag =
 -- | `inSeq` and `inChoice` are joins in the TyCtx lattice
 --    of types embedded in the context that allows
 --    to name on demand.
-inSeq, inChoice :: TyCtx -> TyCtx -> CG TyCtx
+inSeq :: TyCtx -> TyCtx -> CG TyCtx
+TyCtx      { ty=Rec [] } `inSeq` ctx                         = return ctx
+TyCtx      { ty=Sum [] } `inSeq` ctx                         = return ctx
+ctx                      `inSeq`      TyCtx    { ty=Rec [] } = return ctx
+ctx                      `inSeq`      TyCtx    { ty=Sum [] } = return ctx
 ctx1@TyCtx { ty=Rec r1 } `inSeq` ctx2@TyCtx { ty=Rec r2 } =
   return $ ctx1 { ty=Rec (r1 <> r2) }
 ctx1@TyCtx { ty=Rec r1 } `inSeq` ctx2@TyCtx { ty=other  } = do

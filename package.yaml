@@ -22,7 +22,8 @@ extra-source-files:
 bug-reports:         https://github.com/DataHaskell/xml-typelift/issues
 github: DataHaskell/xml-typelift
 
-ghc-options: -Wall
+#ghc-options: -Wall
+ghc-options: -Wincomplete-patterns
 
 dependencies:
   - base >= 4.7 && < 5

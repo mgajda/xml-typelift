@@ -127,6 +127,7 @@ placeholder xmlIdClass targetIdClass = classNormalizer targetIdClass $ name xmlI
     name  SchemaType    = "UnnamedSchemaType"
     name  ElementName   = "UnnamedElement"    -- is not allowed by schema
     name  AttributeName = "UnnamedAttribute"
+    name (Inner  i)     = "Inner"  <> bshow i
     name (EnumIn x)     = "EnumIn" <> x
 
 classNormalizer :: TargetIdNS -> XMLString -> XMLString
