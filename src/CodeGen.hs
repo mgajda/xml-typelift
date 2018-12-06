@@ -27,6 +27,8 @@ import           BaseTypes
 import           Types
 import           TypeCtx
 
+import           Debug.Trace(trace)
+
 -- | Returns a pair of field name, and type code.
 --   That means that type codes are in ElementName namespace, if described in-place,
 --   or standard SchemaType, if referred inside ComplexType declaration.
@@ -152,6 +154,6 @@ tracer lbl a = trace (lbl <> show a) a
 --tracer _ a = a
 
 -- | Make builder to generate schema code
-codegen    :: Schema -> B.Builder
-codegen sch = runCodeGen sch $ generateSchema sch
+codegen :: Schema -> B.Builder
+codegen  = runCodeGen . generateSchema
 

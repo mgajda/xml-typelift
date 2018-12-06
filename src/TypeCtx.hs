@@ -54,7 +54,7 @@ import           Control.Applicative
 import           Control.Monad
 
 import           FromXML(XMLString)
-import           Code(ToCode(..), Code, TargetId, identifierLength)
+import           Code(ToCode(..), Code, TargetId(..), identifierLength)
 import           CodeGenMonad
 import           Types
 import           TypeDecls
@@ -63,44 +63,55 @@ import           Debug.Trace(trace)
 
 -- | Type fragment, with all context necessary to correctly allocate a name for it.
 data TyCtx = TyCtx {
-    schemaType  :: XMLIdNS
-  , containerId :: XMLString
-  , ctxName     :: XMLString
-  , ty          :: HTyFrag
+    ty    :: HTyFrag
+  , scope :: Scope
   } deriving (Show)
-
--- | Child context with a new name, and XML namespace of this name.
-parents :: TyCtx -> (XMLIdNS, XMLString) -> TyCtx
-tyCtx `parents` (schTy, name) = tyCtx { containerId=ctxName tyCtx, ctxName=name, schemaType=schTy }
-
--- | Generate fresh inner context.
-freshInnerCtx     :: TyCtx -> XMLString -> CG TyCtx
-freshInnerCtx tyCtx stem = myCtx <$> freshInnerId stem
-  where
-    myCtx innerId = tyCtx `parents` (Inner innerId, stem)
 
 -- | Take type context, and return a legal Haskell type.
 --   Declares new datatype if type is too complex
 --   to be expressed as in-place Haskell type.
 fragType :: TyCtx -> CG HType
-fragType       TyCtx { ty=Whole ty } = return ty
+fragType       TyCtx { ty=Whole ty } = return  ty
 fragType tyCtx@TyCtx { ty=Sum   _  } = declare tyCtx
 fragType tyCtx@TyCtx { ty=Rec   _  } = declare tyCtx
 
--- | tySequence merges sequences or records of types.
-tySequence, tyChoice :: [TyCtx] -> CG TyCtx
-tySequence []         = error "tySequence applied to empty list of arguments"
-tySequence [rep]      = return      rep
-tySequence (rep:reps) = do
-  seqs <- foldM inSeq rep reps
-  freshInnerCtx seqs "sequence"
+class SeedId a where
+  seed :: a -> XMLString
+
+unTargetId (TargetId t) = t
+
+instance SeedId HType where
+  seed (TyExpr (TargetId e)) = e
+  seed (Ref    (TargetId e)) = e
+
+instance SeedId Rec where
+  seed = concat . map (unTargetId . fst)
+
+instance SeedId NamedRec where
+  seed (NamedRec name _) = name
+
+instance SeedId HTyPart where
+  seed (Sum   s) = concat $ map seed s
+  seed (Rec   r) = concat $ map seed r
+  seed (Whole t) = seed t
 
 -- | tyChoice merges alternatives types.
-tyChoice   []         = error "tyChoice applied to empty list of arguments"
-tyChoice   [alt]      = return alt
-tyChoice   (alt:alts) = do
-  alts <- foldM inChoice alt alts
-  freshInnerCtx alts "choice"
+tyChoice :: [HTyFrag] -> CG HTyFrag
+tyChoice [   ] = error "tyChoice applied to empty list of arguments"
+tyChoice [alt] = return alt
+tyChoice  alts = Sum <$> concatMapM getAlt alts
+  where
+    getAlt :: HTyFrag -> CG [NamedRec]
+    getAlt (Sum  subs     ) = return subs
+    getAlt (Rec [(nam, t)]) =
+      (:[]) <$> enumCons (nam, t) nam
+    getAlt (Rec  fields   ) =
+      (:[]) <$> enumCons  fields "alt" -- TODO: find constructor name
+    getAlt (Whole  t      ) = do
+      fName <- innerScope "content" $ translate TargetFieldName
+      (:[]) <$> enumCons [(fname, t)] (bshow t) -- TODO: find constructor and field name
+
+concatMapM f = fmap concat . mapM f
 
 asAlt :: TyCtx -> CG NamedRec
 asAlt ctx = NamedRec <$>  allocateConsName ctx
@@ -110,18 +121,13 @@ asAlt ctx = NamedRec <$>  allocateConsName ctx
     singleField x y = [Field x y]
 
 -- | Constructor without any record data.
-enumCons             :: TyCtx -> XMLString -> CG NamedRec
-enumCons ctx@TyCtx { ctxName } consName =
-  NamedRec <$> allocateConsName enumCtx <*> pure []
-  where
-    enumCtx :: TyCtx
-    enumCtx  = ctx { containerId = ctxName
-                   , ctxName     = consName
-                   , schemaType  = EnumIn ctxName
-                   }
+enumCons :: Rec -> XMLString -> CG NamedRec
+enumCons rec consName = do
+  inEnum consName $ NamedRec <$> translate TargetConsName <*> pure rec
 
 -- TODO: handle empty types better!
 -- Discard empty types
+ {-
 inChoice :: TyCtx -> TyCtx -> CG TyCtx
 TyCtx     { ty=Rec []  } `inChoice`  ctx@TyCtx { ty=Whole t } = return $ ctx { ty=Whole $ wrapMaybe t }
 TyCtx     { ty=Rec []  } `inChoice`  ctx                      = return   ctx
@@ -150,15 +156,40 @@ field tyCtx fieldName frag =
   where
     singleField name ty = myCtx { ty=Rec [Field name ty] }
     myCtx               = tyCtx `parents` (AttributeName, fieldName)
+ -}
+
+-- | tySequence merges sequences or records of types.
+tySequence :: HTyFrag -> CG HTyFrag
+tySequence []         = error "tySequence applied to empty list of arguments"
+tySequence [rep]      = return      rep
+tySequence reps@(r:_) = do
+    case mkRep <$> reps of
+      [ ]   -> return   r
+      [r]   -> return   r
+      other -> return $ Rec other
+  where
+    mkRep Rec  [ ] = return   [ ]
+    mkRep Rec   r  = return    r
+    mkRep Sum   s  = fragType $ Sum s
+    mkRep Whole t  = do
+      fName <- innerScope $ translate FieldName
+      return [(fName, t)]
+
+{-tySequence (rep:reps) = do
+  seqs <- foldM inSeq rep reps
+  freshInnerCtx seqs "sequence"
+ -}
+
 
 -- | `inSeq` and `inChoice` are joins in the TyCtx lattice
 --    of types embedded in the context that allows
 --    to name on demand.
+{-
 inSeq :: TyCtx -> TyCtx -> CG TyCtx
-TyCtx      { ty=Rec [] } `inSeq` ctx                         = return ctx
-TyCtx      { ty=Sum [] } `inSeq` ctx                         = return ctx
-ctx                      `inSeq`      TyCtx    { ty=Rec [] } = return ctx
-ctx                      `inSeq`      TyCtx    { ty=Sum [] } = return ctx
+TyCtx      { ty=Rec [] } `inSeq` ctx                      = return ctx
+TyCtx      { ty=Sum [] } `inSeq` ctx                      = return ctx
+ctx                      `inSeq`      TyCtx { ty=Rec [] } = return ctx
+ctx                      `inSeq`      TyCtx { ty=Sum [] } = return ctx
 ctx1@TyCtx { ty=Rec r1 } `inSeq` ctx2@TyCtx { ty=Rec r2 } =
   return $ ctx1 { ty=Rec (r1 <> r2) }
 ctx1@TyCtx { ty=Rec r1 } `inSeq` ctx2@TyCtx { ty=other  } = trace ("Other is " <> show other) $ do
@@ -167,7 +198,7 @@ ctx1@TyCtx { ty=Rec r1 } `inSeq` ctx2@TyCtx { ty=other  } = trace ("Other is " <
   name  <- allocateFieldName newCtx
   return $ ctx1 { ty=Rec (Field name fTy:r1) }
 ctx1@TyCtx { ty=other } `inSeq` ctx2@TyCtx { ty=Rec r2  } = do
-  fTy    <- fragType ctx1
+  fTy    <- fragType      ctx1
   newCtx <- freshInnerCtx ctx2 "after"
   name   <- allocateFieldName newCtx
   return  $ ctx2 { ty=Rec (Field name fTy:r2) }
@@ -177,6 +208,7 @@ ctx1@TyCtx { ty=_  } `inSeq` ctx2@TyCtx { ty=_ } = do
   field1 <- Field <$> allocateFieldName ctx1 <*> declare ctx1
   field2 <- Field <$> allocateFieldName ctx2 <*> declare ctx2
   return  $ ctx1 { ty=Rec [field1, field2] }
+ -}
 
 -- | Get HTyFrag, and declare it as a named type.
 declare :: TyCtx -> CG HType
@@ -219,14 +251,14 @@ referType  = fmap Named . allocateTypeName
 allocateTypeName,
   allocateConsName,
     allocateFieldName :: TyCtx -> CG TargetId
-(allocateTypeName,
- allocateConsName,
+(allocateTypeName ,
+ allocateConsName ,
  allocateFieldName) =
     (alloc TargetTypeName
     ,alloc TargetConsName
     ,alloc TargetFieldName)
   where
     alloc haskellNamespace TyCtx {..} =
-      translate (schemaType, haskellNamespace)
-                 containerId ctxName
+      CG $ local (\_ -> scope)
+         $ translate haskellNamespace
 

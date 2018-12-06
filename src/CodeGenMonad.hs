@@ -30,6 +30,12 @@ module CodeGenMonad(-- Code generation monad
                    ,XMLIdNS   (..)
                    ,translate
                    ,isTypeDefinedYet
+
+                   -- Scopes
+                   , Scope(..)
+                   , inScope
+                   , inEnum
+                   , innerScope
                    ) where
 
 import           Prelude hiding(lookup)
@@ -54,6 +60,7 @@ import           Code
 --import Debug.Trace(trace)
 trace _ x = x
 
+-- * Translation name spaces
 -- | Which of the XML Schema identifier namespaces do we use here:
 data XMLIdNS = SchemaType
              | ElementName
@@ -79,12 +86,36 @@ data CGState =
     _translations         :: Map.Map (IdClass,    XMLString) XMLString
     -- | Set of translation target names that were used before (and are thus unavailable.)
   , _allocatedIdentifiers :: Set.Set (TargetIdNS, XMLString)
+    -- | Manage supply of fresh identifiers
   , _freshId              :: Int
   }
 makeLenses ''CGState
 
-newtype CG a = CG { unCG :: (RWS.RWS Schema B.Builder CGState a) }
-  deriving (Functor, Applicative, Monad) -- , RWS.MonadReader, RWS.MonadWriter, RWS.MonadIO)
+-- * Scopes and naming
+-- | All information necessary to assign a new name.
+data Scope = Scope {
+    containerId
+  , contextId   :: XMLString
+  , schemaType  :: XMLIdNS
+  } deriving (Show, Eq)
+
+-- | Descend one level down with the context.
+inScope :: XMLIdNS -> XMLString -> CG a -> CG a
+inScope schemaType contextId = do
+    CG . RWS.local descend . unCG
+  where
+    descend Scope { contextId = containerId } =
+            Scope { contextId,  containerId, schemaType }
+
+-- | Generate fresh inner context.
+innerScope        :: XMLString -> CG a -> CG a
+innerScope stem action = do
+  innerId  <- freshInnerId stem
+  inScope (Inner innerId) stem action
+
+-- | Code generation monad
+newtype CG a = CG { unCG :: RWS.RWS Scope B.Builder CGState a }
+  deriving (Functor, Applicative, Monad)
 
 instance RWS.MonadState CGState CG where
   get   = CG   RWS.get
@@ -104,12 +135,23 @@ freshInnerId stem = do
     freshId %= (+1)
     return     result
 
+-- | Scope with enum constructor id.
+inEnum :: XMLString -> CG a -> CG a
+inEnum consName action = do
+  ctxName <- CG $ RWS.asks contextId
+  inScope (EnumIn ctxName) consName action
+
+-- | Toplevel scope from which we start.
+initialScope :: Scope
+initialScope  = Scope "Top" "TopLevel" (Inner (-1))
+
+-- | Initial state of translation dictionary.
 initialState :: CGState
 initialState  = CGState
                (Map.fromList [(((SchemaType, TargetTypeName), schemaType), haskellType)
                              | (schemaType, haskellType) <- baseTranslations ])
                (Set.fromList $ map trans baseTranslations)
-                0
+                1
   where
     trans = (TargetTypeName,) . snd
 
@@ -130,45 +172,47 @@ placeholder xmlIdClass targetIdClass = classNormalizer targetIdClass $ name xmlI
     name (Inner  i)     = "Inner"  <> bshow i
     name (EnumIn x)     = "EnumIn" <> x
 
-classNormalizer :: TargetIdNS -> XMLString -> XMLString
+-- | Normalize name to fit in a given target namespace
+classNormalizer                :: TargetIdNS -> XMLString -> XMLString
 classNormalizer TargetTypeName  = normalizeTypeName
 classNormalizer TargetConsName  = normalizeTypeName -- same normalization as type names, but separate space
 classNormalizer TargetFieldName = normalizeFieldName
 
 -- | Translate XML Schema identifier into Haskell identifier,
 --   maintaining dictionary to assure uniqueness of Haskell identifier.
-translate :: IdClass
-          -> XMLString               -- input container name
-          -> XMLString               -- input name
+translate :: TargetIdNS
           -> CG TargetId
-translate idClass@(schemaIdClass, haskellIdClass) container xmlName = do
-    tr     <- Lens.use translations
-    allocs <- Lens.use allocatedIdentifiers
-    case Map.lookup (idClass, xmlName) tr of
-      Just r  -> return $ TargetId r
-      Nothing -> do
-        let isValid (_, x) | rejectInvalidTypeName x = False
-            isValid     x  | x `Set.member` allocs   = False
-            isValid  _                               = True
-            proposals = isValid `filter` proposeTranslations xmlName
-        case proposals of
-          (goodProposal:_) ->
-           trace ("translate " <> show idClass <> " "    <> show container <>
-                  " "          <> show xmlName <> " -> " <> show goodProposal) $ do
-            _ <- translations         %= Map.insert (idClass, xmlName) (snd goodProposal)
-            _ <- allocatedIdentifiers %= Set.insert                         goodProposal
-            return $ TargetId $ snd goodProposal
-          [] -> error "Impossible happened when trying to find a new identifier - file a bug!"
-  where
-    normalizer = classNormalizer haskellIdClass
-    proposeTranslations                     :: XMLString -> [(TargetIdNS, XMLString)]
-    proposeTranslations (normalizer -> name) = ((haskellIdClass,) . normalizer) <$>
-        ([BS.take i container <> normName | i :: Int <- [0..BS.length container]] <>
-         [normName <> bshow i | i :: Int <- [1..]])
-      where
-        normName | name==""  = placeholder schemaIdClass haskellIdClass
-                 | otherwise = name
+translate targetIdClass = do
+  Scope {..} <- CG RWS.ask
+  let normalizer            = classNormalizer targetIdClass
+      name                  = normalizer  contextId
+      normName | name==""   = placeholder schemaType targetIdClass
+               | otherwise  = name
+      proposedTranslations :: [(TargetIdNS, XMLString)]
+      proposedTranslations  = ((targetIdClass,) . normalizer) <$>
+          ([BS.take i containerId <> normName | i :: Int <- [0..BS.length containerId]] <>
+           [normName <> bshow i | i :: Int <- [1..]])
+  tr     <- Lens.use translations
+  allocs <- Lens.use allocatedIdentifiers
+  case Map.lookup ((schemaType, targetIdClass), contextId) tr of
+    Just r  -> return $ TargetId r
+    Nothing -> do
+      let isValid (_, x) | rejectInvalidTypeName x = False
+          isValid     x  | x `Set.member` allocs   = False
+          isValid  _                               = True
+          proposals = isValid `filter` proposedTranslations
+      case proposals of
+        (goodProposal:_) ->
+         trace ("translate " <> show schemaType  <>
+                " "          <> show containerId <>
+                " "          <> show contextId   <>
+                " -> "       <> show goodProposal) $ do
+          translations         %= Map.insert ((schemaType, targetIdClass), contextId) (snd goodProposal)
+          allocatedIdentifiers %= Set.insert                                               goodProposal
+          return $ TargetId $ snd goodProposal
+        [] -> error "Impossible happened when trying to find a new identifier - file a bug!"
 
+-- | Check if given type has been already defined
 isTypeDefinedYet :: XMLString -> CG Bool
 isTypeDefinedYet xmlName = do
     tr    <- Lens.use translations
@@ -178,7 +222,7 @@ isTypeDefinedYet xmlName = do
     isJust Nothing  = False
 
 -- | Make builder to generate schema code.
-runCodeGen        :: Schema -> CG () -> B.Builder
-runCodeGen sch (CG rws) = case RWS.runRWS rws sch initialState of
+runCodeGen         :: CG () -> B.Builder
+runCodeGen (CG rws) = case RWS.runRWS rws initialScope initialState of
                             ((), _state, builder) -> builder
 
