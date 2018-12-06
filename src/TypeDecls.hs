@@ -43,7 +43,7 @@ declareAlgebraicType (myTypeName, (firstEntry:nextEntries)) = do
     gen ["\ndata ", toCode myTypeName, " ="]
     gen ["\n    ", formatRecord firstEntry, "\n"]
     forM_ nextEntries $ \nextEntry ->
-      gen ["  | ", formatRecord nextEntry]
+      gen ["  | ", formatRecord nextEntry, "\n"]
 
 
 -- * Type declarations

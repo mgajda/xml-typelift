@@ -37,6 +37,7 @@ dependencies:
   - lens
   - text-format
   - iso8601-duration # for testing!
+    #- liquidhaskell
 
 library:
   source-dirs:

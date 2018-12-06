@@ -96,7 +96,10 @@ topTypeCtx, topEltCtx :: XMLString -> TyCtx
 contentType :: TyCtx -> TyPart -> CG TyCtx
 contentType tyCtx (Elt    e) = do
   elementInstance tyCtx e
-contentType tyCtx (Seq    s) = do
+contentType tyCtx (Seq   []) = trace ("Empty Seq " <> show (ctxName     tyCtx)
+                                   <> " in "       <> show (containerId tyCtx)) $ do
+  return tyCtx { ty = Rec [] }
+contentType tyCtx (Seq    s) = trace "tySequence in contentType" $ do
   tySequence =<< mapM (contentType tyCtx) s
 contentType tyCtx (Choice c) = do
   tyChoice   =<< mapM (contentType tyCtx) c
@@ -144,9 +147,9 @@ uniq :: Ord a => [a] -> [a]
 uniq  = Set.toList . Set.fromList
 
 -- * Debugging
-tracer :: String -> p2 -> p2
---tracer lbl a = trace (lbl <> show a) a
-tracer _ a = a
+tracer :: Show a => String -> a -> a
+tracer lbl a = trace (lbl <> show a) a
+--tracer _ a = a
 
 -- | Make builder to generate schema code
 codegen    :: Schema -> B.Builder

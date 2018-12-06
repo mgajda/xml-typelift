@@ -45,7 +45,6 @@ import qualified Data.Set                   as Set
 import           FromXML(XMLString)
 import           Data.String
 import           Identifiers
-import           Schema
 import           BaseTypes
 
 
