@@ -45,6 +45,8 @@ elementInstance tyCtx elt@(Element {minOccurs, maxOccurs, eName, eType}) = do
               | minOccurs==0 && maxOccurs==MaxOccurs 1 = wrapMaybe t
               | otherwise                              = wrapList  t
 
+referType tyId = globalScope SchemaType tyId $ translate SchemaType
+
 -- | Extract complex type
 complexType :: TyCtx -> Type -> CG HType
 complexType tyCtx (Ref      ""           ) = do
@@ -62,10 +64,12 @@ complexType tyCtx (Extension   {}) = do
     return anyXML
 complexType tyCtx (Restricted {base, restriction=None}) = do
     warn ["Empty restriction"]
-    referType (tyCtx `parents` (SchemaType, base))
+    referType base
+    --referType (tyCtx `parents` (SchemaType, base))
 complexType tyCtx (Restricted {base, restriction=Pattern _}) = do
-    warn ["Pattern"] -- no pattern validation yet!
-    referType (tyCtx `parents` (SchemaType, base))
+    warn ["Patterns are not validated yet"] -- no pattern validation yet!
+    referType base
+    --referType (tyCtx `parents` (SchemaType, base))
 complexType tyCtx (Restricted {restriction=Enum (uniq -> values)}) = do
     warn ["Enum ", show values]
     tyPart  <- Sum <$> mapM (enumCons tyCtx) values

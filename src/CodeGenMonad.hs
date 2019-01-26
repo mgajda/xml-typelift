@@ -36,6 +36,7 @@ module CodeGenMonad(-- Code generation monad
                    , inScope
                    , inEnum
                    , innerScope
+                   , globalScope
                    ) where
 
 import           Prelude hiding(lookup)
@@ -52,7 +53,7 @@ import qualified Data.Set                   as Set
 import           FromXML(XMLString)
 import           Data.String
 import           Identifiers
-import           Schema
+--import           Schema
 import           BaseTypes
 import           Code
 
@@ -106,6 +107,18 @@ inScope schemaType contextId = do
   where
     descend Scope { contextId = containerId } =
             Scope { contextId,  containerId, schemaType }
+
+-- | Declare global scope
+globalScope :: XMLIdNS -> XMLString -> CG a -> CG a
+globalScope schemaType contextId | schemaType `elem` [SchemaType, ElementName] = do
+    CG . RWS.local (const theScope) . unCG
+  where
+    theScope = Scope {
+                 containerId = ""
+               , contextId
+               , schemaType
+               }
+globalScope schemaType scopeName = error $ "Attempting incorrect global scope kind: " <> show schemaType
 
 -- | Generate fresh inner context.
 innerScope        :: XMLString -> CG a -> CG a

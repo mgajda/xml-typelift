@@ -1,15 +1,17 @@
-{-# LANGUAGE DeriveGeneric       #-}
-{-# LANGUAGE DeriveDataTypeable  #-}
-{-# LANGUAGE FlexibleContexts    #-}
-{-# LANGUAGE MonoLocalBinds      #-}
-{-# LANGUAGE NamedFieldPuns      #-}
-{-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE RankNTypes          #-}
-{-# LANGUAGE RecordWildCards     #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TemplateHaskell     #-}
-{-# LANGUAGE TupleSections       #-}
-{-# LANGUAGE ViewPatterns        #-}
+{-# LANGUAGE DeriveGeneric        #-}
+{-# LANGUAGE DeriveDataTypeable   #-}
+{-# LANGUAGE FlexibleContexts     #-}
+{-# LANGUAGE FlexibleInstances    #-}
+{-# LANGUAGE MonoLocalBinds       #-}
+{-# LANGUAGE NamedFieldPuns       #-}
+{-# LANGUAGE OverloadedStrings    #-}
+{-# LANGUAGE RankNTypes           #-}
+{-# LANGUAGE RecordWildCards      #-}
+{-# LANGUAGE ScopedTypeVariables  #-}
+{-# LANGUAGE TemplateHaskell      #-}
+{-# LANGUAGE TupleSections        #-}
+{-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE ViewPatterns         #-}
 -- | Assembling together type declarations using high level operators.
 --
 --   We have types for partial type declarations,
@@ -27,17 +29,17 @@
 --   versus those that we pass type with a context.
 --
 --   TODO: Make it a type class that both on standalone context, and context with type.
-module TypeCtx(TyCtx(..)
-              ,parents
-              ,declare
+module TypeCtx(--TyCtx(..)
+              --,parents
+               declare
               ,declareIfAbsent
               ,tyChoice
               ,tySequence
-              ,fragType
+              --,fragType
               ,wrapList
               ,wrapMaybe
-              ,referType
-              ,freshInnerCtx
+              --,referType
+              --,freshInnerCtx
               ,enumCons
               ) where
 
@@ -54,46 +56,30 @@ import           Control.Applicative
 import           Control.Monad
 
 import           FromXML(XMLString)
-import           Code(ToCode(..), Code, TargetId(..), identifierLength)
+import           Code(ToCode(..), Code, TargetId(..), identifierLength, SeedId(..))
 import           CodeGenMonad
 import           Types
 import           TypeDecls
+import           Schema(TyPart(..))
 
 import           Debug.Trace(trace)
 
+{-
 -- | Type fragment, with all context necessary to correctly allocate a name for it.
 data TyCtx = TyCtx {
     ty    :: HTyFrag
   , scope :: Scope
   } deriving (Show)
+ -}
 
 -- | Take type context, and return a legal Haskell type.
 --   Declares new datatype if type is too complex
 --   to be expressed as in-place Haskell type.
-fragType :: TyCtx -> CG HType
+{-fragType :: TyCtx -> CG HType
 fragType       TyCtx { ty=Whole ty } = return  ty
 fragType tyCtx@TyCtx { ty=Sum   _  } = declare tyCtx
 fragType tyCtx@TyCtx { ty=Rec   _  } = declare tyCtx
-
-class SeedId a where
-  seed :: a -> XMLString
-
-unTargetId (TargetId t) = t
-
-instance SeedId HType where
-  seed (TyExpr (TargetId e)) = e
-  seed (Ref    (TargetId e)) = e
-
-instance SeedId Rec where
-  seed = concat . map (unTargetId . fst)
-
-instance SeedId NamedRec where
-  seed (NamedRec name _) = name
-
-instance SeedId HTyPart where
-  seed (Sum   s) = concat $ map seed s
-  seed (Rec   r) = concat $ map seed r
-  seed (Whole t) = seed t
+ -}
 
 -- | tyChoice merges alternatives types.
 tyChoice :: [HTyFrag] -> CG HTyFrag
@@ -103,22 +89,24 @@ tyChoice  alts = Sum <$> concatMapM getAlt alts
   where
     getAlt :: HTyFrag -> CG [NamedRec]
     getAlt (Sum  subs     ) = return subs
-    getAlt (Rec [(nam, t)]) =
-      (:[]) <$> enumCons (nam, t) nam
+    getAlt (Rec [Field nam t]) =
+      (:[]) <$> enumCons [Field nam t] (seed nam)
     getAlt (Rec  fields   ) =
       (:[]) <$> enumCons  fields "alt" -- TODO: find constructor name
     getAlt (Whole  t      ) = do
       fName <- innerScope "content" $ translate TargetFieldName
-      (:[]) <$> enumCons [(fname, t)] (bshow t) -- TODO: find constructor and field name
+      (:[]) <$> enumCons [Field fName t] (seed t) -- TODO: find constructor and field name
 
 concatMapM f = fmap concat . mapM f
 
+{-
 asAlt :: TyCtx -> CG NamedRec
 asAlt ctx = NamedRec <$>  allocateConsName ctx
                      <*> (singleField <$> allocateFieldName ctx
                                       <*> fragType          ctx)
   where
     singleField x y = [Field x y]
+ -}
 
 -- | Constructor without any record data.
 enumCons :: Rec -> XMLString -> CG NamedRec
@@ -159,21 +147,25 @@ field tyCtx fieldName frag =
  -}
 
 -- | tySequence merges sequences or records of types.
-tySequence :: HTyFrag -> CG HTyFrag
+tySequence :: [HTyFrag] -> CG HTyFrag
 tySequence []         = error "tySequence applied to empty list of arguments"
-tySequence [rep]      = return      rep
+tySequence [rep]      = return rep
 tySequence reps@(r:_) = do
-    case mkRep <$> reps of
-      [ ]   -> return   r
-      [r]   -> return   r
-      other -> return $ Rec other
+    frags <- concat <$> mapM mkRep reps
+    case frags of
+      [               ] -> return r
+      --[Field fName fTy] -> TyCtx fName fTy
+      other             -> return $ Rec other
   where
-    mkRep Rec  [ ] = return   [ ]
-    mkRep Rec   r  = return    r
-    mkRep Sum   s  = fragType $ Sum s
-    mkRep Whole t  = do
-      fName <- innerScope $ translate FieldName
-      return [(fName, t)]
+    mkRep :: HTyFrag -> CG [Field]
+    mkRep (Rec  [ ]) = return   [ ]
+    mkRep (Rec   r ) = return    r
+    --mkRep  inner     = do
+    --mkRep (Sum   s ) = fragType $ Sum s
+    mkRep inner      = do
+      inTy  <- declare inner
+      fName <- innerScope "inner" $ translate TargetFieldName
+      return [Field fName inTy]
 
 {-tySequence (rep:reps) = do
   seqs <- foldM inSeq rep reps
@@ -210,10 +202,11 @@ ctx1@TyCtx { ty=_  } `inSeq` ctx2@TyCtx { ty=_ } = do
   return  $ ctx1 { ty=Rec [field1, field2] }
  -}
 
+{-
 -- | Get HTyFrag, and declare it as a named type.
-declare :: TyCtx -> CG HType
-declare tyCtx@TyCtx { ty=Whole hType } = do
-  ty   <- allocateTypeName tyCtx
+declare :: HType -> CG HType
+declare (Whole hType) = do
+  ty   <- translate 
   case hType of
     Named t | t == ty -> do
        return   hType
@@ -235,22 +228,40 @@ declare tyCtx@TyCtx { ty=Sum recs    } = do
   ty <- allocateTypeName tyCtx
   declareAlgebraicType (ty, recs)
   return $ Named ty
+ -}
 
+--declare 
+declare :: HTyFrag -> CG HType
+declare (Sum []  ) = error "Empty list of records"
+declare (Sum recs) = do
+  ty <- translate TargetTypeName
+  declareAlgebraicType (ty, recs)
+  return $ Named ty
+
+declareIfAbsent tyFrag@(Whole (Named n)) = do
+  ty <- translate TargetTypeName
+  if n == ty
+     then return $ Named n
+     else declare tyFrag
+
+{-
 declareIfAbsent tyCtx@TyCtx { ty=Whole (Named n) } = do
   ty <- allocateTypeName tyCtx
   if n == ty
      then return (Named n)
      else declare tyCtx
 declareIfAbsent tyCtx = declare tyCtx
+ -}
 
+--referType = undefined
+--referType :: TyCtx -> CG HType
+--referType  = fmap Named . allocateTypeName
 
-referType :: TyCtx -> CG HType
-referType  = fmap Named . allocateTypeName
-
+{-
 -- * These get use new identifier names.
 allocateTypeName,
   allocateConsName,
-    allocateFieldName :: TyCtx -> CG TargetId
+    allocateFieldName :: HTyFrag -> CG TargetId
 (allocateTypeName ,
  allocateConsName ,
  allocateFieldName) =
@@ -258,7 +269,6 @@ allocateTypeName,
     ,alloc TargetConsName
     ,alloc TargetFieldName)
   where
-    alloc haskellNamespace TyCtx {..} =
-      CG $ local (\_ -> scope)
-         $ translate haskellNamespace
+    alloc haskellNamespace = CG $ translate haskellNamespace
+ -}
 

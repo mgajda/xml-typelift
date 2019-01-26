@@ -1,15 +1,17 @@
-{-# LANGUAGE DeriveGeneric       #-}
-{-# LANGUAGE DeriveDataTypeable  #-}
-{-# LANGUAGE FlexibleContexts    #-}
-{-# LANGUAGE MonoLocalBinds      #-}
-{-# LANGUAGE NamedFieldPuns      #-}
-{-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE RankNTypes          #-}
-{-# LANGUAGE RecordWildCards     #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TemplateHaskell     #-}
-{-# LANGUAGE TupleSections       #-}
-{-# LANGUAGE ViewPatterns        #-}
+{-# LANGUAGE DeriveGeneric        #-}
+{-# LANGUAGE DeriveDataTypeable   #-}
+{-# LANGUAGE FlexibleContexts     #-}
+{-# LANGUAGE FlexibleInstances    #-}
+{-# LANGUAGE MonoLocalBinds       #-}
+{-# LANGUAGE NamedFieldPuns       #-}
+{-# LANGUAGE OverloadedStrings    #-}
+{-# LANGUAGE RankNTypes           #-}
+{-# LANGUAGE RecordWildCards      #-}
+{-# LANGUAGE ScopedTypeVariables  #-}
+{-# LANGUAGE TemplateHaskell      #-}
+{-# LANGUAGE TupleSections        #-}
+{-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE ViewPatterns         #-}
 -- | Generating type declarations in code generation monad.
 --
 --   We have types for partial type declarations,
@@ -36,7 +38,7 @@ import           Data.Monoid hiding (Sum)
 import           Control.Applicative
 import           Control.Monad
 
-import           Code(ToCode(..), Code, TargetId(..), identifierLength)
+import           Code(ToCode(..), SeedId(..), Code, TargetId(..), identifierLength)
 
 wrapList, wrapMaybe :: HType -> HType
 wrapList  ty = TyExpr $ "[" <> toCode ty <> "]"
@@ -83,4 +85,19 @@ data NamedRec = NamedRec {
   , fields ::   Rec
   }
   deriving (Show)
+
+instance SeedId HType where
+  seed (TyExpr c  ) = seed c
+  seed (Named  tid) = seed tid
+
+instance SeedId Rec where
+  seed = mconcat . map (seed . name)
+
+instance SeedId NamedRec where
+  seed (NamedRec name _) = seed name
+
+instance SeedId HTyFrag where
+  seed (Sum   s) = mconcat $ map seed s
+  seed (Rec   r) = seed r
+  seed (Whole t) = seed t
 

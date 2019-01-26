@@ -22,6 +22,7 @@ module Code(-- Code generation monad
             Code    (..)
            ,ToCode  (..)
            ,TargetId(..)
+           ,SeedId  (..)
            ,identifierLength
 
            -- Utilities
@@ -95,4 +96,14 @@ instance Show Code where
 
 builderLength :: B.Builder -> Int
 builderLength  = fromIntegral . BSL.length . B.toLazyByteString
+
+-- | Allows to seed identifier name
+class SeedId a where
+  seed :: a -> XMLString
+
+instance SeedId TargetId where
+  seed (TargetId t) = t
+
+instance SeedId Code where
+  seed = builderString . unCode
 
