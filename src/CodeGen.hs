@@ -115,23 +115,24 @@ contentType (Seq   []) = do
   warn ["Empty Seq"]
   return $ Rec []
 contentType (Seq    s) = trace "tySequence in contentType" $ do
-  tySequence =<< mapM (contentType tyCtx) s
+  tySequence =<< mapM contentType s
 contentType (Choice c) = do
-  tyChoice   =<< mapM (contentType tyCtx) c
+  tyChoice   =<< mapM contentType c
 
 ensureTypeIsNamed :: XMLString -> HType -> XMLIdNS -> CG ()
 ensureTypeIsNamed name ty klass = case ty of
     Named  n -> do
      undeclared <- not <$> isTypeDefinedYet name
      undeclared `when` void (declare $ Whole ty)
-    TyExpr e -> void $ declare $ tyCtx
+    TyExpr e -> void $ declare e
   --where
   --  tyCtx = TyCtx { ty = Whole ty, containerId = topLevelConst, ctxName = name, schemaType=klass }
 
 namedType :: (XMLString, Type) -> CG ()
-namedType (name, ty) = do
-    hTy <- complexType (topTypeCtx name) ty
-    ensureTypeIsNamed   name hTy SchemaType
+namedType (name, ty) =
+    inScope SchemaType name $ do
+      hTy <- complexType ty
+      ensureTypeIsNamed   name hTy SchemaType
 
 topElement :: Element -> CG _ -- TyCtx
 topElement elt@(Element { eName, eType }) =
@@ -150,8 +151,8 @@ generateSchema sch = do
     -- Then generate possible top level types.
     tops <- topElement `mapM` tops sch
     null tops `when` fail "No toplevel elements found!"
-    compositeTop <- fragType =<< tyChoice tops
-    ensureTypeIsNamed topLevelConst compositeTop ElementName
+    compositeTop <- tyChoice tops
+    ensureTypeIsNamed topLevelConst (Whole compositeTop) ElementName
     return ()
 
 topLevelConst :: IsString a => a
