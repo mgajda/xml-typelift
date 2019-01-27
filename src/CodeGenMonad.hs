@@ -174,7 +174,7 @@ gen args = RWS.tell $ mconcat $ map unCode args
 warn     :: [String] -> CG ()
 warn args = do
   aScope <- CG RWS.ask
-  gen ["{- In scope: ", toCode (show aScope), "-}"]
+  gen ["{- In scope: ", toCode (show aScope), "-}\n"]
   gen ["{- WARNING ", toCode $ mconcat args, " -}\n"]
 
 -- | PlaceHolder depending of class of the source and target ids
