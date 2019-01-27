@@ -163,9 +163,12 @@ tySequence reps@(r:_) = do
     --mkRep  inner     = do
     --mkRep (Sum   s ) = fragType $ Sum s
     mkRep inner      = do
-      inTy  <- declare inner
+      inTy  <- declareIfCompound inner
       fName <- innerScope "inner" $ translate TargetFieldName
       return [Field fName inTy]
+
+declareIfCompound (Whole aTy) = return aTy
+declareIfCompound  other      = declare other
 
 {-tySequence (rep:reps) = do
   seqs <- foldM inSeq rep reps
@@ -232,8 +235,14 @@ declare tyCtx@TyCtx { ty=Sum recs    } = do
 
 --declare 
 declare :: HTyFrag -> CG HType
-declare (Sum []  ) = error "Empty list of records"
-declare (Sum recs) = do
+declare (Rec fields) = do
+  cons <- translate TargetConsName
+  ty   <- translate TargetTypeName
+  declareAlgebraicType (ty, [NamedRec { cons, fields }])
+  return $ Named ty
+declare (Whole aTy ) = return aTy
+declare (Sum   []  ) = error "Empty list of records"
+declare (Sum   recs) = do
   ty <- translate TargetTypeName
   declareAlgebraicType (ty, recs)
   return $ Named ty
@@ -243,6 +252,7 @@ declareIfAbsent tyFrag@(Whole (Named n)) = do
   if n == ty
      then return $ Named n
      else declare tyFrag
+declareIfAbsent tyFrag = declare tyFrag
 
 {-
 declareIfAbsent tyCtx@TyCtx { ty=Whole (Named n) } = do

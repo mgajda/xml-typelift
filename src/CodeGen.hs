@@ -35,7 +35,7 @@ import           Debug.Trace(trace)
 --   or standard SchemaType, if referred inside ComplexType declaration.
 --generateElementInstance :: XMLString -- container name
 --                        -> Element -> CG Field
-elementInstance :: Element -> CG _
+elementInstance :: Element -> CG HTyFrag
 elementInstance elt@(Element {minOccurs, maxOccurs, eName, eType}) =
     -- After computing type context, we need to find what type to assign it...
     inScope ElementName eName $
@@ -119,20 +119,25 @@ contentType (Seq    s) = trace "tySequence in contentType" $ do
 contentType (Choice c) = do
   tyChoice   =<< mapM contentType c
 
+{-
+-- | Declare `type` alias or `newtype` if necessary.
 ensureTypeIsNamed :: XMLString -> HType -> XMLIdNS -> CG ()
-ensureTypeIsNamed name ty klass = case ty of
+ensureTypeIsNamed name ty klass = 
+  inScope klass name $ case ty of
     Named  n -> do
      undeclared <- not <$> isTypeDefinedYet name
      undeclared `when` void (declare $ Whole ty)
     TyExpr e -> void $ declare e
   --where
   --  tyCtx = TyCtx { ty = Whole ty, containerId = topLevelConst, ctxName = name, schemaType=klass }
+ -}
 
 namedType :: (XMLString, Type) -> CG ()
 namedType (name, ty) =
     inScope SchemaType name $ do
       hTy <- complexType ty
-      ensureTypeIsNamed   name hTy SchemaType
+      void $ declareIfAbsent $ Whole hTy
+--ensureTypeIsNamed   name hTy SchemaType
 
 topElement :: Element -> CG _ -- TyCtx
 topElement elt@(Element { eName, eType }) =
@@ -151,8 +156,10 @@ generateSchema sch = do
     -- Then generate possible top level types.
     tops <- topElement `mapM` tops sch
     null tops `when` fail "No toplevel elements found!"
-    compositeTop <- tyChoice tops
-    ensureTypeIsNamed topLevelConst (Whole compositeTop) ElementName
+    inScope ElementName topLevelConst $ do
+      compositeTop <- tyChoice tops
+      declareIfAbsent compositeTop
+    --ensureTypeIsNamed topLevelConst (Whole topTypeName) ElementName
     return ()
 
 topLevelConst :: IsString a => a
