@@ -11,7 +11,8 @@ buildTypelift:  # A job to build the static website - replace it with your build
     - echo ${CI_COMMIT_REF_SLUG}
   script:
     - stack install --system-ghc
-    - stack exec -- site
+    - stack build
+    - stack test
   cache:
     paths:
       - .stack-work
