@@ -5,3 +5,5 @@ packages:
 - iso8601-duration
 extra-deps:
 - criterion-1.5.2.0
+- bytestring-mmap-0.2.2@sha256:d04e6bc5a158dd292757d3b9b032beb8a2c43e768777d64a8289abf89f612f67,1282
+allow-newer: true
