@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.31.1.
+-- This file has been generated from package.yaml by hpack version 0.31.2.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: af1fa72163022067d13dc0c4bdea3b813b9697fa2b8e0d3a6157cec285532c6d
+-- hash: 9a7e68f845b5680395ea68912d71a9d8240b7e24d72b4c76345cee64320c7983
 
 name:           xml-typelift
 version:        0.0.1
@@ -88,8 +88,10 @@ executable xml-typelift-cli
 
 test-suite unit-tests
   type: exitcode-stdio-1.0
-  main-is: UnitTests.hs
+  main-is: Tests.hs
   other-modules:
+      Tests.DoctypeSpec
+      Tests.IdentifierSpec
       Analyze
       BaseTypes
       CodeGen

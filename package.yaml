@@ -58,7 +58,7 @@ tests:
     source-dirs:
       - test
       - src
-    main: UnitTests.hs
+    main: Tests.hs
     dependencies:
       - hspec
       - xml-typelift

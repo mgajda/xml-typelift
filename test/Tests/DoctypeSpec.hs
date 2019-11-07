@@ -1,13 +1,14 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Main(main) where
+module Tests.DoctypeSpec where
+
 
 import Test.Hspec
---import Test.QuickCheck
 
 import FromXML
 
-main = hspec $ do
-  describe "skipDoctype" $ do
+
+spec :: Spec
+spec = describe "skipDoctype" $ do
     it "strips initial doctype declaration" $ do
       skipDoctype "<?xml version=\"1.0\" encoding=\"UTF-8\"?>Hello" `shouldBe` "Hello"
     it "strips doctype after spaces" $ do
