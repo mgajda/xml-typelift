@@ -39,35 +39,23 @@ instance Default Schema where
 newtype ID = ID XMLString
   deriving (Show, Read, Eq, Ord, Generic, NFData, Data, Typeable)
 
-newtype MaxOccurs = MaxOccurs Int
-  deriving (Eq, Ord, Bounded, Generic, NFData, Data, Typeable)
+data MaxOccurs = Unbounded | MaxOccurs Int
+  deriving (Eq, Ord, Generic, NFData, Data, Typeable, Show, Read)
 
-instance Show MaxOccurs where
-  showsPrec _ (isUnbounded -> True) = ("unbounded"++)
-  showsPrec p (MaxOccurs m)         = showsPrec p m
-
-instance Read MaxOccurs where
-  readsPrec _ ('u':'n':'b':'o':'u':'n':'d':'e':'d':rest) = [(MaxOccurs maxBound,        rest)]
-  readsPrec p  x                                         = [(MaxOccurs r       ,        rest)
-                                                           |(          r :: Int,        rest) <- readsPrec p x]
 
 data Element = Element {
     minOccurs       :: !Int
-  , maxOccurs       :: !MaxOccurs -- `maxint` value means `unbounded`
+  , maxOccurs       :: !MaxOccurs
   , eName           :: !XMLString
   , eType           :: !Type
   , targetNamespace :: !XMLString
   }
   deriving (Eq, Ord, Show, Generic, NFData, Data, Typeable)
 
-isUnbounded :: MaxOccurs -> Bool
-isUnbounded i | i==maxBound = True
-isUnbounded _               = False
-
 instance Default Element where
   def = Element { eName           = ""
                 , minOccurs       =           1
-                , maxOccurs       = MaxOccurs 1 -- Nothing means `unbounded`
+                , maxOccurs       = MaxOccurs 1
                 , eType           = def
                 , targetNamespace = "" -- inherit
                 }
