@@ -7,6 +7,7 @@
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE Strict                     #-}
 {-# LANGUAGE ViewPatterns               #-}
+{-# OPTIONS_GHC -funbox-strict-fields   #-}
 -- | Simplification of XML Schema and RelaxNG schema
 module Schema where
 
@@ -26,9 +27,9 @@ class Default a where
 
 -- | Top level XML Schema
 data Schema = Schema {
-    types     ::                 Map XMLString Type -- ^ Types defined by name
-  , tops      ::                ![Element]          -- ^ Possible top level elements
-  , namespace :: {-# UNPACK #-} !XMLString
+    types     :: !(Map XMLString Type) -- ^ Types defined by name
+  , tops      :: ![Element]            -- ^ Possible top level elements
+  , namespace :: !XMLString
   }
   deriving (Eq, Ord, Show, Generic, NFData, Data, Typeable)
 
@@ -94,17 +95,17 @@ instance Default Restriction where
 data Type =
     Ref XMLString
   | Restriction {
-        base       :: {-# UNPACK #-} !XMLString
-      , restricted :: {-# UNPACK #-} !Restriction
+        base       :: !XMLString
+      , restricted :: !Restriction
       }
   | Extension {
-        base  :: {-# UNPACK #-} !XMLString
-      , mixin :: {-# UNPACK #-} !Type
+        base  :: !XMLString
+      , mixin :: !Type
       } -- ^ Extension of complexType
   | Complex {
-        mixed :: {-# UNPACK #-}   Bool
-      , attrs :: {-# UNPACK #-} ![Attr]
-      , inner :: {-# UNPACK #-} !TyPart
+        mixed :: !Bool
+      , attrs :: ![Attr]
+      , inner :: !TyPart
       }
   deriving (Eq, Ord, Show, Generic, NFData, Data, Typeable)
 
@@ -113,10 +114,10 @@ instance Default Type where
   def = Ref "xs:any"
 
 data Attr = Attr {
-    aName :: {-# UNPACK #-} !XMLString
-  , use   :: {-# UNPACK #-} !Use
-  , aType :: {-# UNPACK #-} !Type
-  , id    ::                 Maybe ID
+    aName :: !XMLString
+  , use   :: !Use
+  , aType :: !Type
+  , id    :: !(Maybe ID)
   }
   deriving (Eq, Ord, Show, Generic, NFData, Data, Typeable)
 
