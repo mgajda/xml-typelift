@@ -1,42 +1,41 @@
-{-# LANGUAGE FlexibleContexts      #-}
-{-# LANGUAGE MonoLocalBinds        #-}
 {-# LANGUAGE NamedFieldPuns        #-}
 {-# LANGUAGE OverloadedStrings     #-}
-{-# LANGUAGE RankNTypes            #-}
+{-# LANGUAGE QuasiQuotes           #-}
 {-# LANGUAGE RecordWildCards       #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
-{-# LANGUAGE TemplateHaskell       #-}
-{-# LANGUAGE TupleSections         #-}
 {-# LANGUAGE ViewPatterns          #-}
 -- | Here we aim to analyze the schema.
 module CodeGen(codegen) where
 
+
 import           Prelude hiding(lookup, id)
 
+import           Control.Arrow
 import           Control.Monad(forM, when)
-import qualified Data.ByteString.Builder    as B
-import qualified Data.ByteString.Char8      as BS
+import qualified Data.ByteString.Builder     as B
+import qualified Data.ByteString.Char8       as BS
 import           Data.String
-import qualified Data.Map.Strict            as Map
-import qualified Data.Set                   as Set
+import qualified Data.Map.Strict             as Map
+import qualified Data.Set                    as Set
+import qualified Language.Haskell.TH         as TH
+import           Text.InterpolatedString.Perl6 (qc)
 
 import           FromXML(XMLString)
 
-import           Schema
-import           CodeGenMonad
 import           BaseTypes
+import           CodeGenMonad
+import           Schema
 import           TypeDecls
 
---import           Debug.Trace
 
 -- | Returns a pair of field name, and type code.
 --   That means that type codes are in ElementName namespace, if described in-place,
 --   or standard SchemaType, if referred inside ComplexType declaration.
 generateElementInstance :: XMLString -- container name
-                        -> Element -> CG Field
+                        -> Element -> CG TyField
 generateElementInstance container elt@(Element {minOccurs, maxOccurs, eName, ..}) =
-    (,) <$>  translate (ElementName, TargetFieldName) container eName
-        <*> (wrapper <$> generateElementType container elt  )
+    (,) <$> (TyFieldName <$> translate (ElementName, TargetFieldName) container eName)
+        <*> (TyType  <$> wrapper <$> generateElementType container elt)
   where
     wrapper tyName | minOccurs==1 && maxOccurs==MaxOccurs 1 =             tyName
                    | minOccurs==0 && maxOccurs==MaxOccurs 1 = "Maybe " <> tyName
@@ -56,14 +55,11 @@ generateElementType _         (Element {eName, eType})   =
   case eType of
     Complex   {} -> generateContentType eName eType
     Extension {} -> do
-      warn ["Did not implement elements with extension types yet", show eType ]
+      warn [qc|Did not implement elements with extension types yet {eType}|]
       return "Xeno.Node"
     other        -> do
-      warn [ "Unimplemented type ", show other ]
+      warn [qc|Unimplemented type {other}|]
       return "Xeno.Node"
-
-mapSnd :: (b -> c) -> (a, b) -> (a, c)
-mapSnd f (a, b) = (a, f b)
 
 -- | Wraps type according to XML Schema "use" attribute value.
 wrapAttr :: Schema.Use -> B.Builder -> B.Builder
@@ -82,27 +78,26 @@ generateContentType container (Ref (tyName)) = translate (SchemaType, TargetType
 generateContentType eName (Complex {attrs, inner=content}) = do
     myTypeName  <- translate (SchemaType, TargetTypeName) eName eName
     myConsName  <- translate (SchemaType, TargetConsName) eName eName
-    attrFields  :: [Field] <- tracer "attr fields"  <$> mapM makeAttrType attrs
-
-    childFields :: [Field] <- tracer "child fields" <$>
-                              case content of -- serving only simple Seq of elts or choice of elts for now
+    attrFields  :: [TyField] <- tracer "attr fields"  <$> mapM makeAttrType attrs
+    childFields :: [TyField] <- tracer "child fields" <$>
+                                  case content of -- serving only simple Seq of elts or choice of elts for now
                               -- These would be in ElementType namespace.
       Seq    ls -> seqInstance ls
       All    ls -> seqInstance ls -- handling the same way
       Choice ls -> (:[]) <$> makeAltType ls
       Elt     e -> error  $ "Unexpected singular Elt inside content of ComplexType: " <> show e
-    declareAlgebraicType (myTypeName, [(myConsName, attrFields <> childFields)])
+    declareAlgebraicType (TyData myTypeName, [(TyCon myConsName, attrFields <> childFields)])
     return      myTypeName
   where
-    makeAttrType :: Attr -> CG (B.Builder, B.Builder)
-    makeAttrType Attr {..} = mapSnd (wrapAttr use) <$> makeFieldType aName aType
-    makeFieldType :: XMLString -> Type -> CG (B.Builder, B.Builder)
-    makeFieldType  aName aType = (,) <$> translate (AttributeName, TargetFieldName) eName aName
-                                     <*> generateContentType                        eName aType
-    makeAltType :: [TyPart] -> CG (B.Builder, B.Builder)
+    makeAttrType :: Attr -> CG TyField
+    makeAttrType Attr {..} = second (\(TyType bs) -> TyType $ wrapAttr use bs) <$> makeFieldType aName aType
+    makeFieldType :: XMLString -> Type -> CG TyField
+    makeFieldType  aName aType = (,) <$> (TyFieldName <$> translate (AttributeName, TargetFieldName) eName aName)
+                                     <*> (TyType      <$> generateContentType                        eName aType)
+    makeAltType :: [TyPart] -> CG TyField
     makeAltType ls = do
-      warn ["altType not yet implemented:", show ls]
-      return ("altFields", "Xeno.Node")
+      warn [qc|"altType not yet implemented: {ls}|]
+      return (TyFieldName "altFields", TyType "Xeno.Node")
     seqInstance = mapM fun
       where
         fun (Elt (elt@(Element {}))) = do
@@ -112,20 +107,20 @@ generateContentType eName (Restriction _ (Enum (uniq -> values))) = do
   tyName     <- translate (SchemaType ,   TargetTypeName) eName        eName -- should it be split into element and type containers?
   translated <- translate (EnumIn eName,  TargetConsName) eName `mapM` values
   -- ^ TODO: consider enum as indexed family of spaces
-  declareSumType (tyName, (,"") <$> translated)
+  declareSumType (TyData tyName, (\con -> (TyCon con, TyType "")) <$> translated)
   return tyName
 generateContentType eName (Restriction base (Pattern _)) = do
   tyName   <- translate (ElementName, TargetTypeName) (eName <> "pattern") base
   consName <- translate (ElementName, TargetConsName) (eName <> "pattern") base
   baseTy   <- translate (SchemaType,  TargetTypeName)  eName               base
-  warn ["-- Restriction pattern\n"]
-  declareNewtype tyName consName baseTy
+  warn "-- Restriction pattern"
+  declareNewtype (TyData tyName) (TyCon consName) (TyType baseTy)
   return tyName
 generateContentType eName (Extension   base (Complex False [] (Seq []))) = do
   tyName   <- translate (SchemaType,  TargetTypeName) base eName
   consName <- translate (ElementName, TargetConsName) base eName
   baseTy   <- translate (SchemaType,  TargetTypeName) base eName
-  declareNewtype tyName consName baseTy
+  declareNewtype (TyData tyName) (TyCon consName) (TyType baseTy)
   return tyName
 generateContentType eName  (Restriction base  None      ) =
   -- Should we do `newtype` instead?
@@ -139,24 +134,32 @@ generateContentType eName (Extension   base  (cpl@Complex {inner=Seq []})) = do
                                       ,minOccurs=1
                                       ,targetNamespace=""}
   -- TODO: Refactor for parser generation!
-generateContentType eName (Extension   base  otherType                   ) = do
-  warn ["Complex extensions are not implemented yet"]
+generateContentType eName (Extension   base  _otherType                  ) = do
+  warn "Complex extensions are not implemented yet"
   tyName   <- translate (SchemaType,  TargetTypeName) base eName
   consName <- translate (ElementName, TargetConsName) base eName
-  declareNewtype tyName consName "Xeno.Node"
+  declareNewtype (TyData tyName) (TyCon consName) (TyType "Xeno.Node")
   return tyName
 generateContentType _          other       = do
-  warn ["Not yet implemented generateContentType ", show other]
+  warn [qc|Not yet implemented generateContentType {other}|]
   return "Xeno.Node"
 
 appendElt :: Type -> Element -> Type
-appendElt cpl@Complex { inner=Seq sq } elt = cpl { inner=Seq (Elt elt:sq   ) }
-appendElt cpl@Complex { inner=other  } elt = cpl { inner=Seq [Elt elt,other] }
-appendElt other                        elt = error $ "Cannot append field for supertype to: " <> show other
+appendElt cpl@Complex { inner=Seq sq } elt  = cpl { inner=Seq (Elt elt:sq   ) }
+appendElt cpl@Complex { inner=other  } elt  = cpl { inner=Seq [Elt elt,other] }
+appendElt other                        _elt = error [qc|Cannot append field for supertype to: {other}|]
 
 -- | Make builder to generate schema code
-codegen    :: Schema -> B.Builder
-codegen sch = runCodeGen sch $ generateSchema sch
+codegen    :: Schema -> IO String
+codegen sch = do
+    let output = runCodeGen sch $ generateSchema sch
+    codeLines <- mapM outputToString output
+    return $ unlines codeLines
+  where
+    outputToString (CGCodeLine cmt) = return cmt
+    outputToString (CGDec decl') = do
+        decl <- TH.runQ decl'
+        return $ "\n" ++ TH.pprint decl ++ "\n"
 
 -- | Generate content type, and put an type name on it.
 generateNamedContentType :: (XMLString, Type) -> CG ()
@@ -165,15 +168,14 @@ generateNamedContentType (name, ty) = do
   contentConsName <- translate (SchemaType, TargetConsName) name name
   contentTypeCode <- generateContentType name ty
   when (isBaseHaskellType $ builderString contentTypeCode) $ do
-    warn ["-- Named base type\n"]
-    declareNewtype contentTypeName contentConsName contentTypeCode
+    warn "-- Named base type"
+    declareNewtype (TyData contentTypeName) (TyCon contentConsName) (TyType contentTypeCode)
 
 generateSchema :: Schema -> CG ()
 generateSchema sch = do
-    gen ["{-# LANGUAGE DuplicateRecordFields #-}\n"
-        ,"module XMLSchema where\n\n"
-        ,B.byteString basePrologue
-        ,"\n\n"]
+    outCodeLine "{-# LANGUAGE DuplicateRecordFields #-}"
+    outCodeLine "module XMLSchema where"
+    outCodeLine basePrologue
     -- First generate all types that may be referred by others.
     mapM_ generateNamedContentType $ Map.toList $ types sch
     -- Then generate possible top level types.
@@ -182,17 +184,19 @@ generateSchema sch = do
       []                                          -> fail "No toplevel elements found!"
       [eltName]
         | isBaseHaskellType (builderString eltName) -> do
-           gen ["-- Toplevel\n"]
-           declareNewtype topLevelConst topLevelConst eltName
+           outCodeLine "-- Toplevel"
+           declareNewtype (TyData topLevelConst) (TyCon topLevelConst) (TyType eltName)
       [eltName]                                   ->
-           gen      [ "type ", topLevelConst, " = ", eltName ]
+           -- TODO change to Template Haskell generation
+           outCodeLine [qc|type {topLevelConst::String} = {eltName}|]
       altTypes                                    -> do
            -- Add constructor name for each type
            -- TODO: We would gain from separate dictionary for constructor names!
-           alts <- (`zip` altTypes) <$> forM altTypes
-                                            (translate (SchemaType, TargetTypeName) topLevelConst . builderString)
-           declareSumType (topLevelConst, alts)
-    gen     ["\n"]
+           alts <- (map (TyCon *** TyType)) <$>
+                   (`zip` altTypes) <$>
+                       forM altTypes
+                            (translate (SchemaType, TargetTypeName) topLevelConst . builderString)
+           declareSumType (TyData topLevelConst, alts)
 
 topLevelConst :: IsString a => a
 topLevelConst = "TopLevel"

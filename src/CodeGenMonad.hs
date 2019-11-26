@@ -1,14 +1,17 @@
 {-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MonoLocalBinds             #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE NamedFieldPuns             #-}
 {-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE QuasiQuotes                #-}
 {-# LANGUAGE RankNTypes                 #-}
 {-# LANGUAGE RecordWildCards            #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE TemplateHaskell            #-}
 {-# LANGUAGE TupleSections              #-}
+{-# LANGUAGE TypeSynonymInstances       #-}
 {-# LANGUAGE ViewPatterns               #-}
 -- | Monad for code generation:
 --   Mostly deals with keeping track of all
@@ -18,8 +21,11 @@
 --   type or field name.
 module CodeGenMonad(-- Code generation monad
                     CG
+                   ,CGOutput
+                   ,CGOutputEntity(..)
                    ,runCodeGen
-                   ,gen
+                   ,out
+                   ,outCodeLine
                    ,warn
 
                    -- Translating identifiers
@@ -32,26 +38,30 @@ module CodeGenMonad(-- Code generation monad
                    ,builderString
                    ,builderLength
                    ,bshow
+                   ,bToS
                    ) where
 
 import           Prelude hiding(lookup)
 
 import           Control.Lens as Lens
+-- import           Text.InterpolatedString.Perl6 (qc)
 import qualified Control.Monad.RWS.Strict   as RWS
+import qualified Data.ByteString.Builder    as B
 import qualified Data.ByteString.Char8      as BS
 import qualified Data.ByteString.Lazy       as BSL(toStrict, length)
-import qualified Data.ByteString.Builder    as B
 import qualified Data.Map.Strict            as Map
 import qualified Data.Set                   as Set
+import qualified Language.Haskell.TH        as TH
 
+import           BaseTypes
 import           FromXML(XMLString)
 import           Identifiers
 import           Schema
-import           BaseTypes
 
 
 -- | To enable tracing import Debug.Trace(trace) instead:
 --import Debug.Trace(trace)
+trace :: String -> a -> a
 trace _ x = x
 
 -- | Which of the XML Schema identifier namespaces do we use here
@@ -79,15 +89,22 @@ data CGState =
   }
 makeLenses ''CGState
 
-newtype CG a = CG { unCG :: (RWS.RWS Schema B.Builder CGState a) }
+
+data CGOutputEntity = CGDec (TH.Q TH.Dec)
+                    | CGCodeLine String
+
+type CGOutput = [CGOutputEntity]
+
+
+newtype CG a = CG { unCG :: (RWS.RWS Schema CGOutput CGState a) }
   deriving (Functor, Applicative, Monad) -- , RWS.MonadReader, RWS.MonadWriter, RWS.MonadIO)
 
 instance RWS.MonadState CGState CG where
   get       = CG   RWS.get
   put   x   = CG $ RWS.put x
-  state mod = CG $ RWS.state mod
+  state mdf = CG $ RWS.state mdf
 
-instance RWS.MonadWriter B.Builder CG where
+instance RWS.MonadWriter CGOutput CG where
   tell   = CG . RWS.tell
   listen = CG . RWS.listen . unCG
   pass   = CG . RWS.pass   . unCG
@@ -100,11 +117,14 @@ initialState  = CGState
   where
     trans = (TargetTypeName,) . snd
 
-gen     :: [B.Builder] -> CG ()
-gen args = RWS.tell $ mconcat args
+out :: (TH.Q TH.Dec) -> CG ()
+out dec = RWS.tell [CGDec dec]
 
-warn     :: [String] -> CG ()
-warn args = gen ["{- WARNING ", B.string8 $ show $ mconcat args, " -}"]
+outCodeLine :: String -> CG ()
+outCodeLine cmnt = RWS.tell [CGCodeLine cmnt]
+
+warn :: String -> CG ()
+warn wrn = outCodeLine $ concat ["{- WARNING ", wrn, " -}"]
 
 -- TODO: add keywords to prevent mapping of these
 
@@ -165,9 +185,9 @@ translate idClass@(schemaIdClass, haskellIdClass) container xmlName = do
                  | otherwise = name
 
 -- | Make builder to generate schema code.
-runCodeGen        :: Schema -> CG () -> B.Builder
+runCodeGen :: Schema -> CG () -> CGOutput
 runCodeGen sch (CG rws) = case RWS.runRWS rws sch initialState of
-                            ((), _state, builder) -> builder
+                            ((), _state, output) -> output
 
 -- | Convert builder back to String, if you need to examine the content.
 builderString :: B.Builder -> BS.ByteString
@@ -175,4 +195,9 @@ builderString  = BSL.toStrict . B.toLazyByteString
 
 builderLength :: B.Builder -> Int
 builderLength  = fromIntegral . BSL.length . B.toLazyByteString
+
+
+bToS :: B.Builder -> String
+bToS = BS.unpack . BSL.toStrict . B.toLazyByteString
+
 

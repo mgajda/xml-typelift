@@ -1,8 +1,9 @@
 [submodule "xeno"]
 	path = xeno
-        url = https://github.com/mgajda/xeno.git
-        branch = master
+        url = https://gitlab.com/migamake/xeno.git
 [submodule "iso8601-duration"]
 	path = iso8601-duration
         url = https://github.com/mgajda/iso8601-duration.git
-
+[submodule "haskell-src-match"]
+	path = haskell-src-match
+	url = https://gitlab.com/migamake/haskell-src-match.git

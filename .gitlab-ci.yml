@@ -10,6 +10,7 @@ buildTypelift:  # A job to build the static website - replace it with your build
     - stack --version
     - echo ${CI_COMMIT_REF_SLUG}
   script:
+    # temporary remove cache
     - stack install --system-ghc
     - stack build
     - stack test
