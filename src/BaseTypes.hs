@@ -35,6 +35,7 @@ basePrologue  = mconcat $ map makeImport modules
     modules = ["Data.Time.LocalTime(ZonedTime)"
               ,"Data.ByteString.Char8 as BS"
               ,"Data.Int(Int64)"
+              ,"Data.Scientific"
               ,"Data.Time.ISO8601.Duration"
               ,"FromXML"
               ,"Data.Time.Calendar(Day)"
@@ -64,7 +65,7 @@ baseTranslations = map addNS
     ,("date"           , "Day"          )
     ,("time"           , "DiffTime"     )
     ,("dateTime"       , "ZonedTime"    )
-    ,("decimal"        , "Int"          )
+    ,("decimal"        , "Scientific"   )
     ,("double"         , "Double"       )
     ,("QName"          , "XMLString"    ) -- TODO: split namespace from QNames
     ,("NOTATION"       , "XMLString"    ) -- TODO: we ignore <xs:notation> definitions?

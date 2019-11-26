@@ -13,7 +13,7 @@ stability:           stable
 author:              Michal Gajda
 maintainer:          dataopt@example.com
 copyright:           Copyright by Michal Gajda 2018
-category:            Data, Tools
+category:            Data, Tools, Development
 build-type:          Simple
 extra-source-files:
   - README.md
@@ -21,7 +21,6 @@ extra-source-files:
   - test/person.xsd
 bug-reports:         https://github.com/DataHaskell/xml-typelift/issues
 github: DataHaskell/xml-typelift
-category: Development
 
 ghc-options: -Wall
 
@@ -31,11 +30,21 @@ dependencies:
   - containers
   - deepseq
   - filepath
-  - mtl
-  - xeno >= 0.3.5 && < 1.0.0
-  - uniplate
-  - lens
+  - haskell-src-match
+  - interpolatedstring-perl6
   - iso8601-duration # for testing!
+  - lens
+  - mtl
+  - pretty-simple
+  - template-haskell
+  - uniplate
+  - xeno
+
+flags:
+  use-parser2:
+    description: Add Parser2 to benchmarks
+    manual: true
+    default: false
 
 library:
   source-dirs:
@@ -45,13 +54,28 @@ library:
 
 executables:
   xml-typelift-cli:
-    main: Main.hs
+    main: Cli.hs
     source-dirs:
       - src
       - app
       - bench
     dependencies:
       - xml-typelift
+  mkxml:
+    main: Main.hs
+    source-dirs:
+      - lib
+      - bench/autogen/mkxml
+      - bench/autogen/lib
+    dependencies:
+      - xml-typelift
+      - QuickCheck
+      - generic-arbitrary
+      - perfect-vector-shuffle
+      - scientific
+      - time
+      - vector
+    ghc-options: -O2
 
 tests:
   unit-tests:
@@ -62,6 +86,9 @@ tests:
     dependencies:
       - hspec
       - xml-typelift
+      - temporary
+      - process
+      - template-haskell
 
 benchmarks:
   speed:
@@ -84,4 +111,46 @@ benchmarks:
       - criterion
       - weigh
       - xml-typelift
-
+  generated-parsers-speed:
+    main: Main.hs
+    source-dirs:
+      - lib
+      - src
+      - xeno-proposal
+      - bench/autogen
+      - bench/autogen/lib
+      - bench/autogen/parsers
+      - bench/autogen/speed
+    dependencies:
+      - criterion
+      - ghc-prim
+      - scientific
+      - time
+      - vector
+      - xml-typelift
+    ghc-options: -O2 -rtsopts
+    when:
+      - condition: flag(use-parser2)
+        cpp-options: -DBENCH_USE_PARSER2
+  generated-parsers-memory:
+    main: Main.hs
+    source-dirs:
+      - lib
+      - src
+      - xeno-proposal
+      - bench/autogen
+      - bench/autogen/lib
+      - bench/autogen/parsers
+      - bench/autogen/memory
+    dependencies:
+      - ghc-prim
+      - mmap
+      - scientific
+      - time
+      - vector
+      - weigh
+      - xml-typelift
+    ghc-options: -O2 -rtsopts "-with-rtsopts=-H1G"
+    when:
+      - condition: flag(use-parser2)
+        cpp-options: -DBENCH_USE_PARSER2

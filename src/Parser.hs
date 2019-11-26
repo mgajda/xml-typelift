@@ -150,8 +150,9 @@ instance FromXML Attr where
       attrElt  cpl nod = case nodeName nod of
         "annotation" -> return cpl
         "simpleType" -> do
-          TypeDesc "" ty <- fromXML' nod
-          return $ cpl { aType = ty }
+          fromXML' nod >>= \case
+            TypeDesc "" ty -> return $ cpl { aType = ty }
+            _              -> error "Can't match to simple type"
         _other       -> unknownChildHandler "attribute" nod
       attrAttr cpl attr@(aName, aVal) = case stripNS aName of
         "id"      -> return cpl -- ignore ids for now
@@ -171,7 +172,9 @@ instance FromXML Attr where
 parseSchema :: BS.ByteString -> IO (Maybe Schema)
 parseSchema input = do
   --print $ skipDoctype input
-  case Xeno.parse $ skipDoctype input of
+  -- Note `BS.copy`: it is a quickfix for https://gitlab.com/migamake/xml-typelift/issues/11
+  -- TODO remove it after fixing that issue
+  case Xeno.parse $ BS.copy $ skipDoctype input of
     Left  err -> do
       BS.hPutStrLn stderr $ displayException input err
       return Nothing

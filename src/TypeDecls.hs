@@ -1,106 +1,118 @@
-{-# LANGUAGE FlexibleContexts    #-}
-{-# LANGUAGE MonoLocalBinds      #-}
-{-# LANGUAGE NamedFieldPuns      #-}
-{-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE RankNTypes          #-}
-{-# LANGUAGE RecordWildCards     #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TemplateHaskell     #-}
-{-# LANGUAGE TupleSections       #-}
-{-# LANGUAGE ViewPatterns        #-}
 -- | Generating type declarations in code generation monad.
-module TypeDecls(Field
-                ,Record
-                ,declareAlgebraicType
-                ,declareSumType
-                ,declareNewtype
-                ,formatRecord
-                ,formatField
-                ,wrapList
-                ,wrapMaybe
+module TypeDecls( Record
+                , TyData(..)
+                , TyCon(..)
+                , TyType(..)
+                , TyFieldName(..)
+                , TyField
+                , declareAlgebraicType
+                , declareSumType
+                , declareNewtype
                 ) where
 
-import           Prelude hiding(lookup)
 
-import           Control.Monad(forM_)
-import qualified Data.ByteString.Char8      as BS
+import           Control.Monad
 import qualified Data.ByteString.Builder    as B
+import           Language.Haskell.TH.Syntax as TH hiding (SumAlt)
 
 import           CodeGenMonad
 
-formatField :: (B.Builder, B.Builder) -> B.Builder
-formatField (fName, fTypeName) = fName <> " :: " <> fTypeName
-
-wrapList, wrapMaybe :: B.Builder -> B.Builder
-wrapList  x = "["      <> x <> "]"
-wrapMaybe x = "Maybe " <> x
 
 -- TODO: type alias these for safety
 -- * Type declarations
-type TyCon     = B.Builder
-type TyName    = B.Builder
-type FieldName = B.Builder
+newtype TyData      = TyData B.Builder
+newtype TyCon       = TyCon B.Builder
+newtype TyType      = TyType B.Builder
+newtype TyFieldName = TyFieldName B.Builder
 
-type Field  = (FieldName, -- field name
-               TyName)    -- field type
+type TyField  = (TyFieldName, -- field name
+                 TyType)    -- field type
 type Record = (TyCon,     -- Constructor name
-               [Field])
+               [TyField])
 
 type TAlt = (TyCon,           -- ^ Constructor name
-             Either TyName    -- ^ Lone type under constructor
-                    [Field]   -- ^ Record under constructor
+             Either TyType    -- ^ Lone type under constructor
+                    [TyField]   -- ^ Record under constructor
             )
 
-declareAlgebraicType :: (B.Builder, [Record]) -> CG ()
-declareAlgebraicType (_,          []                      ) = error "Empty list of records"
-declareAlgebraicType (myTypeName, (firstEntry:nextEntries)) = do
-    gen ["\ndata ", myTypeName, " ="]
-    gen ["\n    ", formatRecord firstEntry, "\n"]
-    forM_ nextEntries $ \nextEntry ->
-      gen ["  | ", formatRecord nextEntry]
-
-formatRecord :: Record -> B.Builder
-formatRecord (name, (f:fields)) =
-    mconcat
-      ( formatHeading f
-      :(formatFollowing <$> fields))
-    <> trailer
-  where
-    formatHeading   fld = header   <> formatField fld
-    formatFollowing fld = follower <> formatField fld
-    header, follower, leftPad, trailer :: B.Builder
-    header   =         name    <> " {\n" <> leftPad <> "   "
-    follower = "\n" <> leftPad <> " , "
-    trailer  = "\n" <> leftPad <> " }"
-    leftPad  = B.byteString
-             $ BS.replicate (builderLength name) ' '
-formatRecord (name,  []       ) = name -- empty record
 
 -- | Sum type without single record field for each constructor.
-type SumType = (B.Builder -- ^ Type name
+type SumType = (TyData -- ^ Type name
                ,[SumAlt]
                )
 
-type SumAlt = (B.Builder -- ^ Constructor name
-              ,B.Builder -- ^ Type under the constructor
+
+type SumAlt = (TyCon -- ^ Constructor name
+              ,TyType -- ^ Type under the constructor
               )
+
+
+newName'' :: B.Builder -> Q Name
+newName'' bsn = return $ mkName $ bToS bsn
+
+
+newConstrName :: TyCon -> Q Name
+newConstrName (TyCon bsn) = newName'' bsn
+
+
+newDataName :: TyData -> Q Name
+newDataName (TyData bsn) = newName'' bsn
+
+
+newTypeName :: TyType -> Q Name
+newTypeName (TyType bsn) = newName'' bsn
+
+
+newFieldName :: TyFieldName -> Q Name
+newFieldName (TyFieldName bsn) = newName'' bsn
+
+
+declareAlgebraicType :: (TyData, [Record]) -> CG ()
+declareAlgebraicType    (_,          []) = error "Empty list of records"
+declareAlgebraicType    (dataName,   records) =
+    out $ do dataName <- newDataName dataName
+             recs     <- mapM formatRecord records
+             return $ DataD [] dataName [] Nothing recs []
+
+
+formatRecord :: Record -> Q Con
+formatRecord (name, fields) = do
+    recName <- newConstrName name
+    recFields <- forM fields $ \(fieldName, fieldType) -> do
+        thFieldName <- newFieldName fieldName
+        -- TODO: try to restore type with `reify :: Name -> Q Info`, which can get write type name
+        --       `reify` can't work in IO, so we can use prebuilded dicts
+        thFieldType <- ConT <$> newTypeName fieldType
+        return  (thFieldName, noBang, thFieldType)
+    return (RecC recName recFields)
+
 
 -- | Declare sum type *without* field names.
 declareSumType :: SumType
                -> CG ()
-declareSumType (tyName, (firstAlt:otherAlts)) =
-    gen ["\ndata ", tyName, " ="
-        ,         genFirstAlt    firstAlt
-        ,mconcat (genNextAlt <$> otherAlts)
-        ,"\n"]
-  where
-    genFirstAlt, genNextAlt, genAlt :: SumAlt -> B.Builder
-    genFirstAlt alt = "\n    " <> genAlt alt
-    genNextAlt  alt = "\n  | " <> genAlt alt
-    genAlt (consName, typeName) = consName <> " " <> typeName
-declareSumType (tyName, []) = gen ["data ", tyName, " = ", tyName]
+declareSumType (tyName, []) =
+    out $ do dataName <- newDataName tyName
+             return $ DataD [] dataName [] Nothing [NormalC dataName []] []
+declareSumType (tyDataName, sumTypes) =
+    out $ do dataName <- newDataName tyDataName
+             constrs  <- mapM (uncurry mkNormalC) sumTypes
+             return $ DataD [] dataName [] Nothing constrs []
 
-declareNewtype :: TyName -> TyCon -> TyName -> CG ()
-declareNewtype tyName consName baseTy = 
-  gen ["\nnewtype ", tyName, " = ", consName, " ", baseTy, "\n"]
+
+declareNewtype :: TyData -> TyCon -> TyType -> CG ()
+declareNewtype tyDataName tyConstr baseTy =
+    out $ do dataName <- newDataName tyDataName
+             constr   <- mkNormalC tyConstr baseTy
+             return $ NewtypeD [] dataName [] Nothing constr []
+
+
+mkNormalC :: TyCon -> TyType -> Q TH.Con
+mkNormalC tyConstr tyName = do
+    constrName   <- newConstrName tyConstr
+    baseTypeName <- newTypeName tyName
+    return $ NormalC constrName [(noBang, ConT baseTypeName)]
+
+
+noBang :: Bang
+noBang = Bang NoSourceUnpackedness NoSourceStrictness
 
