@@ -30,12 +30,6 @@ type TyField  = (TyFieldName, -- field name
 type Record = (TyCon,     -- Constructor name
                [TyField])
 
-type TAlt = (TyCon,           -- ^ Constructor name
-             Either TyType    -- ^ Lone type under constructor
-                    [TyField]   -- ^ Record under constructor
-            )
-
-
 -- | Sum type without single record field for each constructor.
 type SumType = (TyData -- ^ Type name
                ,[SumAlt]
@@ -69,8 +63,8 @@ newFieldName (TyFieldName bsn) = newName'' bsn
 
 declareAlgebraicType :: (TyData, [Record]) -> CG ()
 declareAlgebraicType    (_,          []) = error "Empty list of records"
-declareAlgebraicType    (dataName,   records) =
-    out $ do dataName <- newDataName dataName
+declareAlgebraicType    (tyDataName,   records) =
+    out $ do dataName <- newDataName tyDataName
              recs     <- mapM formatRecord records
              return $ DataD [] dataName [] Nothing recs []
 

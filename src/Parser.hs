@@ -89,6 +89,7 @@ instance FromXML TypeDesc where
                     otherName     -> ("Node expected to contain type descriptor is named '"
                                     <> otherName <> "'") `failHere` otherName
 
+markMixed :: Type -> Type
 markMixed cpl@(Complex {..}) = cpl { mixed=True }
 markMixed x = error $ "Cannot mark type as mixed: " <> show x
 

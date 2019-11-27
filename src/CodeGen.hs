@@ -4,6 +4,7 @@
 {-# LANGUAGE RecordWildCards       #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
 {-# LANGUAGE ViewPatterns          #-}
+{-# OPTIONS_GHC -fno-warn-orphans  #-}
 -- | Here we aim to analyze the schema.
 module CodeGen(codegen) where
 
@@ -140,9 +141,6 @@ generateContentType eName (Extension   base  _otherType                  ) = do
   consName <- translate (ElementName, TargetConsName) base eName
   declareNewtype (TyData tyName) (TyCon consName) (TyType "Xeno.Node")
   return tyName
-generateContentType _          other       = do
-  warn [qc|Not yet implemented generateContentType {other}|]
-  return "Xeno.Node"
 
 appendElt :: Type -> Element -> Type
 appendElt cpl@Complex { inner=Seq sq } elt  = cpl { inner=Seq (Elt elt:sq   ) }
