@@ -10,7 +10,7 @@ module Analyze(analyze, check) where
 import           Data.Maybe(catMaybes)
 --import qualified Data.ByteString as BS
 
-import FromXML(getStartIndex, stripNS)
+import FromXML(getStartIndex)
 import Xeno.Types(XenoException(..))
 import Data.Generics.Uniplate.Operations
 

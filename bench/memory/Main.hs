@@ -3,16 +3,11 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module Main(main) where
 
-import           Control.Monad
-import           Criterion
-import           Criterion.Main
 import qualified Data.ByteString.Char8 as BS
-import           Data.Monoid
 import           Weigh
 import           Xeno.SAX(validate)
 
 import           Parser
-import           Schema
 import           TestSet
 
 main :: IO ()
@@ -21,10 +16,10 @@ main  = do
 
 memTest :: FilePath -> Weigh ()
 memTest filename = do
-  io ("schema allocations for " <> filename) (\filename -> do
-    input  <- BS.readFile filename
+  io ("schema allocations for " <> filename) (\fn -> do
+    input  <- BS.readFile fn
     parseSchema input) filename
-  io ("xeno allocations for " <> filename) (\filename -> do
-     input <- BS.readFile filename
+  io ("xeno allocations for " <> filename) (\fn -> do
+     input <- BS.readFile fn
      return $! validate input) filename
 
