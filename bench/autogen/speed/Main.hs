@@ -13,6 +13,7 @@ import Parser2
 #endif
 import Parser3
 import Parser4
+import Parser5
 
 
 filenames :: [(String, FilePath)]
@@ -47,6 +48,7 @@ main =
                     , bench "parser-3"              $ nf parseMethod3 input
                     , bench "parser-3-A"            $ nf parseToArray input
                     , bench "parser-4"              $ nf parseMethod4 input
+                    , bench "parser-5"              $ nfAppIO parseMethod5 input
                     ]))
             filenames
 

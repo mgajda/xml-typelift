@@ -16,6 +16,7 @@ import Parser2
 #endif
 import Parser3
 import Parser4
+import Parser5
 
 import System.IO.MMap
 
@@ -42,4 +43,5 @@ main = do
 #endif
             func (nm ++ "_parser3") parseMethod3 input
             func (nm ++ "_parser4") parseMethod4 input
+            io   (nm ++ "_parser5") parseMethod5 input
 
