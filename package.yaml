@@ -76,6 +76,40 @@ executables:
       - time
       - vector
     ghc-options: -O2
+  parser5:
+    main: Main.hs
+    source-dirs:
+      - lib
+      - bench/autogen/lib
+      - bench/autogen/main/parser5
+      - bench/autogen/parsers
+      - xeno-proposal
+    dependencies:
+      - ghc-prim
+      - megaparsec
+      - pretty
+      - xml-typelift
+      - scientific
+      - time
+      - vector
+    ghc-options: -O2
+  parser6:
+    main: Main.hs
+    source-dirs:
+      - lib
+      - bench/autogen/lib
+      - bench/autogen/main/parser6
+      - bench/autogen/parsers
+      - xeno-proposal
+    dependencies:
+      - ghc-prim
+      - megaparsec
+      - pretty
+      - xml-typelift
+      - scientific
+      - time
+      - vector
+    ghc-options: -O2
 
 tests:
   unit-tests:
@@ -124,6 +158,7 @@ benchmarks:
     dependencies:
       - criterion
       - ghc-prim
+      - megaparsec
       - scientific
       - time
       - vector
@@ -144,6 +179,7 @@ benchmarks:
       - bench/autogen/memory
     dependencies:
       - ghc-prim
+      - megaparsec
       - mmap
       - scientific
       - time
