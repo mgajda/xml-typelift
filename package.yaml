@@ -65,8 +65,8 @@ executables:
     main: Main.hs
     source-dirs:
       - lib
-      - bench/autogen/mkxml
-      - bench/autogen/lib
+      - bench/proto/mkxml
+      - bench/proto/lib
     dependencies:
       - xml-typelift
       - QuickCheck
@@ -80,9 +80,9 @@ executables:
     main: Main.hs
     source-dirs:
       - lib
-      - bench/autogen/lib
-      - bench/autogen/main/parser5
-      - bench/autogen/parsers
+      - bench/proto/lib
+      - bench/proto/main/parser5
+      - bench/proto/parsers
       - xeno-proposal
     dependencies:
       - ghc-prim
@@ -97,9 +97,9 @@ executables:
     main: Main.hs
     source-dirs:
       - lib
-      - bench/autogen/lib
-      - bench/autogen/main/parser6
-      - bench/autogen/parsers
+      - bench/proto/lib
+      - bench/proto/main/parser6
+      - bench/proto/parsers
       - xeno-proposal
     dependencies:
       - ghc-prim
@@ -151,10 +151,10 @@ benchmarks:
       - lib
       - src
       - xeno-proposal
-      - bench/autogen
-      - bench/autogen/lib
-      - bench/autogen/parsers
-      - bench/autogen/speed
+      - bench/proto
+      - bench/proto/lib
+      - bench/proto/parsers
+      - bench/proto/speed
     dependencies:
       - criterion
       - ghc-prim
@@ -173,10 +173,10 @@ benchmarks:
       - lib
       - src
       - xeno-proposal
-      - bench/autogen
-      - bench/autogen/lib
-      - bench/autogen/parsers
-      - bench/autogen/memory
+      - bench/proto
+      - bench/proto/lib
+      - bench/proto/parsers
+      - bench/proto/memory
     dependencies:
       - ghc-prim
       - megaparsec
