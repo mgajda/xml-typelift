@@ -27,6 +27,7 @@ module CodeGenMonad(-- Code generation monad
                    ,out
                    ,out'
                    ,outCodeLine
+                   ,cut
                    ,warn
 
                    -- Translating identifiers
@@ -105,6 +106,12 @@ data CGOutputEntity = CGDec (TH.Q TH.Dec)
 
 
 type CGOutput = [CGOutputEntity]
+
+
+cut :: RWS.MonadWriter w m => m a -> m (a, w)
+cut act = RWS.pass $ do
+    r <- RWS.listen act
+    return (r, const mempty)
 
 
 newtype CG a = CG { unCG :: (RWS.RWS Schema CGOutput CGState a) }
