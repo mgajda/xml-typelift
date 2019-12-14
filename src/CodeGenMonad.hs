@@ -25,6 +25,7 @@ module CodeGenMonad(-- Code generation monad
                    ,CGOutputEntity(..)
                    ,runCodeGen
                    ,out
+                   ,out'
                    ,outCodeLine
                    ,warn
 
@@ -100,6 +101,8 @@ makeLenses ''CGState
 
 data CGOutputEntity = CGDec (TH.Q TH.Dec)
                     | CGCodeLine String
+                    | CGDecs TH.DecsQ
+
 
 type CGOutput = [CGOutputEntity]
 
@@ -122,11 +125,15 @@ initialState  = CGState
                (Map.fromList [(((SchemaType, TargetTypeName), schemaType), haskellType)
                              | (schemaType, haskellType) <- baseTranslations ])
                (Set.fromList $ map trans baseTranslations)
+               0
   where
     trans = (TargetTypeName,) . snd
 
 out :: (TH.Q TH.Dec) -> CG ()
 out dec = RWS.tell [CGDec dec]
+
+out' :: TH.DecsQ -> CG ()
+out' decs = RWS.tell [CGDecs decs]
 
 outCodeLine :: String -> CG ()
 outCodeLine cmnt = RWS.tell [CGCodeLine cmnt]
@@ -163,7 +170,7 @@ classNormalizer TargetFieldName = normalizeFieldName
 translate :: IdClass
           -> XMLString               -- input container name
           -> XMLString               -- input name
-          -> CG B.Builder
+          -> CG B.Builder -- TODO special variant of monad which only can write to dictionary, but can't output
 translate idClass@(schemaIdClass, haskellIdClass) container xmlName = do
     tr     <- Lens.use translations
     allocs <- Lens.use allocatedIdentifiers

@@ -1,18 +1,21 @@
 {-# LANGUAGE NamedFieldPuns        #-}
+{-# LANGUAGE LambdaCase        #-}
+{-# LANGUAGE TypeFamilies        #-}
 {-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE QuasiQuotes           #-}
 {-# LANGUAGE RecordWildCards       #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
 {-# LANGUAGE ViewPatterns          #-}
+{-# LANGUAGE TemplateHaskell          #-}
 {-# OPTIONS_GHC -fno-warn-orphans  #-}
 -- | Here we aim to analyze the schema.
-module CodeGen(codegen) where
+module CodeGen(codegen, parserCodegen) where
 
 
 import           Prelude hiding(lookup, id)
 
 import           Control.Arrow
-import           Control.Monad(forM, when)
+import           Control.Monad(forM, forM_, when)
 import qualified Data.ByteString.Builder     as B
 import qualified Data.ByteString.Char8       as BS
 import           Data.String
@@ -28,6 +31,9 @@ import           CodeGenMonad
 import           Schema
 import           TypeDecls
 
+import Data.Proxy
+
+import qualified Control.Monad.RWS.Strict   as RWS -- TODO REMOVE AND use own methods
 
 -- | Returns a pair of field name, and type code.
 --   That means that type codes are in ElementName namespace, if described in-place,
@@ -55,9 +61,9 @@ generateElementType container (eType -> Ref (tyName)) =
 generateElementType _         (Element {eName, eType})   =
   case eType of
     Complex   {} -> generateContentType eName eType
-    Extension {} -> do
-      warn [qc|Did not implement elements with extension types yet {eType}|]
-      return "Xeno.Node"
+    --Extension {} -> do
+    --  warn [qc|Did not implement elements with extension types yet {eType}|]
+    --  return "Xeno.Node"
     other        -> do
       warn [qc|Unimplemented type {other}|]
       return "Xeno.Node"
@@ -79,85 +85,102 @@ generateContentType container (Ref (tyName)) = translate (SchemaType, TargetType
 generateContentType eName (Complex {attrs, inner=content}) = do
     myTypeName  <- translate (SchemaType, TargetTypeName) eName eName
     myConsName  <- translate (SchemaType, TargetConsName) eName eName
-    attrFields  :: [TyField] <- tracer "attr fields"  <$> mapM makeAttrType attrs
+    attrFields  :: [TyField] <- return [] -- tracer "attr fields"  <$> mapM makeAttrType attrs
     childFields :: [TyField] <- tracer "child fields" <$>
                                   case content of -- serving only simple Seq of elts or choice of elts for now
                               -- These would be in ElementType namespace.
       Seq    ls -> seqInstance ls
       All    ls -> seqInstance ls -- handling the same way
-      Choice ls -> (:[]) <$> makeAltType ls
+      Choice ls -> return [] -- (:[]) <$> makeAltType ls
       Elt     e -> error  $ "Unexpected singular Elt inside content of ComplexType: " <> show e
+    outCodeLine [qc|-- eName = {eName}|]
     declareAlgebraicType (TyData myTypeName, [(TyCon myConsName, attrFields <> childFields)])
     return      myTypeName
   where
-    makeAttrType :: Attr -> CG TyField
-    makeAttrType Attr {..} = second (\(TyType bs) -> TyType $ wrapAttr use bs) <$> makeFieldType aName aType
-    makeFieldType :: XMLString -> Type -> CG TyField
-    makeFieldType  aName aType = (,) <$> (TyFieldName <$> translate (AttributeName, TargetFieldName) eName aName)
-                                     <*> (TyType      <$> generateContentType                        eName aType)
-    makeAltType :: [TyPart] -> CG TyField
-    makeAltType ls = do
-      warn [qc|"altType not yet implemented: {ls}|]
-      return (TyFieldName "altFields", TyType "Xeno.Node")
+    --makeAttrType :: Attr -> CG TyField
+    --makeAttrType Attr {..} = second (\(TyType bs) -> TyType $ wrapAttr use bs) <$> makeFieldType aName aType
+    --makeFieldType :: XMLString -> Type -> CG TyField
+    --makeFieldType  aName aType = (,) <$> (TyFieldName <$> translate (AttributeName, TargetFieldName) eName aName)
+    --                                 <*> (TyType      <$> generateContentType                        eName aType)
+    --makeAltType :: [TyPart] -> CG TyField
+    --makeAltType ls = do
+    --  warn [qc|altType not yet implemented: {ls}|]
+    --  return (TyFieldName "altFields", TyType "Xeno.Node")
     seqInstance = mapM fun
       where
         fun (Elt (elt@(Element {}))) = do
           generateElementInstance eName elt
         fun  x = error $ "Not yet implemented nested sequence, all or choice:" <> show x
-generateContentType eName (Restriction _ (Enum (uniq -> values))) = do
-  tyName     <- translate (SchemaType ,   TargetTypeName) eName        eName -- should it be split into element and type containers?
-  translated <- translate (EnumIn eName,  TargetConsName) eName `mapM` values
-  -- ^ TODO: consider enum as indexed family of spaces
-  declareSumType (TyData tyName, (\con -> (TyCon con, TyType "")) <$> translated)
-  return tyName
-generateContentType eName (Restriction base (Pattern _)) = do
-  tyName   <- translate (ElementName, TargetTypeName) (eName <> "pattern") base
-  consName <- translate (ElementName, TargetConsName) (eName <> "pattern") base
-  baseTy   <- translate (SchemaType,  TargetTypeName)  eName               base
-  warn "-- Restriction pattern"
-  declareNewtype (TyData tyName) (TyCon consName) (TyType baseTy)
-  return tyName
-generateContentType eName (Extension   base (Complex False [] (Seq []))) = do
-  tyName   <- translate (SchemaType,  TargetTypeName) base eName
-  consName <- translate (ElementName, TargetConsName) base eName
-  baseTy   <- translate (SchemaType,  TargetTypeName) base eName
-  declareNewtype (TyData tyName) (TyCon consName) (TyType baseTy)
-  return tyName
-generateContentType eName  (Restriction base  None      ) =
-  -- Should we do `newtype` instead?
-  generateContentType eName $ Ref base
-generateContentType eName (Extension   base  (cpl@Complex {inner=Seq []})) = do
-  superTyLabel <- translate (SchemaType,TargetFieldName) eName "Super" -- should be: MetaKey instead of SchemaType
-  generateContentType eName $ cpl
-                  `appendElt` Element {eName=builderString superTyLabel
-                                      ,eType=Ref base
-                                      ,maxOccurs=MaxOccurs 1
-                                      ,minOccurs=1
-                                      ,targetNamespace=""}
-  -- TODO: Refactor for parser generation!
-generateContentType eName (Extension   base  _otherType                  ) = do
-  warn "Complex extensions are not implemented yet"
-  tyName   <- translate (SchemaType,  TargetTypeName) base eName
-  consName <- translate (ElementName, TargetConsName) base eName
-  declareNewtype (TyData tyName) (TyCon consName) (TyType "Xeno.Node")
-  return tyName
+--generateContentType eName (Restriction _ (Enum (uniq -> values))) = do
+--  tyName     <- translate (SchemaType ,   TargetTypeName) eName        eName -- should it be split into element and type containers?
+--  translated <- translate (EnumIn eName,  TargetConsName) eName `mapM` values
+--  -- ^ TODO: consider enum as indexed family of spaces
+--  declareSumType (TyData tyName, (\con -> (TyCon con, TyType "")) <$> translated)
+--  return tyName
+--generateContentType eName (Restriction base (Pattern _)) = do
+--  tyName   <- translate (ElementName, TargetTypeName) (eName <> "pattern") base
+--  consName <- translate (ElementName, TargetConsName) (eName <> "pattern") base
+--  baseTy   <- translate (SchemaType,  TargetTypeName)  eName               base
+--  warn "-- Restriction pattern"
+--  declareNewtype (TyData tyName) (TyCon consName) (TyType baseTy)
+--  return tyName
+--generateContentType eName (Extension   base (Complex False [] (Seq []))) = do
+--  tyName   <- translate (SchemaType,  TargetTypeName) base eName
+--  consName <- translate (ElementName, TargetConsName) base eName
+--  baseTy   <- translate (SchemaType,  TargetTypeName) base eName
+--  declareNewtype (TyData tyName) (TyCon consName) (TyType baseTy)
+--  return tyName
+--generateContentType eName  (Restriction base  None      ) =
+--  -- Should we do `newtype` instead?
+--  generateContentType eName $ Ref base
+--generateContentType eName (Extension   base  (cpl@Complex {inner=Seq []})) = do
+--  superTyLabel <- translate (SchemaType,TargetFieldName) eName "Super" -- should be: MetaKey instead of SchemaType
+--  generateContentType eName $ cpl
+--                  `appendElt` Element {eName=builderString superTyLabel
+--                                      ,eType=Ref base
+--                                      ,maxOccurs=MaxOccurs 1
+--                                      ,minOccurs=1
+--                                      ,targetNamespace=""}
+--  -- TODO: Refactor for parser generation!
+--generateContentType eName (Extension   base  _otherType                  ) = do
+--  warn "Complex extensions are not implemented yet"
+--  tyName   <- translate (SchemaType,  TargetTypeName) base eName
+--  consName <- translate (ElementName, TargetConsName) base eName
+--  declareNewtype (TyData tyName) (TyCon consName) (TyType "Xeno.Node")
+--  return tyName
+generateContentType _ _ = error "Don't know hot to generateContentType"
 
 appendElt :: Type -> Element -> Type
 appendElt cpl@Complex { inner=Seq sq } elt  = cpl { inner=Seq (Elt elt:sq   ) }
 appendElt cpl@Complex { inner=other  } elt  = cpl { inner=Seq [Elt elt,other] }
 appendElt other                        _elt = error [qc|Cannot append field for supertype to: {other}|]
 
--- | Make builder to generate schema code
-codegen    :: Schema -> IO String
-codegen sch = do
-    let output = runCodeGen sch $ generateSchema sch
+
+codegen' :: Schema -> CG () -> IO String
+codegen' sch gen = do
+    let output = runCodeGen sch gen
     codeLines <- mapM outputToString output
     return $ unlines codeLines
   where
     outputToString (CGCodeLine cmt) = return cmt
     outputToString (CGDec decl') = do
         decl <- TH.runQ decl'
-        return $ "\n" ++ TH.pprint decl ++ "\n"
+        return $ concat ["\n", TH.pprint decl, "\n"]
+    outputToString (CGDecs decl') = do
+        decl <- TH.runQ decl'
+        return $ concat ["\n", TH.pprint decl, "\n"]
+
+
+-- | Make builder to generate schema code
+-- TODO rename it!
+codegen    :: Schema -> IO String
+codegen sch = codegen' sch (generateSchema sch)
+
+
+-- | Make parser for schema
+parserCodegen :: Schema -> IO String
+parserCodegen sch = codegen' sch (generateParser sch)
+
 
 -- | Generate content type, and put an type name on it.
 generateNamedContentType :: (XMLString, Type) -> CG ()
@@ -184,7 +207,7 @@ generateSchema sch = do
         | isBaseHaskellType (builderString eltName) -> do
            outCodeLine "-- Toplevel"
            declareNewtype (TyData topLevelConst) (TyCon topLevelConst) (TyType eltName)
-      [eltName]                                   ->
+      [eltName]                                   -> do
            -- TODO change to Template Haskell generation
            outCodeLine [qc|type {topLevelConst::String} = {eltName}|]
       altTypes                                    -> do
@@ -195,6 +218,7 @@ generateSchema sch = do
                        forM altTypes
                             (translate (SchemaType, TargetTypeName) topLevelConst . builderString)
            declareSumType (TyData topLevelConst, alts)
+
 
 topLevelConst :: IsString a => a
 topLevelConst = "TopLevel"
@@ -211,3 +235,255 @@ tracer _ a = a
 instance Show B.Builder where
   show = BS.unpack . builderString
 
+
+-- * ----------------------------------------------------------------------------------------------
+-- * ----------------------------------------------------------------------------------------------
+-- * ----------------------------------------------------------------------------------------------
+-- * ----------------------------------------------------------------------------------------------
+
+
+
+
+class SchemaProcessor a where
+    type ElementTraversableResult a :: *
+    type TypeTraversableResult a :: *
+    type TyPartTraversableResult a :: *
+
+    start :: XMLString {-namespace-} -> a -> CG ()
+
+    processRootTypes :: XMLString -> Type -> (CG (TypeTraversableResult a)) -> a -> CG ()
+
+    processElement    :: a -> Int -> MaxOccurs -> ElementName -> NamespaceName -> CG (TypeTraversableResult a)
+                      ->  CG (ElementTraversableResult a)
+
+    processTypeRef     :: a -> XMLString -> CG (TypeTraversableResult a)
+    processTypeComplex :: a -> Bool -> [Attr] -> CG (TyPartTraversableResult a) -> CG (TypeTraversableResult a)
+
+    processTyPartSeq    :: a -> CG ([TyPartTraversableResult a])  -> CG (TyPartTraversableResult a)
+    processTyPartChoice :: a -> CG ([TyPartTraversableResult a])  -> CG (TyPartTraversableResult a)
+    processTyPartAll    :: a -> CG ([TyPartTraversableResult a])  -> CG (TyPartTraversableResult a)
+    processTyPartElt    :: a -> CG (ElementTraversableResult a) -> CG (TyPartTraversableResult a)
+
+
+    end :: a -> CG ()
+
+
+-- ~~~
+
+type ParserName = XMLString
+
+data ParserST
+
+data ParserSTTypeTraversableResultX = ParserSTTypeTraversableResultX XMLString deriving Show
+
+data ParserSTTypeTraversableResult = PSTString
+                                   | PSTDecimal
+                                   | PSTInteger
+                                   | PSTDateTime
+                                   | PSTOther XMLString
+                                   | PSTComplex [ParserName] -- names of underlaying parsers (just for draft)
+                                   deriving Show
+
+data ParserSTElementTraversableResult = PSE XMLString
+
+data ParserSTTyTypeTraversableResult = PTESeq [ParserName] -- names of underlaying parsers
+                                     | PTEElt XMLString
+                                     | PTEOther XMLString
+                                     deriving Show
+
+outCodeLine' :: String -> CG ()
+outCodeLine' msg = do
+    ind <- getIndent
+    outCodeLine ((replicate ind ' ') ++ msg)
+
+
+withIndent :: CG a -> CG a
+withIndent act = do -- TODO use `bracket`
+    incIndent
+    r <- act
+    decIndent
+    return r
+
+instance SchemaProcessor ParserST where
+    type ElementTraversableResult ParserST = ParserSTElementTraversableResult
+
+    type TyPartTraversableResult ParserST = ParserSTTyTypeTraversableResult
+
+    type TypeTraversableResult ParserST = ParserSTTypeTraversableResult
+
+    start _namespace _ = do
+        outCodeLine "-- START PARSER GEN --"
+
+    processRootTypes schName _schType typeTraversor _ = do
+        outCodeLine' [qc|--|]
+        outCodeLine' [qc|--|]
+        outCodeLine' [qc|-- processRootTypes {schName}|]
+        outCodeLine' [qc|parse{schName} arrayBegin strBegin' = do|]
+        outCodeLine' [qc|  let strBegin = skipSpaces bs strBegin'|]
+        (r, parsersCode) <- cut $ withIndent typeTraversor
+        withIndent $
+            case r of
+                PSTComplex [] -> error "Empty array"
+                PSTComplex (firstParserName : parserNames) -> do
+                    outCodeLine' [qc|strContentEnd'|]
+                    outCodeLine' [qc|    <-  {firstParserName} arrayBegin strBegin|]
+                    forM_ (zip parserNames [2::Int,4..]) $ \(parserName, arrayShift) ->
+                        outCodeLine' [qc|    >>= {parserName} (arrayBegin + {arrayShift})|]
+                    outCodeLine' [qc|return $ skpiSpaces bs strContentEnd'|]
+                x -> error [qc|Don't know how to generate {x}|]
+        outCodeLine' [qc|  where|]
+        RWS.tell parsersCode
+        -- outCodeLine [qc|processRootTypes : traversor result: {r}|]
+    processTypeRef _st "xs:string"   = return PSTString
+    processTypeRef _st "xs:integer"  = return PSTInteger
+    processTypeRef _st "xs:dateTime" = return PSTDateTime
+    processTypeRef _st "xs:decimal"  = return PSTDecimal
+    processTypeRef _st ref = do
+        outCodeLine' [qc|ref: {ref}|]
+        return $ PSTOther ref
+    processTypeComplex _st _mixed _attrs tyPartProcessor =
+        (\(PTESeq names) -> PSTComplex names) <$> withIndent tyPartProcessor
+
+    processElement _st minOccurs maxOccurs eName _targetNamespace typeProcessor = do
+        let parserElementName = [qc|parse{eName}|]
+        -- outCodeLine' [qc|-- processElement "{eName}, minOccurs = {minOccurs}, maxOccurs = {maxOccurs}" \{|]
+        outCodeLine' [qc|{parserElementName} arrayBegin tagBegin' = do|]
+        outCodeLine' [qc|    let tagBegin = skipSpaces bs tagBegin'|]
+        outCodeLine' [qc|    ensure tagBegin "<{eName}>"|]
+        outCodeLine' [qc|    let contentBegin = tagBegin + {BS.length eName}|]
+        withIndent typeProcessor >>= \case
+            PSTOther {} ->
+                outCodeLine' [qc|    -- TODO don't know how to read complex type|]
+            _           -> do
+                outCodeLine' [qc|    let contentEnd = skipToOpenTag bs contentBegin|]
+        outCodeLine' [qc|    ensure contentEnd "</{eName}>"|]
+        outCodeLine' [qc|    UMV.unsafeWrite vec arrayBegin       contentBegin|]
+        outCodeLine' [qc|    UMV.unsafeWrite vec (arrayBegin + 1) (contentEnd - contentBegin)|]
+        outCodeLine' [qc|    return $ contentEnd + {BS.length eName + 1}|]
+        return $ PSE parserElementName
+
+    processTyPartSeq _st listTrav = do
+        withIndent listTrav >>=
+            return . PTESeq . map (\case
+                    PTEElt elt -> elt
+                    x -> error [qc|Don't know how to process {x}|])
+    processTyPartChoice _st _listTrav = outCodeLine' [qc|processTyPartChoice|] >> return (PTEOther "<<<processTyPartChoice>>>")
+    processTyPartAll _st _listTrav    = outCodeLine' [qc|processTyPartAll|]    >> return (PTEOther "<<<processTyPartChoice>>>")
+    processTyPartElt _st elTrav = (\(PSE parserName) -> PTEElt parserName) <$> elTrav
+    end _ = do
+        outCodeLine "-- FINISH PARSER GEN --"
+
+
+
+traverseSchema :: forall st . SchemaProcessor st => Schema -> st -> CG ()
+traverseSchema Schema{..} st = do
+    start namespace st
+    mapM_ traverseSchemaType $ Map.toList types
+    traverseTops tops
+    end st
+  where
+    traverseSchemaType :: (XMLString, Type) -> CG ()
+    traverseSchemaType (name, ty) =
+        processRootTypes name ty (traverseType ty) st
+
+    traverseElement :: Element -> CG (ElementTraversableResult st)
+    traverseElement Element{..} = processElement st minOccurs maxOccurs eName targetNamespace (traverseType eType)
+
+    traverseType :: Type -> CG (TypeTraversableResult st)
+    traverseType (Ref str)          = processTypeRef st str
+    traverseType (c@(Complex {..})) = processTypeComplex st mixed attrs (traverseTyPart inner)
+    traverseType _ = error "traverseType : unknown"
+
+    traverseTyPart :: TyPart -> CG (TyPartTraversableResult st)
+    traverseTyPart (Seq parts)    = processTyPartSeq    st (traverseTyPartList parts)
+    traverseTyPart (Choice parts) = processTyPartChoice st (traverseTyPartList parts)
+    traverseTyPart (All parts)    = processTyPartAll    st (traverseTyPartList parts)
+    traverseTyPart (Elt element)  = processTyPartElt    st (traverseElement element)
+
+    traverseTyPartList :: [TyPart] -> CG [TyPartTraversableResult st]
+    traverseTyPartList typarts = mapM traverseTyPart typarts
+
+    traverseTops :: [Element] -> CG ()
+    traverseTops _ = return ()
+
+
+generateParser :: Schema -> CG ()
+generateParser sch = traverseSchema sch (undefined :: ParserST)
+
+
+generateParser_ :: Schema -> CG ()
+generateParser_ sch = do
+    when ((length $ tops sch) /= 1) $ error "Unsupported count of tops"
+    --
+    outCodeLine "{-# LANGUAGE DeriveAnyClass    #-}"
+    outCodeLine "{-# LANGUAGE DeriveGeneric     #-}"
+    outCodeLine "{-# LANGUAGE LambdaCase        #-}"
+    outCodeLine "{-# LANGUAGE OverloadedStrings #-}"
+    outCodeLine "{-# LANGUAGE RankNTypes        #-}"
+    outCodeLine "{-# LANGUAGE RecordWildCards   #-}"
+    outCodeLine "{-# LANGUAGE TupleSections     #-}"
+    outCodeLine "module Parser (parse, parseToArray) where"
+    --
+    outCodeLine "import Control.DeepSeq"
+    outCodeLine "import Control.Monad.ST"
+    outCodeLine "import Data.ByteString (ByteString)"
+    outCodeLine "import Data.Char"
+    outCodeLine "import Data.Functor.Identity"
+    outCodeLine "import Data.Time.Format"
+    outCodeLine "import Data.Time.LocalTime(ZonedTime)"
+    outCodeLine "import Data.Word"
+    outCodeLine "import GHC.Generics"
+    outCodeLine "import qualified Data.ByteString as BS"
+    outCodeLine "import qualified Data.ByteString.Char8 as BSC"
+    outCodeLine "import qualified Data.ByteString.Unsafe as BSU"
+    outCodeLine "import qualified Data.Vector.Unboxed as UV"
+    outCodeLine "import qualified Data.Vector.Unboxed.Mutable as UMV"
+    outCodeLine "import CustomerOrdersTypes"
+    outCodeLine ""
+    outCodeLine "-- | Internal representation of TopLevel"
+    outCodeLine "data TopLevelInternal = TopLevelInternal !ByteString !(UV.Vector Int) deriving (Generic, NFData, Show)"
+    outCodeLine ""
+    generateParserPrelude (head $ tops sch)
+  where
+    generateParserPrelude elt@Element{..} = do
+        outCodeLine "parseToArray :: ByteString -> Either String TopLevelInternal"
+        outCodeLine "parseToArray bs = Right $ TopLevelInternal bs $ UV.create $ do"
+        outCodeLine "    vec <- UMV.unsafeNew ((BS.length bs `div` 7) * 2) -- minimal tag: <a></a> (7 bytes), 2 places per tag"
+        outCodeLine [qc|    _ <- parse{eName} vec|]
+        outCodeLine "    return vec"
+        outCodeLine "  where"
+        generateParserTop elt
+    generateParserTop element@Element{..} = do
+        code 1 [qc|parser{eName} :: forall s . UMV.STVector s Int -> ST s Int|]
+        code 1 [qc|parser{eName} vec = do|]
+        generateElement' False element
+    generateElement :: Element -> CG ()
+    generateElement = generateElement' True
+    generateElement' :: Bool -> Element -> CG ()
+    generateElement' isMakeHeader Element{..} =
+        case eType of
+          Complex {..} -> do
+              when isMakeHeader $ code 1 [qc|parser{eName} = do|]
+              case inner of
+                Seq inr -> generateParserForSeq inr
+                x -> error $ "Unimplemented : " ++ show x
+              return ()
+          Ref n -> code 2 [qc|<<<{n}>>>|]
+          x -> error $ "generateElement': Unimplemented: " ++ show x
+    generateParserForSeq :: [TyPart] -> CG ()
+    generateParserForSeq = mapM_ $ generateElt
+    generateElt (Elt el) = code 2 [qc|parse{eName el}|]
+    generateElt x = error $ "generateElt: unimplemented: " ++ show x
+              {-
+        outCodeLine [qc|    parser{eName} vec = do|]
+        outCodeLine [qc|        UMV.unsafeWrite vec (0::Int) (0::Int)|]
+        outCodeLine [qc|        let tagStart = skipSpaces bs $ skipHeader $ skipSpaces bs 0|]
+        generateCheckTagStart (BS.unpack eName)
+    generateCheckTagStart eName = do
+        code 2 [qc|if    BSU.unsafeIndex bs tagStart == fromIntegral (ord '<')|]
+        forM_ (zip eName [(1::Int)..]) $ \(c, i) -> do
+            code 2 [qc|   && BSU.unsafeIndex bs (tagStart + {i}) == fromIntegral (ord '{c}')|]
+        code 2     [qc|   && BSU.unsafeIndex bs (tagStart + {length eName}) == fromIntegral (ord '>')|]
+        code 2     [qc|then return () else return () |]
+        -}
+    code n src = outCodeLine $ replicate (n * 4) ' ' ++ src

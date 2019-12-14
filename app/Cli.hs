@@ -7,10 +7,12 @@ import           System.Environment
 import           System.Exit(exitFailure)
 import           System.IO(stdout, stderr, hPutStrLn, hFlush)
 import           Xeno.Errors(printExceptions)
+import           Text.Pretty.Simple
 
 import Analyze
 import CodeGen
 import Parser
+import Schema
 
 -- import TestSet
 
@@ -28,6 +30,8 @@ whenJust  Nothing _   = return ()
 --                ,"../tuxml/tuxml_schema-883.xsd"
 --                ]-}
 
+
+
 processFile :: FilePath -> IO ()
 processFile filename = do
     --putStrLn     $ "Starting to process " <> filename
@@ -36,6 +40,7 @@ processFile filename = do
     whenJust maybeSchema $ \schema -> do
       --putStrLn $ "Successfully parsed " <> filename <> ": " <> show schema
       let (analyzed, schemaErrors) = analyze schema
+      pPrint analyzed
       null schemaErrors `unless` printExceptions input schemaErrors
       --putStrLn "Analysis:"
       printExceptions input $ check analyzed
@@ -43,7 +48,9 @@ processFile filename = do
       hFlush stdout
       generatedCode <- codegen analyzed
       putStrLn generatedCode
-      hFlush stdout
+      -- **************
+      generatedParser <- parserCodegen analyzed
+      putStrLn generatedParser
 
 main :: IO ()
 main  = do
