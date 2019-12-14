@@ -40,13 +40,16 @@ newtype ID = ID XMLString
 data MaxOccurs = Unbounded | MaxOccurs Int
   deriving (Eq, Ord, Generic, NFData, Data, Typeable, Show, Read)
 
+type ElementName = XMLString
+
+type NamespaceName = XMLString
 
 data Element = Element {
     minOccurs       :: !Int
   , maxOccurs       :: !MaxOccurs
-  , eName           :: !XMLString
+  , eName           :: !ElementName
   , eType           :: !Type
-  , targetNamespace :: !XMLString
+  , targetNamespace :: !NamespaceName
   }
   deriving (Eq, Ord, Show, Generic, NFData, Data, Typeable)
 
