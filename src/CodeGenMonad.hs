@@ -39,6 +39,10 @@ module CodeGenMonad(-- Code generation monad
                    ,builderLength
                    ,bshow
                    ,bToS
+
+                   ,incIndent
+                   ,decIndent
+                   ,getIndent
                    ) where
 
 import           Prelude hiding(lookup)
@@ -86,6 +90,10 @@ data CGState =
     _translations         :: Map.Map (IdClass,    XMLString) XMLString
     -- | Set of translation target names that were used before (and are thus unavailable.)
   , _allocatedIdentifiers :: Set.Set (TargetIdNS, XMLString)
+
+
+  -- FOR GENERATING
+  , _indent :: Int
   }
 makeLenses ''CGState
 
@@ -199,5 +207,22 @@ builderLength  = fromIntegral . BSL.length . B.toLazyByteString
 
 bToS :: B.Builder -> String
 bToS = BS.unpack . BSL.toStrict . B.toLazyByteString
+
+
+
+incIndent :: CG ()
+incIndent = do
+    st@CGState{_indent} <- RWS.get
+    RWS.put $ st { _indent = _indent + 2 }
+
+
+decIndent :: CG ()
+decIndent = do
+    st@CGState{_indent} <- RWS.get
+    RWS.put $ st { _indent = _indent - 2 }
+
+
+getIndent :: CG Int
+getIndent = RWS.gets _indent
 
 
