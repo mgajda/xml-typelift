@@ -110,6 +110,23 @@ executables:
       - time
       - vector
     ghc-options: -O2
+  parser7:
+    main: Main.hs
+    source-dirs:
+      - lib
+      - bench/proto/lib
+      - bench/proto/main/parser7
+      - bench/proto/parsers
+      - xeno-proposal
+    dependencies:
+      - ghc-prim
+      - megaparsec
+      - pretty
+      - xml-typelift
+      - scientific
+      - time
+      - vector
+    ghc-options: -O2
 
 tests:
   unit-tests:
