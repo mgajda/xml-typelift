@@ -7,7 +7,6 @@ module Main where
 import Control.Monad
 import Control.DeepSeq
 import Xeno.SAX
-import qualified Data.ByteString as BS
 import Weigh
 
 import Parser1
@@ -18,6 +17,7 @@ import Parser3
 import Parser4
 import Parser5
 import Parser6
+import Parser7
 
 import System.IO.MMap
 
@@ -46,4 +46,5 @@ main = do
             func (nm ++ "_parser4") parseMethod4 input
             io   (nm ++ "_parser5") parseMethod5 input
             func (nm ++ "_parser6") parseMethod6 input
+            func (nm ++ "_parser7") parseMethod7 input
 

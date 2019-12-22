@@ -15,6 +15,7 @@ import Parser3
 import Parser4
 import Parser5
 import Parser6
+import Parser7
 
 
 filenames :: [(String, FilePath)]
@@ -52,6 +53,8 @@ main =
                     , bench "parser-5"              $ nfAppIO parseMethod5 input
                     , bench "parser-6"              $ nf parseMethod6 input
                     , bench "parser-6-only-events"  $ nf parseMethod6OnlyEvents input
+                    , bench "parser-7"              $ nf parseMethod7 input
+                    , bench "parser-7-only-array"   $ nf parseToArray7 input
                     ]))
             filenames
 

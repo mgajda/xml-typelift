@@ -128,12 +128,11 @@ parseToArray inputStr = Right $ runST $ do
                         return $ processCustomer ofs
                     , closeF = \tag -> processOrders ofs <$ assertTag tag "Customers"
                     }
-
         processCustomer ofs = p {
                       openF =  \tag -> processCompanyName ofs False <$ assertTag tag "Customer"
                     , closeF = \tag -> do
                         assertTag tag "Customer"
-                        UMV.unsafeModify vec succ 0
+                        UMV.unsafeModify vec succ 0 -- TODO if we can get *total numbers* of customers (or offset to last element), we can write this number only once after processing all customers
                         return $ processCustomerOrCustomers ofs
                     }
         processCustomerOrCustomers ofs = p {
@@ -221,7 +220,7 @@ parseToArray inputStr = Right $ runST $ do
               }
     --
     Xeno.process processRoot inputStr
-    arr <- UV.unsafeFreeze vec
+    arr <- UV.unsafeFreeze vec -- TODO only part of array!
     return $ TopLevelNode inputStr arr
 {-# INLINE parseToArray #-}
 
