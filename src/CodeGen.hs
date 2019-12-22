@@ -1,15 +1,15 @@
+{-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE NamedFieldPuns        #-}
-{-# LANGUAGE LambdaCase        #-}
-{-# LANGUAGE TypeFamilies        #-}
 {-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE QuasiQuotes           #-}
 {-# LANGUAGE RecordWildCards       #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
+{-# LANGUAGE TemplateHaskell       #-}
+{-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE ViewPatterns          #-}
-{-# LANGUAGE TemplateHaskell          #-}
 {-# OPTIONS_GHC -fno-warn-orphans  #-}
 -- | Here we aim to analyze the schema.
-module CodeGen(codegen, parserCodegen) where
+module CodeGen(codegen, parserCodegen, parserCodegen1) where
 
 
 import           Prelude hiding(lookup, id)
@@ -31,7 +31,9 @@ import           CodeGenMonad
 import           Schema
 import           TypeDecls
 
-import Data.Proxy
+
+import Data.Map (Map)
+
 
 import qualified Control.Monad.RWS.Strict   as RWS -- TODO REMOVE AND use own methods
 
@@ -180,6 +182,11 @@ codegen sch = codegen' sch (generateSchema sch)
 -- | Make parser for schema
 parserCodegen :: Schema -> IO String
 parserCodegen sch = codegen' sch (generateParser sch)
+
+
+-- | Make parser for schema
+parserCodegen1 :: Schema -> IO String
+parserCodegen1 sch = codegen' sch (generateParser1 sch)
 
 
 -- | Generate content type, and put an type name on it.
@@ -374,6 +381,10 @@ instance SchemaProcessor ParserST where
         outCodeLine "-- FINISH PARSER GEN --"
 
 
+-- Возможно, просто переделать через список колбэков.
+-- Тогда нет нужды в конкретной монаде CG и, вроде бы, можно обойтись без типов; точнее, их можно перечислить в
+-- traverseSchema и всё.
+
 
 traverseSchema :: forall st . SchemaProcessor st => Schema -> st -> CG ()
 traverseSchema Schema{..} st = do
@@ -383,16 +394,15 @@ traverseSchema Schema{..} st = do
     end st
   where
     traverseSchemaType :: (XMLString, Type) -> CG ()
-    traverseSchemaType (name, ty) =
-        processRootTypes name ty (traverseType ty) st
+    traverseSchemaType (name, ty) = processRootTypes name ty (traverseType ty) st
 
     traverseElement :: Element -> CG (ElementTraversableResult st)
-    traverseElement Element{..} = processElement st minOccurs maxOccurs eName targetNamespace (traverseType eType)
+    traverseElement Element{..}   = processElement st minOccurs maxOccurs eName targetNamespace (traverseType eType)
 
     traverseType :: Type -> CG (TypeTraversableResult st)
-    traverseType (Ref str)          = processTypeRef st str
-    traverseType (c@(Complex {..})) = processTypeComplex st mixed attrs (traverseTyPart inner)
-    traverseType _ = error "traverseType : unknown"
+    traverseType (Ref str)        = processTypeRef st str
+    traverseType (Complex {..})   = processTypeComplex st mixed attrs (traverseTyPart inner)
+    traverseType _                = error "traverseType : unknown"
 
     traverseTyPart :: TyPart -> CG (TyPartTraversableResult st)
     traverseTyPart (Seq parts)    = processTyPartSeq    st (traverseTyPartList parts)
@@ -401,7 +411,7 @@ traverseSchema Schema{..} st = do
     traverseTyPart (Elt element)  = processTyPartElt    st (traverseElement element)
 
     traverseTyPartList :: [TyPart] -> CG [TyPartTraversableResult st]
-    traverseTyPartList typarts = mapM traverseTyPart typarts
+    traverseTyPartList typarts    = mapM traverseTyPart typarts
 
     traverseTops :: [Element] -> CG ()
     traverseTops _ = return ()
@@ -410,3 +420,47 @@ traverseSchema Schema{..} st = do
 generateParser :: Schema -> CG ()
 generateParser sch = traverseSchema sch (undefined :: ParserST)
 
+
+-- ---------------------------------------------------------------------------------------------------
+
+makeSchemaTraversor :: forall types tops m a
+                    .  (Monad m)
+                    => (Map XMLString Type -> m types)
+                    -> ([Element] -> m tops)
+                    -> Schema
+                    -> (m types -> m tops -> m a)
+                    -> m a
+makeSchemaTraversor typesTraversor topsTraversor Schema{..} act = act (typesTraversor types) (topsTraversor tops)
+
+
+
+generateParser1 :: Schema -> CG ()
+generateParser1 sch = schemaParser
+  where
+    schemaParser = makeSchemaTraversor (mapM topTypeTraversor . Map.toList) (mapM topTraversor) sch $ \types tops -> do
+        outCodeLine [qc|-- PARSER --|]
+        (typeNames, typesCode) <- cut types
+        outCodeLine [qc|-- types: {typeNames}|]
+        (topNames, topsCode) <- cut tops
+        outCodeLine [qc|-- tops: {topNames}|]
+        outCodeLine [qc|---- code for parsing types: --|]
+        RWS.tell typesCode
+        outCodeLine [qc|---- code for parsing tops: --|]
+        RWS.tell topsCode
+    topTypeTraversor (typeName, typ) = case typ of
+        Ref str -> return str
+        Complex{..} -> do
+            tyPart <- tyPartTraversor inner
+            outCodeLine [qc|parse{typeName} = ...{tyPart}...|]
+            return typeName
+        x -> error [qc|Don't know how to generate {x}|]
+    topTraversor Element{..} = do
+        outCodeLine [qc|topParser{eName} = undefined|]
+        return eName
+    tyPartTraversor (Elt (Element{eName})) = return [qc|tyPartTraversor (Elt (Element -- {eName}))|]
+    -- tyPartTraversor (Seq typarts) = undefined -- mapM tyPartTraversor typarts
+    tyPartTraversor x = return [qc|{x}|]
+
+
+
+-- ---------------------------------------------------------------------------------------------------

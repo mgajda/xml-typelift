@@ -49,7 +49,8 @@ processFile filename = do
       generatedCode <- codegen analyzed
       putStrLn generatedCode
       -- **************
-      generatedParser <- parserCodegen analyzed
+      putStrLn "*** PARSER: ***"
+      generatedParser <- parserCodegen1 analyzed
       putStrLn generatedParser
 
 main :: IO ()
