@@ -7,6 +7,7 @@
 {-# LANGUAGE TemplateHaskell       #-}
 {-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE ViewPatterns          #-}
+{-# LANGUAGE ExistentialQuantification #-}
 {-# OPTIONS_GHC -fno-warn-orphans  #-}
 -- | Here we aim to analyze the schema.
 module CodeGen(codegen, parserCodegen, parserCodegen1) where
@@ -15,6 +16,7 @@ module CodeGen(codegen, parserCodegen, parserCodegen1) where
 import           Prelude hiding(lookup, id)
 
 import           Control.Arrow
+import           Control.Monad.Fix
 import           Control.Monad(forM, forM_, when)
 import qualified Data.ByteString.Builder     as B
 import qualified Data.ByteString.Char8       as BS
@@ -31,6 +33,7 @@ import           CodeGenMonad
 import           Schema
 import           TypeDecls
 
+import Data.Generics.Uniplate.Operations
 
 import Data.Map (Map)
 
@@ -249,55 +252,6 @@ instance Show B.Builder where
 -- * ----------------------------------------------------------------------------------------------
 
 
-
-
-class SchemaProcessor a where
-    type ElementTraversableResult a :: *
-    type TypeTraversableResult a :: *
-    type TyPartTraversableResult a :: *
-
-    start :: XMLString {-namespace-} -> a -> CG ()
-
-    processRootTypes :: XMLString -> Type -> (CG (TypeTraversableResult a)) -> a -> CG ()
-
-    processElement    :: a -> Int -> MaxOccurs -> ElementName -> NamespaceName -> CG (TypeTraversableResult a)
-                      ->  CG (ElementTraversableResult a)
-
-    processTypeRef     :: a -> XMLString -> CG (TypeTraversableResult a)
-    processTypeComplex :: a -> Bool -> [Attr] -> CG (TyPartTraversableResult a) -> CG (TypeTraversableResult a)
-
-    processTyPartSeq    :: a -> CG ([TyPartTraversableResult a])  -> CG (TyPartTraversableResult a)
-    processTyPartChoice :: a -> CG ([TyPartTraversableResult a])  -> CG (TyPartTraversableResult a)
-    processTyPartAll    :: a -> CG ([TyPartTraversableResult a])  -> CG (TyPartTraversableResult a)
-    processTyPartElt    :: a -> CG (ElementTraversableResult a) -> CG (TyPartTraversableResult a)
-
-
-    end :: a -> CG ()
-
-
--- ~~~
-
-type ParserName = XMLString
-
-data ParserST
-
-data ParserSTTypeTraversableResultX = ParserSTTypeTraversableResultX XMLString deriving Show
-
-data ParserSTTypeTraversableResult = PSTString
-                                   | PSTDecimal
-                                   | PSTInteger
-                                   | PSTDateTime
-                                   | PSTOther XMLString
-                                   | PSTComplex [ParserName] -- names of underlaying parsers (just for draft)
-                                   deriving Show
-
-data ParserSTElementTraversableResult = PSE XMLString
-
-data ParserSTTyTypeTraversableResult = PTESeq [ParserName] -- names of underlaying parsers
-                                     | PTEElt XMLString
-                                     | PTEOther XMLString
-                                     deriving Show
-
 outCodeLine' :: String -> CG ()
 outCodeLine' msg = do
     ind <- getIndent
@@ -311,156 +265,77 @@ withIndent act = do -- TODO use `bracket`
     decIndent
     return r
 
-instance SchemaProcessor ParserST where
-    type ElementTraversableResult ParserST = ParserSTElementTraversableResult
-
-    type TyPartTraversableResult ParserST = ParserSTTyTypeTraversableResult
-
-    type TypeTraversableResult ParserST = ParserSTTypeTraversableResult
-
-    start _namespace _ = do
-        outCodeLine "-- START PARSER GEN --"
-
-    processRootTypes schName _schType typeTraversor _ = do
-        outCodeLine' [qc|--|]
-        outCodeLine' [qc|--|]
-        outCodeLine' [qc|-- processRootTypes {schName}|]
-        outCodeLine' [qc|parse{schName} arrayBegin strBegin' = do|]
-        outCodeLine' [qc|  let strBegin = skipSpaces bs strBegin'|]
-        (r, parsersCode) <- cut $ withIndent typeTraversor
-        withIndent $
-            case r of
-                PSTComplex [] -> error "Empty array"
-                PSTComplex (firstParserName : parserNames) -> do
-                    outCodeLine' [qc|strContentEnd'|]
-                    outCodeLine' [qc|    <-  {firstParserName} arrayBegin strBegin|]
-                    forM_ (zip parserNames [2::Int,4..]) $ \(parserName, arrayShift) ->
-                        outCodeLine' [qc|    >>= {parserName} (arrayBegin + {arrayShift})|]
-                    outCodeLine' [qc|return $ skpiSpaces bs strContentEnd'|]
-                x -> error [qc|Don't know how to generate {x}|]
-        outCodeLine' [qc|  where|]
-        RWS.tell parsersCode
-        -- outCodeLine [qc|processRootTypes : traversor result: {r}|]
-    processTypeRef _st "xs:string"   = return PSTString
-    processTypeRef _st "xs:integer"  = return PSTInteger
-    processTypeRef _st "xs:dateTime" = return PSTDateTime
-    processTypeRef _st "xs:decimal"  = return PSTDecimal
-    processTypeRef _st ref = do
-        outCodeLine' [qc|ref: {ref}|]
-        return $ PSTOther ref
-    processTypeComplex _st _mixed _attrs tyPartProcessor =
-        (\(PTESeq names) -> PSTComplex names) <$> withIndent tyPartProcessor
-
-    processElement _st minOccurs maxOccurs eName _targetNamespace typeProcessor = do
-        let parserElementName = [qc|parse{eName}|]
-        -- outCodeLine' [qc|-- processElement "{eName}, minOccurs = {minOccurs}, maxOccurs = {maxOccurs}" \{|]
-        outCodeLine' [qc|{parserElementName} arrayBegin tagBegin' = do|]
-        outCodeLine' [qc|    let tagBegin = skipSpaces bs tagBegin'|]
-        outCodeLine' [qc|    ensure tagBegin "<{eName}>"|]
-        outCodeLine' [qc|    let contentBegin = tagBegin + {BS.length eName}|]
-        withIndent typeProcessor >>= \case
-            PSTOther {} ->
-                outCodeLine' [qc|    -- TODO don't know how to read complex type|]
-            _           -> do
-                outCodeLine' [qc|    let contentEnd = skipToOpenTag bs contentBegin|]
-        outCodeLine' [qc|    ensure contentEnd "</{eName}>"|]
-        outCodeLine' [qc|    UMV.unsafeWrite vec arrayBegin       contentBegin|]
-        outCodeLine' [qc|    UMV.unsafeWrite vec (arrayBegin + 1) (contentEnd - contentBegin)|]
-        outCodeLine' [qc|    return $ contentEnd + {BS.length eName + 1}|]
-        return $ PSE parserElementName
-
-    processTyPartSeq _st listTrav = do
-        withIndent listTrav >>=
-            return . PTESeq . map (\case
-                    PTEElt elt -> elt
-                    x -> error [qc|Don't know how to process {x}|])
-    processTyPartChoice _st _listTrav = outCodeLine' [qc|processTyPartChoice|] >> return (PTEOther "<<<processTyPartChoice>>>")
-    processTyPartAll _st _listTrav    = outCodeLine' [qc|processTyPartAll|]    >> return (PTEOther "<<<processTyPartChoice>>>")
-    processTyPartElt _st elTrav = (\(PSE parserName) -> PTEElt parserName) <$> elTrav
-    end _ = do
-        outCodeLine "-- FINISH PARSER GEN --"
-
-
--- Возможно, просто переделать через список колбэков.
--- Тогда нет нужды в конкретной монаде CG и, вроде бы, можно обойтись без типов; точнее, их можно перечислить в
--- traverseSchema и всё.
-
-
-traverseSchema :: forall st . SchemaProcessor st => Schema -> st -> CG ()
-traverseSchema Schema{..} st = do
-    start namespace st
-    mapM_ traverseSchemaType $ Map.toList types
-    traverseTops tops
-    end st
-  where
-    traverseSchemaType :: (XMLString, Type) -> CG ()
-    traverseSchemaType (name, ty) = processRootTypes name ty (traverseType ty) st
-
-    traverseElement :: Element -> CG (ElementTraversableResult st)
-    traverseElement Element{..}   = processElement st minOccurs maxOccurs eName targetNamespace (traverseType eType)
-
-    traverseType :: Type -> CG (TypeTraversableResult st)
-    traverseType (Ref str)        = processTypeRef st str
-    traverseType (Complex {..})   = processTypeComplex st mixed attrs (traverseTyPart inner)
-    traverseType _                = error "traverseType : unknown"
-
-    traverseTyPart :: TyPart -> CG (TyPartTraversableResult st)
-    traverseTyPart (Seq parts)    = processTyPartSeq    st (traverseTyPartList parts)
-    traverseTyPart (Choice parts) = processTyPartChoice st (traverseTyPartList parts)
-    traverseTyPart (All parts)    = processTyPartAll    st (traverseTyPartList parts)
-    traverseTyPart (Elt element)  = processTyPartElt    st (traverseElement element)
-
-    traverseTyPartList :: [TyPart] -> CG [TyPartTraversableResult st]
-    traverseTyPartList typarts    = mapM traverseTyPart typarts
-
-    traverseTops :: [Element] -> CG ()
-    traverseTops _ = return ()
-
-
-generateParser :: Schema -> CG ()
-generateParser sch = traverseSchema sch (undefined :: ParserST)
-
-
--- ---------------------------------------------------------------------------------------------------
-
-makeSchemaTraversor :: forall types tops m a
-                    .  (Monad m)
-                    => (Map XMLString Type -> m types)
-                    -> ([Element] -> m tops)
-                    -> Schema
-                    -> (m types -> m tops -> m a)
-                    -> m a
-makeSchemaTraversor typesTraversor topsTraversor Schema{..} act = act (typesTraversor types) (topsTraversor tops)
-
 
 
 generateParser1 :: Schema -> CG ()
-generateParser1 sch = schemaParser
+generateParser1 Schema{..} = do
+    outCodeLine [qc|-- PARSER --|]
+    -- Generate parser header
+    forM_ tops $ \topEl -> do
+        let topName = eName topEl
+        when (minOccurs topEl /= 1) $ error [qc|Wrong minOccurs = {minOccurs topEl}|]
+        when (maxOccurs topEl /= MaxOccurs 1) $ error [qc|Wrong maxOccurs = {maxOccurs topEl}|]
+        outCodeLine' [qc|parse{eName topEl}ToArray :: ByteString -> Either String TopLevelInternal|]
+        outCodeLine' [qc|parse{eName topEl}ToArray bs = Right $ TopLevelInternal bs $ UV.create $ do|]
+        withIndent $ do
+            outCodeLine' [qc|vec <- UMV.unsafeNew ((BS.length bs `div` 7) * 2)|]
+            outCodeLine' [qc|parse{topName} vec|]
+            outCodeLine' [qc|return vec|]
+            outCodeLine' [qc|where|]
+            withIndent $ do
+                outCodeLine' [qc|parse{topName} :: forall s . UMV.STVector s Int -> ST s ()|]
+                outCodeLine' [qc|parse{topName} vec = do|]
+                withIndent $ do
+                    outCodeLine' [qc|let (_, _) <- inTag "{topName}" (skipSpaces $ skipHeader $ skipSpaces bs 0) $ parse{topName}Content|]
+                    outCodeLine' [qc|return ()|]
+    -- Generate parsers for certain types
+    let additionalTypes = extractAdditionalTypes tops -- TODO filter out repeated types
+    withIndent $ withIndent $ forM_ ((Map.toList types) ++ additionalTypes) $ \(typeName, ty) -> do
+        outCodeLine' [qc|parse{typeName}Content arrStart strStart = do|]
+        withIndent $ case ty of
+            Complex _ _ (Seq elts) -> do
+                let elements = map (\case (Elt e) -> e ; _ -> error [qc|Unsupported type: {take 100 $ show ty}|]) elts
+                let ofsNames' = (("arrStart", "strStart") : [ ( [qc|arrOfs{i}|], [qc|strOfs{i}|]) | i <- [(1::Int)..]])
+                                :: [(XMLString, XMLString)]
+                    ofsNames = zip ofsNames' (tail ofsNames')
+                forM_ (zip ofsNames elements) $ \(((arrOfs, strOfs), (arrOfs', strOfs')), el) -> do
+                    let parserName = getParserName (eType el) (eName el)
+                        (tagQuantifier::XMLString) = case el of
+                                Element 0 (MaxOccurs 1) _ _ _ -> "inMabyeTag"
+                                Element 1 (MaxOccurs 1) _ _ _ -> "inOneTag"
+                                Element 0 Unbounded     _ _ _ -> "inManyTags"
+                                Element m n             _ _ _ -> error [qc|Unsupported element quantities: ({m}, {n})|]
+                    outCodeLine' [qc|({arrOfs'}, {strOfs'}) <- {tagQuantifier} "{eName el}" {strOfs} $ parse{parserName} {arrOfs}|]
+                let endNum = length elements
+                outCodeLine' [qc|return (arrOfs{endNum}, strOfs{endNum})|]
+            Ref ref ->
+                outCodeLine' [qc|parse{ref}Content arrStart strStart|]
+            _ -> error [qc|Unsupported type: {take 100 $ show ty}|]
+    -- Generate auxiliary functions
+    withIndent $ do
+        outCodeLine' [qc|inOneTag   tag ofs inParser = undefined|]
+        outCodeLine' [qc|inMaybeTag tag ofs inParser = undefined|]
+        outCodeLine' [qc|inManyTags tag ofs inParser = undefined|]
+        outCodeLine' [qc|parseString   arrStart strStart = undefined|]
+        outCodeLine' [qc|parseDecimal  arrStart strStart = undefined|]
+        outCodeLine' [qc|parseDateTime arrStart strStart = undefined|]
+        outCodeLine' [qc|parseInteger  arrStart strStart = undefined|]
   where
-    schemaParser = makeSchemaTraversor (mapM topTypeTraversor . Map.toList) (mapM topTraversor) sch $ \types tops -> do
-        outCodeLine [qc|-- PARSER --|]
-        (typeNames, typesCode) <- cut types
-        outCodeLine [qc|-- types: {typeNames}|]
-        (topNames, topsCode) <- cut tops
-        outCodeLine [qc|-- tops: {topNames}|]
-        outCodeLine [qc|---- code for parsing types: --|]
-        RWS.tell typesCode
-        outCodeLine [qc|---- code for parsing tops: --|]
-        RWS.tell topsCode
-    topTypeTraversor (typeName, typ) = case typ of
-        Ref str -> return str
-        Complex{..} -> do
-            tyPart <- tyPartTraversor inner
-            outCodeLine [qc|parse{typeName} = ...{tyPart}...|]
-            return typeName
-        x -> error [qc|Don't know how to generate {x}|]
-    topTraversor Element{..} = do
-        outCodeLine [qc|topParser{eName} = undefined|]
-        return eName
-    tyPartTraversor (Elt (Element{eName})) = return [qc|tyPartTraversor (Elt (Element -- {eName}))|]
-    -- tyPartTraversor (Seq typarts) = undefined -- mapM tyPartTraversor typarts
-    tyPartTraversor x = return [qc|{x}|]
+    getParserName :: Type -> XMLString -> XMLString
+    getParserName (Ref "xs:integer") _  = "Integer"
+    getParserName (Ref "xs:decimal") _  = "Decimal"
+    getParserName (Ref "xs:string") _   = "String"
+    getParserName (Ref "xs:token") _    = "String"
+    getParserName (Ref "xs:dateTime") _ = "DateTime"
+    getParserName (Ref r) _             = [qc|{r}Content|]
+    getParserName (Complex {}) xname    = xname
+    getParserName t _                   = [qc|???{t}|]
+    extractAdditionalTypes :: [Element] -> [(XMLString, Type)]
+    extractAdditionalTypes elts =
+        let allElts = (universeBi elts :: [Element])
+        in map (\(Element _ _ name typ _) -> (name, typ)) allElts
 
 
 
--- ---------------------------------------------------------------------------------------------------
+
+
