@@ -10,13 +10,14 @@
 {-# LANGUAGE ExistentialQuantification #-}
 {-# OPTIONS_GHC -fno-warn-orphans  #-}
 -- | Here we aim to analyze the schema.
-module CodeGen(codegen, parserCodegen, parserCodegen1) where
+module CodeGen(codegen, parserCodegen1) where
 
 
 import           Prelude hiding(lookup, id)
 
 import           Control.Arrow
 import           Control.Monad.Fix
+import           Control.Monad
 import           Control.Monad(forM, forM_, when)
 import qualified Data.ByteString.Builder     as B
 import qualified Data.ByteString.Char8       as BS
@@ -36,6 +37,8 @@ import           TypeDecls
 import Data.Generics.Uniplate.Operations
 
 import Data.Map (Map)
+
+import Identifiers
 
 
 import qualified Control.Monad.RWS.Strict   as RWS -- TODO REMOVE AND use own methods
@@ -183,11 +186,6 @@ codegen sch = codegen' sch (generateSchema sch)
 
 
 -- | Make parser for schema
-parserCodegen :: Schema -> IO String
-parserCodegen sch = codegen' sch (generateParser sch)
-
-
--- | Make parser for schema
 parserCodegen1 :: Schema -> IO String
 parserCodegen1 sch = codegen' sch (generateParser1 sch)
 
@@ -265,10 +263,15 @@ withIndent act = do -- TODO use `bracket`
     decIndent
     return r
 
-
-
 generateParser1 :: Schema -> CG ()
-generateParser1 Schema{..} = do
+generateParser1 schema = do
+    outCodeLine [qc|-- PARSER --|]
+    -- generateParserInternalArray schema
+    generateParserExtractTopLevel schema
+
+
+generateParserInternalArray :: Schema -> CG ()
+generateParserInternalArray Schema{..} = do
     outCodeLine [qc|-- PARSER --|]
     -- Generate parser header
     forM_ tops $ \topEl -> do
@@ -330,6 +333,99 @@ generateParser1 Schema{..} = do
     getParserName (Ref r) _             = [qc|{r}Content|]
     getParserName (Complex {}) xname    = xname
     getParserName t _                   = [qc|???{t}|]
+    extractAdditionalTypes :: [Element] -> [(XMLString, Type)]
+    extractAdditionalTypes elts =
+        let allElts = (universeBi elts :: [Element])
+        in map (\(Element _ _ name typ _) -> (name, typ)) allElts
+
+
+generateParserExtractTopLevel :: Schema -> CG ()
+generateParserExtractTopLevel Schema{..} = do
+    forM_ tops $ \topEl -> do
+        let name = eName topEl
+        outCodeLine' [qc|extract{name} :: TopLevelInternal -> {name}|]
+        outCodeLine' [qc|extract{name} (TopLevelInternal bs arr) = extract{name}Content 0|]
+        --case topEl of
+        --    Element _ _ _ (Complex _ _ (Seq elements)) _ -> do
+        --        let elementNames = map (\case Elt (Element{eName}) -> [qc|extract{eName}|] ; x -> error [qc|Don't know how generate {x}|]) elements
+        --        withIndent $ outCodeLine' [qc|{name} {BS.intercalate " " elementNames}|]
+        --    _ -> error [qc|Don't know how to generate code for {take 100 $ show topEl}|]
+    withIndent $ do
+        outCodeLine' "where"
+        let additionalTypes = extractAdditionalTypes tops -- TODO filter out repeated types
+        withIndent $ forM_ ((Map.toList types) ++ additionalTypes) $ \(typeName, ty) -> do
+            case ty of
+                Complex _ attrs (Seq elts) -> do
+                    outCodeLine' [qc|extract{typeName}Content ofs = {typeName}|]
+                    withIndent $ do
+                        let elements = map (\case (Elt e) -> e ; _ -> error [qc|Unsupported type: {take 100 $ show ty}|]) elts
+                            separators = '{' : repeat ','
+                            separator' = if null attrs then '{' else ','
+                        forM_ (zip attrs separators) $ \(attr, sep) -> outCodeLine' [qc|{sep} {aName attr} = Nothing|]
+                        foldM_ (\(sep, (simpleOfs, calcOfs)) el -> do
+                                let (en, isPrimitive) = getExtractorNameAndOfs (eType el) (eName el)
+                                    ofsSimpleStr = if simpleOfs == 0 then "" else [qc| + {simpleOfs}|]
+                                    ofsCalcStr = mconcat (map (\co -> [qc| + {co}|]) calcOfs)
+                                    ofsStr::XMLString =
+                                        if BS.null ofsSimpleStr && BS.null ofsCalcStr
+                                        then "ofs"
+                                        else [qc|(ofs{ofsSimpleStr}{ofsCalcStr})|]
+                                    (simpleOfs', calcOfs') =
+                                        if isPrimitive
+                                        then (simpleOfs + 2, calcOfs)
+                                        else (simpleOfs, [qc|getOffsAfter{en} ofs|] : calcOfs)
+                                    (fieldQuantifier::(Maybe XMLString)) = case el of
+                                            Element 0 (MaxOccurs 1) _ _ _ -> Just "extractMaybe"
+                                            Element 1 (MaxOccurs 1) _ _ _ -> Nothing
+                                            Element 0 Unbounded     _ _ _ -> Just "extractMany"
+                                            Element m n             _ _ _ -> error [qc|Unsupported element quantities: ({m}, {n})|]
+                                    -- TODO `extractMany` reads **offset to the end of list**, and
+                                    --      then reads all list until end is reached.
+                                    --
+                                    --      So it is need to save offset to end of list in `inManyTags` in previous
+                                    --      parser: it skip one cell in array, then read list, then save offset it that
+                                    --      skipped cell.
+                                    --
+                                    --      So `extractMany` can read this first cell and then use it.
+                                    --
+                                    --      Also `getOffsAfterXXX` can universally read it, so we do not need special
+                                    --      `getOffsAffterXXX`, we just need `getEnd (getEnd (getEnd offs + K) + L) + M` which
+                                    --      simple jumps to ends of arrays (and skip primitive offsets K, L, M).
+                                    --
+                                    --      BTW, so we need sequental list of this skipping and special tests for that.
+                                    --
+                                    --      But now we can suppose that arrays only at the end of struct and `error` other
+                                    --      structures.
+                                    --
+                                    --      TODO
+                                    --      No, problem is that structures can be variable... So we need to precalculate
+                                    --      in generation time does it stable or variable structure. And then decide how
+                                    --      to store array...
+                                    --
+                                    --      At first version we can just output pair `(parsed value, readed size)`.
+                                    --      Then it is need to benchmark and make more simple version.
+                                    --
+                                    extractor'::XMLString = [qc|extract{en}Content|]
+                                    extractor::XMLString = maybe [qc|{extractor'} {ofsStr}|] (\fq -> [qc|{fq} {ofsStr} $ {extractor'}|]) fieldQuantifier
+                                outCodeLine' [qc|{sep} {normalizeFieldName $ eName el} = {extractor}|]
+                                return (',', (simpleOfs', calcOfs'))
+                                )
+                            (separator', (0::Int, []::[XMLString]))
+                            elements
+                        outCodeLine' "}"
+                Ref ref ->
+                    outCodeLine' [qc|extract{typeName}Content ofs = extract{ref}Content ofs|]
+                _ -> error [qc|Unsupported type: {take 100 $ show ty}|]
+  where
+    getExtractorNameAndOfs :: Type -> XMLString -> (XMLString, Bool)
+    getExtractorNameAndOfs (Ref "xs:integer") _  = ("Integer",  True)
+    getExtractorNameAndOfs (Ref "xs:decimal") _  = ("Decimal",  True)
+    getExtractorNameAndOfs (Ref "xs:string") _   = ("String",   True)
+    getExtractorNameAndOfs (Ref "xs:token") _    = ("Token",    True)
+    getExtractorNameAndOfs (Ref "xs:dateTime") _ = ("DateTime", True)
+    getExtractorNameAndOfs (Ref r) _             = (r,          False)
+    getExtractorNameAndOfs (Complex {}) xname    = (xname,      False)
+    getExtractorNameAndOfs t _                   = error [qc|Don't know how to generate {take 100 $ show t}|]
     extractAdditionalTypes :: [Element] -> [(XMLString, Type)]
     extractAdditionalTypes elts =
         let allElts = (universeBi elts :: [Element])
