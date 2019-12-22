@@ -239,7 +239,7 @@ eltAttrHandler elt attr@(aName, aVal) =
     _           -> unknownAttrHandler "element" attr
 
 readMaxOccurs :: BS.ByteString -> Result MaxOccurs
-readMaxOccurs  "unbounded"                 = return $ MaxOccurs maxBound
+readMaxOccurs  "unbounded"                 = return $ Unbounded
 readMaxOccurs (BS.readInt -> Just (v, "")) = return $ MaxOccurs v
 readMaxOccurs  other                       = ("Cannot decode '" <> other <> "' as maxoccurs value")
                                                  `failHere` other
