@@ -69,9 +69,9 @@ generateElementType container (eType -> Ref (tyName)) =
 generateElementType _         (Element {eName, eType})   =
   case eType of
     Complex   {} -> generateContentType eName eType
-    --Extension {} -> do
-    --  warn [qc|Did not implement elements with extension types yet {eType}|]
-    --  return "Xeno.Node"
+    Extension {} -> do
+      warn [qc|Did not implement elements with extension types yet {eType}|]
+      return "Xeno.Node"
     other        -> do
       warn [qc|Unimplemented type {other}|]
       return "Xeno.Node"
@@ -93,70 +93,68 @@ generateContentType container (Ref (tyName)) = translate (SchemaType, TargetType
 generateContentType eName (Complex {attrs, inner=content}) = do
     myTypeName  <- translate (SchemaType, TargetTypeName) eName eName
     myConsName  <- translate (SchemaType, TargetConsName) eName eName
-    attrFields  :: [TyField] <- return [] -- tracer "attr fields"  <$> mapM makeAttrType attrs
+    attrFields  :: [TyField] <- tracer "attr fields"  <$> mapM makeAttrType attrs
     childFields :: [TyField] <- tracer "child fields" <$>
                                   case content of -- serving only simple Seq of elts or choice of elts for now
                               -- These would be in ElementType namespace.
       Seq    ls -> seqInstance ls
       All    ls -> seqInstance ls -- handling the same way
-      Choice ls -> return [] -- (:[]) <$> makeAltType ls
+      Choice ls -> (:[]) <$> makeAltType ls
       Elt     e -> error  $ "Unexpected singular Elt inside content of ComplexType: " <> show e
-    outCodeLine [qc|-- eName = {eName}|]
     declareAlgebraicType (TyData myTypeName, [(TyCon myConsName, attrFields <> childFields)])
     return      myTypeName
   where
-    --makeAttrType :: Attr -> CG TyField
-    --makeAttrType Attr {..} = second (\(TyType bs) -> TyType $ wrapAttr use bs) <$> makeFieldType aName aType
-    --makeFieldType :: XMLString -> Type -> CG TyField
-    --makeFieldType  aName aType = (,) <$> (TyFieldName <$> translate (AttributeName, TargetFieldName) eName aName)
-    --                                 <*> (TyType      <$> generateContentType                        eName aType)
-    --makeAltType :: [TyPart] -> CG TyField
-    --makeAltType ls = do
-    --  warn [qc|altType not yet implemented: {ls}|]
-    --  return (TyFieldName "altFields", TyType "Xeno.Node")
+    makeAttrType :: Attr -> CG TyField
+    makeAttrType Attr {..} = second (\(TyType bs) -> TyType $ wrapAttr use bs) <$> makeFieldType aName aType
+    makeFieldType :: XMLString -> Type -> CG TyField
+    makeFieldType  aName aType = (,) <$> (TyFieldName <$> translate (AttributeName, TargetFieldName) eName aName)
+                                     <*> (TyType      <$> generateContentType                        eName aType)
+    makeAltType :: [TyPart] -> CG TyField
+    makeAltType ls = do
+      warn [qc|"altType not yet implemented: {ls}|]
+      return (TyFieldName "altFields", TyType "Xeno.Node")
     seqInstance = mapM fun
       where
         fun (Elt (elt@(Element {}))) = do
           generateElementInstance eName elt
         fun  x = error $ "Not yet implemented nested sequence, all or choice:" <> show x
---generateContentType eName (Restriction _ (Enum (uniq -> values))) = do
---  tyName     <- translate (SchemaType ,   TargetTypeName) eName        eName -- should it be split into element and type containers?
---  translated <- translate (EnumIn eName,  TargetConsName) eName `mapM` values
---  -- ^ TODO: consider enum as indexed family of spaces
---  declareSumType (TyData tyName, (\con -> (TyCon con, TyType "")) <$> translated)
---  return tyName
---generateContentType eName (Restriction base (Pattern _)) = do
---  tyName   <- translate (ElementName, TargetTypeName) (eName <> "pattern") base
---  consName <- translate (ElementName, TargetConsName) (eName <> "pattern") base
---  baseTy   <- translate (SchemaType,  TargetTypeName)  eName               base
---  warn "-- Restriction pattern"
---  declareNewtype (TyData tyName) (TyCon consName) (TyType baseTy)
---  return tyName
---generateContentType eName (Extension   base (Complex False [] (Seq []))) = do
---  tyName   <- translate (SchemaType,  TargetTypeName) base eName
---  consName <- translate (ElementName, TargetConsName) base eName
---  baseTy   <- translate (SchemaType,  TargetTypeName) base eName
---  declareNewtype (TyData tyName) (TyCon consName) (TyType baseTy)
---  return tyName
---generateContentType eName  (Restriction base  None      ) =
---  -- Should we do `newtype` instead?
---  generateContentType eName $ Ref base
---generateContentType eName (Extension   base  (cpl@Complex {inner=Seq []})) = do
---  superTyLabel <- translate (SchemaType,TargetFieldName) eName "Super" -- should be: MetaKey instead of SchemaType
---  generateContentType eName $ cpl
---                  `appendElt` Element {eName=builderString superTyLabel
---                                      ,eType=Ref base
---                                      ,maxOccurs=MaxOccurs 1
---                                      ,minOccurs=1
---                                      ,targetNamespace=""}
---  -- TODO: Refactor for parser generation!
---generateContentType eName (Extension   base  _otherType                  ) = do
---  warn "Complex extensions are not implemented yet"
---  tyName   <- translate (SchemaType,  TargetTypeName) base eName
---  consName <- translate (ElementName, TargetConsName) base eName
---  declareNewtype (TyData tyName) (TyCon consName) (TyType "Xeno.Node")
---  return tyName
-generateContentType _ _ = error "Don't know hot to generateContentType"
+generateContentType eName (Restriction _ (Enum (uniq -> values))) = do
+  tyName     <- translate (SchemaType ,   TargetTypeName) eName        eName -- should it be split into element and type containers?
+  translated <- translate (EnumIn eName,  TargetConsName) eName `mapM` values
+  -- ^ TODO: consider enum as indexed family of spaces
+  declareSumType (TyData tyName, (\con -> (TyCon con, TyType "")) <$> translated)
+  return tyName
+generateContentType eName (Restriction base (Pattern _)) = do
+  tyName   <- translate (ElementName, TargetTypeName) (eName <> "pattern") base
+  consName <- translate (ElementName, TargetConsName) (eName <> "pattern") base
+  baseTy   <- translate (SchemaType,  TargetTypeName)  eName               base
+  warn "-- Restriction pattern"
+  declareNewtype (TyData tyName) (TyCon consName) (TyType baseTy)
+  return tyName
+generateContentType eName (Extension   base (Complex False [] (Seq []))) = do
+  tyName   <- translate (SchemaType,  TargetTypeName) base eName
+  consName <- translate (ElementName, TargetConsName) base eName
+  baseTy   <- translate (SchemaType,  TargetTypeName) base eName
+  declareNewtype (TyData tyName) (TyCon consName) (TyType baseTy)
+  return tyName
+generateContentType eName  (Restriction base  None      ) =
+  -- Should we do `newtype` instead?
+  generateContentType eName $ Ref base
+generateContentType eName (Extension   base  (cpl@Complex {inner=Seq []})) = do
+  superTyLabel <- translate (SchemaType,TargetFieldName) eName "Super" -- should be: MetaKey instead of SchemaType
+  generateContentType eName $ cpl
+                  `appendElt` Element {eName=builderString superTyLabel
+                                      ,eType=Ref base
+                                      ,maxOccurs=MaxOccurs 1
+                                      ,minOccurs=1
+                                      ,targetNamespace=""}
+  -- TODO: Refactor for parser generation!
+generateContentType eName (Extension   base  _otherType                  ) = do
+  warn "Complex extensions are not implemented yet"
+  tyName   <- translate (SchemaType,  TargetTypeName) base eName
+  consName <- translate (ElementName, TargetConsName) base eName
+  declareNewtype (TyData tyName) (TyCon consName) (TyType "Xeno.Node")
+  return tyName
 
 appendElt :: Type -> Element -> Type
 appendElt cpl@Complex { inner=Seq sq } elt  = cpl { inner=Seq (Elt elt:sq   ) }
