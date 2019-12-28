@@ -127,6 +127,12 @@ instance RWS.MonadWriter CGOutput CG where
   listen = CG . RWS.listen . unCG
   pass   = CG . RWS.pass   . unCG
 
+instance RWS.MonadReader Schema CG where
+  reader f = CG (RWS.reader f)
+  ask    = CG RWS.ask
+  -- local  = CG RWS.local
+  -- asks   = CG RWS.asks
+
 initialState :: CGState
 initialState  = CGState
                (Map.fromList [(((SchemaType, TargetTypeName), schemaType), haskellType)
