@@ -41,6 +41,24 @@ basePrologue  = mconcat $ map makeImport modules
               ,"Data.Time.Calendar(Day)"
               ,"Data.Time.Clock"
               ,"Xeno.DOM as Xeno"
+              -- TODO check imports:
+              ,"Control.DeepSeq"
+              ,"Control.Monad.Fix"
+              ,"Control.Monad.ST"
+              ,"Data.ByteString (ByteString)"
+              ,"Data.Char"
+              ,"Data.Functor.Identity"
+              ,"Data.Time.Format"
+              ,"Data.Time.LocalTime(ZonedTime)"
+              ,"Data.Word"
+              ,"GHC.Generics"
+              ,"qualified Data.ByteString as BS"
+              ,"qualified Data.ByteString.Char8 as BSC"
+              ,"qualified Data.ByteString.Unsafe as BSU"
+              ,"qualified Data.Vector.Unboxed as UV"
+              ,"qualified Data.Vector.Unboxed.Mutable as UMV"
+              -- TODO
+              ,"Text.Pretty.Simple"
               ]
 
 baseTranslations :: [(BS.ByteString, BS.ByteString)]
