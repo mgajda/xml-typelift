@@ -1,4 +1,5 @@
 -- | Generating type declarations in code generation monad.
+{-# LANGUAGE OverloadedStrings #-}
 module TypeDecls( Record
                 , TyData(..)
                 , TyCon(..)
@@ -66,7 +67,8 @@ declareAlgebraicType    (_,          []) = error "Empty list of records"
 declareAlgebraicType    (tyDataName,   records) =
     out $ do dataName <- newDataName tyDataName
              recs     <- mapM formatRecord records
-             return $ DataD [] dataName [] Nothing recs []
+             showDc   <- newName'' (B.byteString "Show")
+             return $ DataD [] dataName [] Nothing recs [DerivClause Nothing [ConT showDc]]
 
 
 formatRecord :: Record -> Q Con
