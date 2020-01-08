@@ -26,7 +26,7 @@ import           Data.String
 import qualified Data.Map.Strict             as Map
 import qualified Data.Set                    as Set
 import qualified Language.Haskell.TH         as TH
-import           Text.InterpolatedString.Perl6 (qc)
+import           Text.InterpolatedString.Perl6 (qc) -- TODO: Dima: should we use syntax validation with haskell-src-match?
 
 import           FromXML(XMLString)
 
@@ -41,7 +41,6 @@ import Debug.Pretty.Simple
 
 
 import Identifiers
-
 
 import qualified Control.Monad.RWS.Strict   as RWS -- TODO REMOVE AND use own methods
 
@@ -325,11 +324,11 @@ generateParserInternalArray Schema{..} = do
                 withIndent $ do
                     -- Generate parsers for certain types
                     let additionalTypes = extractAdditionalTypes tops -- TODO filter out repeated types
-                    forM_ ((Map.toList types) ++ additionalTypes) $ \(typeName, ty) -> do
+                    forM_ ((Map.toList types) ++ additionalTypes) $ \(typeName, ty) -> do -- TODO: refactor into separate function
                         outCodeLine' [qc|parse{typeName}Content arrStart strStart = do|]
                         withIndent $ case ty of
                             Complex _ attrs (Seq elts) -> do
-                                let elements = map (\case (Elt e) -> e ; _ -> error [qc|Unsupported type: {take 100 $ show ty}|]) elts
+                                let elements = map (\case (Elt e) -> e ; _ -> error [qc|Unsupported type inside sequence: {take 100 $ show ty}|]) elts
                                 let ofsNames' = (("arrStart", "strStart") : [ ( [qc|arrOfs{i}|], [qc|strOfs{i}|]) | i <- [(1::Int)..]])
                                                 :: [(XMLString, XMLString)]
                                     ofsNames = zip ofsNames' (tail ofsNames')
@@ -339,7 +338,7 @@ generateParserInternalArray Schema{..} = do
                                                 Element 0 (MaxOccurs 1) _ _ _ -> (True,  "inMaybeTag")
                                                 Element 1 (MaxOccurs 1) _ _ _ -> (False, "inOneTag")
                                                 Element 0 Unbounded     _ _ _ -> (True,  "inManyTags")
-                                                Element m n             _ _ _ -> error [qc|Unsupported element quantities: ({m}, {n})|]
+                                                Element m n             _ _ _ -> (True,  "inManyTags") -- no validation here
                                         (arrOfs1, arrOfs2)::(XMLString,XMLString) =
                                             if isUseArrOfs then ([qc| {arrOfs}|],"") else ("", [qc| {arrOfs}|])
                                     -- TODO parse with attributes!
@@ -348,6 +347,8 @@ generateParserInternalArray Schema{..} = do
                                 outCodeLine' [qc|return (arrOfs{endNum}, strOfs{endNum})|]
                             Ref ref ->
                                 outCodeLine' [qc|parse{ref}Content arrStart strStart|]
+                            Restriction { base  } -> -- TODO: implement Enum
+                                outCodeLine' [qc|{getParserName (Ref base) base} arrStart strStart|]
                             _ -> error [qc|Unsupported type: {take 100 $ show ty}|]
                     -- Generate auxiliary functions
                     generateAuxiliaryFunctions
@@ -368,7 +369,7 @@ generateParserInternalArray Schema{..} = do
     generateAuxiliaryFunctions = do
         --
         -- TODO read this from file!
-        --
+        -- Dima: You can either use file-embed, or use the multiline quote here
         outCodeLine' [qc|toError tag strOfs act = do|]
         outCodeLine' [qc|    act >>= \case|]
         outCodeLine' [qc|        Nothing -> failExp ("<" <> tag) strOfs|]
@@ -479,7 +480,7 @@ generateParserExtractTopLevel Schema{..} = do
                             let elements = map (\case (Elt e) -> e ; _ -> error [qc|Unsupported type: {take 100 $ show ty}|]) elts
                                 separators = '{' : repeat ','
                                 separator' = if null attrs then '{' else ','
-                            forM_ (zip attrs separators) $ \(attr, sep) -> outCodeLine' [qc|{sep} {aName attr} = Nothing|]
+                            forM_ (zip attrs separators) $ \(attr, sep) -> outCodeLine' [qc|{sep} {aName attr} = Nothing|] -- TODO: refactor into separate function
                             (_, (_, _, ofsAfter)) <- foldM (\(sep, (simpleOfs, calcOfs, getOffsetsAfter)) el -> do
                                     let (en, isPrimitive) = getExtractorNameAndOfs (eType el) (eName el)
                                         ofsSimpleStr = if simpleOfs == 0 then "" else [qc| + {simpleOfs}|]
@@ -492,11 +493,11 @@ generateParserExtractTopLevel Schema{..} = do
                                             if isPrimitive
                                             then (simpleOfs + 2, calcOfs, False)
                                             else (simpleOfs, [qc|getOffsAfter{en} ofs|] : calcOfs, True)
-                                        (fieldQuantifier::(Maybe XMLString), isSized) = case el of
+                                        (fieldQuantifier::(Maybe XMLString), isSized) = case el of -- Dima: looks like logic is duplicated between parsing and extraction
                                                 Element 0 (MaxOccurs 1) _ _ _ -> (Just "extractMaybe", False)
                                                 Element 1 (MaxOccurs 1) _ _ _ -> (Nothing, False)
                                                 Element 0 Unbounded     _ _ _ -> (Just "extractMany", True)
-                                                Element m n             _ _ _ -> error [qc|Unsupported element quantities: ({m}, {n})|]
+                                                Element m n             _ _ _ -> (Just "extractMany", True) -- no validation here
                                     size <- getElementSize el
                                     let sizeStr = if size > 0 && isSized then [qc| {size}|]::XMLString else ""
                                         getOffsetsAfter' =
@@ -574,6 +575,7 @@ generateParserExtractTopLevel Schema{..} = do
     getTyPartSize (Seq parts) = sum <$> mapM getTyPartSize parts
     getTyPartSize (Elt el) = getElementSize el
     getTyPartSize x = error [qc|Don't know size of {x}|]
+    -- TODO: Dima: these should be read with file-embed or multiline string again?
     generateAuxiliaryFunctions = do
         outCodeLine' [qc|extractStringContent ofs = BSU.unsafeTake bslen (BSU.unsafeDrop bsofs bs)|]
         outCodeLine' [qc|  where|]
@@ -592,10 +594,14 @@ generateParserExtractTopLevel Schema{..} = do
         outCodeLine' [qc|  Prelude.map subextr [ofs',(ofs' + size)..(ofs' + size * (len - 1))]|]
         outCodeLine' [qc|extractTokenContent ofs = extractStringContent ofs|]
         outCodeLine' [qc|extractDateTimeContent = zonedTimeStr . extractStringContent|]
+        outCodeLine' "{-# INLINE extractDateTimeContent #-}"
         outCodeLine' [qc|extractDecimalContent = read . BSC.unpack . extractStringContent|]
+        outCodeLine' "{-# INLINE extractDecimalContent #-}"
         outCodeLine' [qc|extractIntegerContent = read . BSC.unpack . extractStringContent|]
+        outCodeLine' "{-# INLINE extractIntegerContent #-}"
 
 
+-- TODO: Dima: Join all into epilogue
 generateAuxiliaryFunctions :: Schema -> CG ()
 generateAuxiliaryFunctions _schema = do
     outCodeLine' ""
