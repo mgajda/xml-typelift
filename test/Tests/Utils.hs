@@ -28,5 +28,8 @@ withGeneratedFile xmlFilename action = do
     withSystemTempDirectory "xml-typelift" $ \dirname -> do
         let testfn = dirname </> "Result.hs"
         writeFile testfn result
+        putStrLn "~~ Result ~~~~~~~~~~"
+        putStrLn result
+        putStrLn "~~~~~~~~~~~~~~~~~~~~"
         action testfn
 
