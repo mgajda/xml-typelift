@@ -36,11 +36,11 @@ spec = describe "codegen" $ do
                 hsFilepath `declShouldPresent`
                     [d|data Birthplace = Birthplace {
                                   city :: XMLString
-                                , country :: XMLString }|]
+                                , country :: XMLString } deriving Show|]
                 hsFilepath `declShouldPresent`
                     [d|data Education = Education {
                                   degree :: XMLString
-                                , yearobtained :: XMLString }|]
+                                , yearobtained :: XMLString } deriving Show|]
                 -- TODO:
                 --hsFilepath `declShouldPresent`
                 --    [d|data Person = Person {
@@ -57,7 +57,7 @@ spec = describe "codegen" $ do
                                                         city :: XMLString,
                                                         region :: XMLString,
                                                         postalCode :: XMLString,
-                                                        country :: XMLString}|]
+                                                        country :: XMLString} deriving Show|]
 
 
 -- * --------------------------------------------------------------------------
