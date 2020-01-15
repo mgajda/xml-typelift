@@ -60,6 +60,7 @@ executables:
       - app
       - bench
     dependencies:
+      - optparse-applicative
       - xml-typelift
   mkxml:
     main: Main.hs
