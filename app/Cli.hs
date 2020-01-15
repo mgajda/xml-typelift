@@ -1,5 +1,6 @@
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TemplateHaskell     #-}
 module Main(main) where
 -- module Cli(main, testExpr) where
 
@@ -9,6 +10,9 @@ import           Options.Applicative
 import           System.IO
 import           Text.Pretty.Simple
 import           Xeno.Errors(printExceptions)
+import           Data.Version (showVersion)
+import           Development.GitRev (gitHash)
+import           Paths_xml_typelift (version)
 
 import           Analyze
 import           CodeGen
@@ -68,7 +72,9 @@ optsParser =
              header "XML Typelift command line interface")
   where
     versionOption :: Parser (a -> a)
-    versionOption = infoOption "0.1" (long "version" <> help "Show version")
+    versionOption = infoOption
+        (concat [showVersion version, " ", $(gitHash)])
+        (long "version" <> help "Show version")
     programOptions :: Parser Opts
     programOptions =
         Opts <$> filenameOption (long "schema"              <> metavar "FILENAME"  <> help "Path to XML schema (.xsd file)")

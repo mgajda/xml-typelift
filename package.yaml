@@ -60,6 +60,7 @@ executables:
       - app
       - bench
     dependencies:
+      - gitrev
       - optparse-applicative
       - xml-typelift
   mkxml:
