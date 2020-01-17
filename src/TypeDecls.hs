@@ -88,11 +88,13 @@ declareSumType :: SumType
                -> CG ()
 declareSumType (tyName, []) =
     out $ do dataName <- newDataName tyName
-             return $ DataD [] dataName [] Nothing [NormalC dataName []] []
+             showDc   <- newName'' (B.byteString "Show")
+             return $ DataD [] dataName [] Nothing [NormalC dataName []] [DerivClause Nothing [ConT showDc]]
 declareSumType (tyDataName, sumTypes) =
     out $ do dataName <- newDataName tyDataName
              constrs  <- mapM (uncurry mkNormalC) sumTypes
-             return $ DataD [] dataName [] Nothing constrs []
+             showDc   <- newName'' (B.byteString "Show")
+             return $ DataD [] dataName [] Nothing constrs [DerivClause Nothing [ConT showDc]]
 
 
 declareNewtype :: TyData -> TyCon -> TyType -> CG ()

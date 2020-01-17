@@ -11,7 +11,7 @@
 {-# LANGUAGE ExistentialQuantification #-}
 {-# OPTIONS_GHC -fno-warn-orphans  #-}
 -- | Here we aim to analyze the schema.
-module CodeGen(codegen, parserCodegen1) where
+module CodeGen(codegen, parserCodegen) where
 
 
 import           Prelude hiding(lookup, id)
@@ -38,6 +38,7 @@ import           TypeDecls
 import Data.Generics.Uniplate.Operations
 
 import Debug.Pretty.Simple
+import Text.Pretty.Simple
 
 
 import Identifiers
@@ -186,8 +187,12 @@ codegen sch = codegen' sch (generateSchema sch)
 
 
 -- | Make parser for schema
-parserCodegen1 :: Schema -> IO String
-parserCodegen1 sch = codegen' sch (generateParser1 sch)
+parserCodegen :: Schema -> IO String
+parserCodegen sch = do
+    --putStrLn "~~~~~~ Schema: ~~~~~~~~~"
+    --pPrint sch
+    --putStrLn "~~~~~~~~~~~~~~~~~~~~~~~~"
+    codegen' sch (generateParser1 sch)
 
 
 -- | Generate content type, and put an type name on it.
@@ -209,6 +214,7 @@ generateSchema sch = do
     outCodeLine "{-# LANGUAGE LambdaCase #-}"
     outCodeLine "{-# LANGUAGE DeriveGeneric #-}"
     outCodeLine "{-# LANGUAGE DeriveAnyClass #-}"
+    outCodeLine "{-# LANGUAGE RecordWildCards #-}"
     -- TODO also add in parser generator
     --
     --
@@ -307,10 +313,10 @@ generateParserInternalArray Schema{..} = do
     let topName = eName topEl
     when (minOccurs topEl /= 1) $ error [qc|Wrong minOccurs = {minOccurs topEl}|]
     when (maxOccurs topEl /= MaxOccurs 1) $ error [qc|Wrong maxOccurs = {maxOccurs topEl}|]
-    outCodeLine' [qc|parse{eName topEl}ToArray :: ByteString -> Either String TopLevelInternal|]
-    outCodeLine' [qc|parse{eName topEl}ToArray bs = Right $ TopLevelInternal bs $ UV.create $ do|]
+    outCodeLine' [qc|parseTopLevelToArray :: ByteString -> Either String TopLevelInternal|]
+    outCodeLine' [qc|parseTopLevelToArray bs = Right $ TopLevelInternal bs $ UV.create $ do|]
     withIndent $ do
-        outCodeLine' [qc|vec <- UMV.unsafeNew ((BS.length bs `div` 7) * 2)|]
+        outCodeLine' [qc|vec <- UMV.new ((max 1 (BS.length bs `div` 7)) * 2)|] -- TODO back to UMV.unsafeNew
         outCodeLine' [qc|parse{topName} vec|]
         outCodeLine' [qc|return vec|]
         outCodeLine' [qc|where|]
@@ -328,32 +334,46 @@ generateParserInternalArray Schema{..} = do
                     forM_ ((Map.toList types) ++ additionalTypes) $ \(typeName, ty) -> do
                         outCodeLine' [qc|parse{typeName}Content arrStart strStart = do|]
                         withIndent $ case ty of
-                            Complex _ attrs (Seq elts) -> do
+                            Complex _ _attrs (Seq elts) -> do
                                 let elements = map (\case (Elt e) -> e ; _ -> error [qc|Unsupported type: {take 100 $ show ty}|]) elts
-                                let ofsNames' = (("arrStart", "strStart") : [ ( [qc|arrOfs{i}|], [qc|strOfs{i}|]) | i <- [(1::Int)..]])
+                                    ofsNames' = (("arrStart", "strStart") : [ ( [qc|arrOfs{i}|], [qc|strOfs{i}|]) | i <- [(1::Int)..]])
                                                 :: [(XMLString, XMLString)]
                                     ofsNames = zip ofsNames' (tail ofsNames')
+                                    endNum = length elements
                                 forM_ (zip ofsNames elements) $ \(((arrOfs, strOfs), (arrOfs', strOfs')), el) -> do
                                     let parserName = getParserName (eType el) (eName el)
                                         (isUseArrOfs, tagQuantifier::XMLString) = case el of
                                                 Element 0 (MaxOccurs 1) _ _ _ -> (True,  "inMaybeTag")
                                                 Element 1 (MaxOccurs 1) _ _ _ -> (False, "inOneTag")
                                                 Element 0 Unbounded     _ _ _ -> (True,  "inManyTags")
-                                                Element m n             _ _ _ -> error [qc|Unsupported element quantities: ({m}, {n})|]
+                                                Element mn mx _ _ _ -> (False, [qc|inSomeTag {mn} {mx}|]) -- XXX
+                                                -- Element m n             _ _ _ -> error [qc|Unsupported element quantities: ({m}, {n})|]
                                         (arrOfs1, arrOfs2)::(XMLString,XMLString) =
                                             if isUseArrOfs then ([qc| {arrOfs}|],"") else ("", [qc| {arrOfs}|])
                                     -- TODO parse with attributes!
                                     outCodeLine' [qc|({arrOfs'}, {strOfs'}) <- {tagQuantifier} "{eName el}"{arrOfs1} {strOfs} $ parse{parserName}{arrOfs2}|]
-                                let endNum = length elements
                                 outCodeLine' [qc|return (arrOfs{endNum}, strOfs{endNum})|]
-                            Ref ref ->
-                                outCodeLine' [qc|parse{ref}Content arrStart strStart|]
-                            _ -> error [qc|Unsupported type: {take 100 $ show ty}|]
+                            c@(Complex _ _attrs (Choice _elts)) -> do
+                                -- XXX
+                                outCodeLine' [qc|-- Complex: {c}|]
+                            r@(Ref {}) -> do
+                                let parserName = getParserName r ""
+                                outCodeLine' [qc|parse{parserName} arrStart strStart -- !!|]
+                            r@(Restriction _ None) -> do
+                                -- XXX
+                                outCodeLine' [qc|-- Restriction: {r}|]
+                            Restriction _ _ -> outCodeLine' [qc|parseString arrStart strStart|]
+                            e@(Extension _base _mixin) ->
+                                -- XXX
+                                outCodeLine' [qc|-- Extension {e}|]
+                            _ -> error [qc|Unsupported type: {ty}|]
                     -- Generate auxiliary functions
                     generateAuxiliaryFunctions
   where
     getParserName :: Type -> XMLString -> XMLString
     getParserName (Ref "xs:integer") _  = "Integer"
+    getParserName (Ref "xs:positiveInteger") _  = "Integer" -- TODO add checking
+    getParserName (Ref "xs:stringContent") _  = "String" -- TODO add checking
     getParserName (Ref "xs:decimal") _  = "Decimal"
     getParserName (Ref "xs:string") _   = "String"
     getParserName (Ref "xs:token") _    = "String"
@@ -387,24 +407,26 @@ generateParserInternalArray Schema{..} = do
         outCodeLine' [qc|                    Just ofs''' -> return $ Just (arrOfs, ofs''')|]
         outCodeLine' [qc|            else do|]
         outCodeLine' [qc|                return Nothing|]
+        -- ~~~~~~~~
         outCodeLine' [qc|inMaybeTag tag arrOfs strOfs inParser = inMaybeTag' True tag arrOfs strOfs inParser|] -- TODO add attributes processing
         outCodeLine' [qc|inMaybeTag' hasAttrs tag arrOfs strOfs inParser = do|]
-        outCodeLine' [qc|    inOneTag' hasAttrs tag strOfs (inParser arrOfs) >>= \case|]
-        outCodeLine' [qc|        Just res -> return res|]
+        outCodeLine' [qc|    inOneTag' hasAttrs tag strOfs (inParser $ arrOfs + 1) >>= \case|]
+        outCodeLine' [qc|        Just res -> do|]
+        outCodeLine' [qc|            UMV.unsafeWrite vec arrOfs 1|]
+        outCodeLine' [qc|            return res|]
         outCodeLine' [qc|        Nothing -> do|]
-        outCodeLine' [qc|            -- TODO а что делать, если inParser задействовал больше переменных?|]
         outCodeLine' [qc|            UMV.unsafeWrite vec arrOfs 0|]
-        outCodeLine' [qc|            UMV.unsafeWrite vec (arrOfs + 1) 0|]
-        outCodeLine' [qc|            return (arrOfs + 2, strOfs)|]
-        outCodeLine' [qc|inManyTags tag arrOfs strOfs inParser = inManyTags' True tag arrOfs strOfs inParser|] -- TODO add attributes processing
-        outCodeLine' [qc|inManyTagsWithAttrs tag arrOfs strOfs inParser = inManyTags' True tag arrOfs strOfs inParser|]
-        outCodeLine' [qc|inManyTags' hasAttrs tag arrOfs strOfs inParser = do|]
-        outCodeLine' [qc|    (cnt, endArrOfs, endStrOfs) <- flip fix (0, (arrOfs + 1), strOfs) $ \next (cnt, arrOfs', strOfs') ->|]
-        outCodeLine' [qc|        inOneTag' hasAttrs tag strOfs' (inParser arrOfs') >>= \case|]
-        outCodeLine' [qc|            Just (arrOfs'', strOfs'') -> next   (cnt + 1, arrOfs'', strOfs'')|]
-        outCodeLine' [qc|            Nothing                   -> return (cnt,     arrOfs', strOfs')|]
-        outCodeLine' [qc|    UMV.unsafeWrite vec arrOfs cnt|]
-        outCodeLine' [qc|    return (endArrOfs, endStrOfs)|]
+        outCodeLine' [qc|            return (arrOfs + 1, strOfs)|]
+        --outCodeLine' [qc|inManyTags tag arrOfs strOfs inParser = inManyTags' True tag arrOfs strOfs inParser|] -- TODO add attributes processing
+        --outCodeLine' [qc|inManyTagsWithAttrs tag arrOfs strOfs inParser = inManyTags' True tag arrOfs strOfs inParser|]
+        --outCodeLine' [qc|inManyTags' hasAttrs tag arrOfs strOfs inParser = do|]
+        --outCodeLine' [qc|    (cnt, endArrOfs, endStrOfs) <- flip fix (0, (arrOfs + 1), strOfs) $ \next (cnt, arrOfs', strOfs') ->|]
+        --outCodeLine' [qc|        inOneTag' hasAttrs tag strOfs' (inParser arrOfs') >>= \case|]
+        --outCodeLine' [qc|            Just (arrOfs'', strOfs'') -> next   (cnt + 1, arrOfs'', strOfs'')|]
+        --outCodeLine' [qc|            Nothing                   -> return (cnt,     arrOfs', strOfs')|]
+        --outCodeLine' [qc|    UMV.unsafeWrite vec arrOfs cnt|]
+        --outCodeLine' [qc|    return (endArrOfs, endStrOfs)|]
+        -- ~~~~~~~~
         outCodeLine' [qc|ensureTag True expectedTag ofs|]
         outCodeLine' [qc|  | expectedTag `BS.isPrefixOf` (BS.drop ofs bs) =|]
         outCodeLine' [qc|      if bs `BSU.unsafeIndex` ofsToEnd == closeTagChar|]
@@ -460,27 +482,35 @@ generateParserExtractTopLevel :: Schema -> CG ()
 generateParserExtractTopLevel Schema{..} = do
     forM_ tops $ \topEl -> do
         let name = eName topEl
-        outCodeLine' [qc|extract{name} :: TopLevelInternal -> {name}|]
-        outCodeLine' [qc|extract{name} (TopLevelInternal bs arr) = extract{name}Content 0|]
-        --case topEl of
-        --    Element _ _ _ (Complex _ _ (Seq elements)) _ -> do
-        --        let elementNames = map (\case Elt (Element{eName}) -> [qc|extract{eName}|] ; x -> error [qc|Don't know how generate {x}|]) elements
-        --        withIndent $ outCodeLine' [qc|{name} {BS.intercalate " " elementNames}|]
-        --    _ -> error [qc|Don't know how to generate code for {take 100 $ show topEl}|]
+        outCodeLine' [qc|extractTopLevel :: TopLevelInternal -> TopLevel|]
+        outCodeLine' [qc|extractTopLevel (TopLevelInternal bs arr) = fst $ extract{name}Content 0|]
     withIndent $ do
         outCodeLine' "where"
         let additionalTypes = extractAdditionalTypes tops -- TODO filter out repeated types
         withIndent $ do
-            forM_ ((Map.toList types) ++ additionalTypes) $ \(typeName, ty) ->
+            forM_ ((Map.toList types) ++ additionalTypes) $ \(typeName, ty) -> do
                 case ty of
                     Complex _ attrs (Seq elts) -> do
-                        outCodeLine' [qc|extract{typeName}Content ofs = {typeName}|]
-                        ofsAfter <- withIndent $ do
+                        haskellTypeName <- translate (ElementName, TargetTypeName) "" typeName -- TODO container?
+                        outCodeLine' [qc|extract{typeName}Content ofs =|]
+                        withIndent $ do
                             let elements = map (\case (Elt e) -> e ; _ -> error [qc|Unsupported type: {take 100 $ show ty}|]) elts
-                                separators = '{' : repeat ','
-                                separator' = if null attrs then '{' else ','
-                            forM_ (zip attrs separators) $ \(attr, sep) -> outCodeLine' [qc|{sep} {aName attr} = Nothing|]
-                            (_, (_, _, ofsAfter)) <- foldM (\(sep, (simpleOfs, calcOfs, getOffsetsAfter)) el -> do
+                            -- Output attributes reader
+                            forM_ attrs $ \attr -> outCodeLine' [qc|let {aName attr} = Nothing in|]
+                            -- Output fields reader
+                            mapM_ (\(el, ofsIdx) -> do
+                                let extractorName = getExtractorName (eType el) (eName el)
+                                    ofs = if ofsIdx == 1 then ("ofs"::XMLString) else [qc|ofs{ofsIdx - 1}|]
+                                    (fieldQuantifier::(Maybe XMLString)) = case el of
+                                             Element 0 (MaxOccurs 1) _ _ _ -> (Just "extractMaybe")
+                                             Element 1 (MaxOccurs 1) _ _ _ -> (Nothing)
+                                             Element 0 Unbounded     _ _ _ -> (Just "extractMany")
+                                             Element m n             _ _ _ -> (Just [qc|??extractSome?? {m} {n}|]) -- error [qc|Unsupported element quantities: ({m}, {n})|]
+                                    (extractor::XMLString) = case fieldQuantifier of
+                                             Nothing -> [qc|extract{extractorName}Content {ofs}|]
+                                             Just qntf -> [qc|{qntf} {ofs} extract{extractorName}Content|]
+                                outCodeLine' [qc|let ({normalizeFieldName $ eName el}, ofs{ofsIdx}) = {extractor} in|]
+                                {-
                                     let (en, isPrimitive) = getExtractorNameAndOfs (eType el) (eName el)
                                         ofsSimpleStr = if simpleOfs == 0 then "" else [qc| + {simpleOfs}|]
                                         ofsCalcStr = mconcat (map (\co -> [qc| + {co}|]) calcOfs)
@@ -496,7 +526,7 @@ generateParserExtractTopLevel Schema{..} = do
                                                 Element 0 (MaxOccurs 1) _ _ _ -> (Just "extractMaybe", False)
                                                 Element 1 (MaxOccurs 1) _ _ _ -> (Nothing, False)
                                                 Element 0 Unbounded     _ _ _ -> (Just "extractMany", True)
-                                                Element m n             _ _ _ -> error [qc|Unsupported element quantities: ({m}, {n})|]
+                                                Element m n             _ _ _ -> (Just [qc|??extractSome?? {m} {n}|], False) -- error [qc|Unsupported element quantities: ({m}, {n})|]
                                     size <- getElementSize el
                                     let sizeStr = if size > 0 && isSized then [qc| {size}|]::XMLString else ""
                                         getOffsetsAfter' =
@@ -533,67 +563,96 @@ generateParserExtractTopLevel Schema{..} = do
                                         extractor::XMLString = maybe [qc|{extractor'} {ofsStr}|]
                                                                      (\fq -> [qc|{fq} {ofsStr}{sizeStr} $ {extractor'}|])
                                                                      fieldQuantifier
-                                    outCodeLine' [qc|{sep} {normalizeFieldName $ eName el} = {extractor}|]
-                                    return (',', (simpleOfs', calcOfs', getOffsetsAfter'))
+                                    outCodeLine' [qc|let {normalizeFieldName $ eName el} = {extractor}|]
+                                    return (simpleOfs', calcOfs', getOffsetsAfter')
+                                    -}
                                     )
-                                (separator', (0::Int, []::[XMLString], []::[XMLString]))
-                                elements
-                            outCodeLine' "}"
-                            return  ofsAfter
-                        when (not $ null ofsAfter) $
-                            forM_ (tail ofsAfter) $ \ofsAft -> outCodeLine' [qc|{ofsAft}|]
-                    Ref ref ->
-                        outCodeLine' [qc|extract{typeName}Content ofs = extract{ref}Content ofs|]
-                    _ -> error [qc|Unsupported type: {take 100 $ show ty}|]
+                                (zip elements [(1::Int)..])
+                            let lastCnt = length elements
+                            outCodeLine' [qc|({haskellTypeName}\{..}, ofs{lastCnt})|]
+                        -- when (not $ null ofsAfter) $
+                        --    forM_ (tail ofsAfter) $ \ofsAft -> outCodeLine' [qc|{ofsAft}|]
+                    r@(Ref {}) -> do
+                        let rname = getExtractorName r ""
+                        outCodeLine' [qc|extract{typeName}Content ofs = extract{rname}Content ofs -- {r}|] -- TODO remove comment
+                    Restriction _ (Enum opts) -> do
+                        haskellTypeName <- translate (ElementName, TargetTypeName) "" typeName -- TODO container?
+                        outCodeLine' [qc|extract{haskellTypeName}Content ofs =|]
+                        withIndent $ do
+                            outCodeLine' [qc|first (\case|]
+                            withIndent $ do
+                                forM_ opts $ \opt -> do
+                                    tn <- translate (EnumIn opt, TargetTypeName) "" opt
+                                    outCodeLine' [qc|"{opt}" -> {tn} ()|] -- TODO remove '()'
+                                outCodeLine' [qc|) $ extractStringContent ofs|]
+                    r@(Restriction _ _) ->
+                        -- XXX
+                        outCodeLine' [qc|-- {r}|]
+                    e@(Extension _ _) ->
+                        -- XXX
+                        outCodeLine' [qc|-- Extension: {e}|] -- XXX
+                    c@(Complex _ attrs (Choice elts)) -> do
+                        -- XXX
+                        outCodeLine' [qc|-- Complex / Choice: {c}|] -- XXX
+                    _ -> error [qc|Unsupported type: {show ty}|]
             generateAuxiliaryFunctions
   where
-    getExtractorNameAndOfs :: Type -> XMLString -> (XMLString, Bool)
-    getExtractorNameAndOfs (Ref "xs:integer") _  = ("Integer",  True)
-    getExtractorNameAndOfs (Ref "xs:decimal") _  = ("Decimal",  True)
-    getExtractorNameAndOfs (Ref "xs:string") _   = ("String",   True)
-    getExtractorNameAndOfs (Ref "xs:token") _    = ("Token",    True)
-    getExtractorNameAndOfs (Ref "xs:dateTime") _ = ("DateTime", True)
-    getExtractorNameAndOfs (Ref r) _             = (r,          False)
-    getExtractorNameAndOfs (Complex {}) xname    = (xname,      False)
-    getExtractorNameAndOfs t _                   = error [qc|Don't know how to generate {take 100 $ show t}|]
+    getExtractorName :: Type -> XMLString -> XMLString
+    getExtractorName (Ref "xs:integer") _         = "Integer"
+    getExtractorName (Ref "xs:positiveInteger") _ = "Integer" -- TODO
+    getExtractorName (Ref "xs:decimal") _         = "Decimal"
+    getExtractorName (Ref "xs:string") _          = "String"
+    getExtractorName (Ref "xs:token") _           = "Token"
+    getExtractorName (Ref "xs:dateTime") _        = "DateTime"
+    getExtractorName (Ref r) _                    = r
+    getExtractorName (Complex {}) xname           = xname
+    getExtractorName (Extension {}) xname         = "??Extension??:" <> xname
+    getExtractorName t _                          = error [qc|Don't know how to generate {take 100 $ show t}|]
     extractAdditionalTypes :: [Element] -> [(XMLString, Type)]
     extractAdditionalTypes elts =
         let allElts = (universeBi elts :: [Element])
         in map (\(Element _ _ name typ _) -> (name, typ)) allElts
     getElementSize :: Element  -> CG Int
-    getElementSize = getTypeSize . eType
+    getElementSize el = do
+        x <- getTypeSize $ eType el
+        return x
     getTypeSize :: Type -> CG Int
     getTypeSize (Ref ref)
         | "xs:" `BS.isPrefixOf` ref = return 2
         | otherwise = do
             (Map.lookup ref <$> RWS.reader Schema.types) >>= \case
                 Just t -> getTypeSize t
-                Nothing -> error [qc|Don't know size of {ref}|]
+                Nothing -> error [qc|Don't know size of {ref} (1)|]
     getTypeSize (Complex{inner}) = getTyPartSize inner
-    getTypeSize x = error [qc|Don't know size of {x}|]
+    getTypeSize (Restriction _ _) = return 100 -- XXX
+    getTypeSize (Extension _ _) = return 200 -- XXX
     getTyPartSize (Seq parts) = sum <$> mapM getTyPartSize parts
+    getTyPartSize (Choice parts) = sum <$> mapM getTyPartSize parts -- XXX
     getTyPartSize (Elt el) = getElementSize el
-    getTyPartSize x = error [qc|Don't know size of {x}|]
+    getTyPartSize x = error [qc|Don't know size of {x} (3)|]
     generateAuxiliaryFunctions = do
-        outCodeLine' [qc|extractStringContent ofs = BSU.unsafeTake bslen (BSU.unsafeDrop bsofs bs)|]
+        outCodeLine' [qc|extractStringContent :: Int -> (ByteString, Int)|]
+        outCodeLine' [qc|extractStringContent ofs = (BSU.unsafeTake bslen (BSU.unsafeDrop bsofs bs), ofs + 2)|]
         outCodeLine' [qc|  where|]
         outCodeLine' [qc|    bsofs = arr `UV.unsafeIndex` ofs|]
         outCodeLine' [qc|    bslen = arr `UV.unsafeIndex` (ofs + 1)|]
         outCodeLine' [qc|extractMaybe ofs subextr|]
-        outCodeLine' [qc|  | (bsofs == 0) && (bslen == 0) = Nothing|]
-        outCodeLine' [qc|  | otherwise = Just (subextr ofs)|]
+        outCodeLine' [qc|  | arr `UV.unsafeIndex` ofs == 0 = (Nothing, ofs + 1)|]
+        outCodeLine' [qc|  | otherwise                     = first Just $ subextr (ofs + 1)|]
+        outCodeLine' [qc|extractMany ofs subextr = extractMany' (ofs + 1) (arr `UV.unsafeIndex` ofs)|]
         outCodeLine' [qc|  where|]
-        outCodeLine' [qc|    bsofs = arr `UV.unsafeIndex` ofs|]
-        outCodeLine' [qc|    bslen = arr `UV.unsafeIndex` (ofs + 1)|]
-        outCodeLine' [qc|extractMany ofs size subextr =|]
-        outCodeLine' [qc|  let len = arr `UV.unsafeIndex` ofs|]
-        outCodeLine' [qc|      ofs' = ofs + 1|]
-        outCodeLine' [qc|  in|]
-        outCodeLine' [qc|  Prelude.map subextr [ofs',(ofs' + size)..(ofs' + size * (len - 1))]|]
-        outCodeLine' [qc|extractTokenContent ofs = extractStringContent ofs|]
-        outCodeLine' [qc|extractDateTimeContent = zonedTimeStr . extractStringContent|]
-        outCodeLine' [qc|extractDecimalContent = read . BSC.unpack . extractStringContent|]
-        outCodeLine' [qc|extractIntegerContent = read . BSC.unpack . extractStringContent|]
+        outCodeLine' [qc|    extractMany' ofs 0   = ([], ofs)|]
+        outCodeLine' [qc|    extractMany' ofs len =|]
+        outCodeLine' [qc|      let (v, ofs') = subextr ofs|]
+        outCodeLine' [qc|      in first (v:) $ extractMany' ofs' (len - 1)|]
+        outCodeLine' [qc|extractTokenContent = extractStringContent|]
+        outCodeLine' [qc|extractDateTimeContent :: Int -> (ZonedTime, Int)|]
+        outCodeLine' [qc|extractDateTimeContent = first zonedTimeStr . extractStringContent|]
+        outCodeLine' [qc|extractDecimalContent :: Int -> (Scientific, Int)|]
+        outCodeLine' [qc|extractDecimalContent = first (read . BSC.unpack) . extractStringContent|]
+        outCodeLine' [qc|extractIntegerContent :: Int -> (Integer, Int)|]
+        outCodeLine' [qc|extractIntegerContent = first (read . BSC.unpack) . extractStringContent|]
+        outCodeLine' [qc|first f (a,b) = (f a, b)|]
 
 
 generateAuxiliaryFunctions :: Schema -> CG ()
@@ -609,6 +668,6 @@ generateAuxiliaryFunctions _schema = do
 
 generateParserTop :: Schema -> CG ()
 generateParserTop _schema = do
-    outCodeLine "parser :: ByteString -> Either String Root" -- TODO
-    outCodeLine "parser = fmap extractRoot . parseRootToArray"
+    outCodeLine "parser :: ByteString -> Either String TopLevel" -- TODO
+    outCodeLine "parser = fmap extractTopLevel . parseTopLevelToArray"
 
