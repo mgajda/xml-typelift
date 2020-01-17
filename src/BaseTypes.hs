@@ -40,7 +40,7 @@ basePrologue  = mconcat $ map makeImport modules
               ,"FromXML"
               ,"Data.Time.Calendar(Day)"
               ,"Data.Time.Clock"
-              ,"Xeno.DOM as Xeno"
+              ,"qualified Xeno.DOM as Xeno" -- TODO
               -- TODO check imports:
               ,"Control.DeepSeq"
               ,"Control.Monad.Fix"

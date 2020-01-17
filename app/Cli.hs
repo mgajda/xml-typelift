@@ -7,8 +7,7 @@ module Main(main) where
 import           Control.Monad
 import qualified Data.ByteString.Char8   as BS
 import           Options.Applicative
-import           System.IO
-import           Text.Pretty.Simple
+-- import           Text.Pretty.Simple
 import           Xeno.Errors(printExceptions)
 import           Data.Version (showVersion)
 import           Development.GitRev (gitHash)
@@ -41,7 +40,7 @@ processSchema Opts{..} = do
             putStrLn generatedTypes
         else do
             -- **************
-            generatedParser <- parserCodegen1 analyzed
+            generatedParser <- parserCodegen analyzed
             putStrLn generatedTypes
             putStrLn "\n-- Parser\n\n"
             putStrLn generatedParser
