@@ -39,6 +39,7 @@ module CodeGenMonad(-- Code generation monad
                    ,builderUnlines
                    ,builderString
                    ,builderLength
+                   ,builderIsNull
                    ,bshow
                    ,bToS
 
@@ -54,7 +55,7 @@ import           Control.Lens as Lens
 import qualified Control.Monad.RWS.Strict   as RWS
 import qualified Data.ByteString.Builder    as B
 import qualified Data.ByteString.Char8      as BS
-import qualified Data.ByteString.Lazy       as BSL(toStrict, length)
+import qualified Data.ByteString.Lazy       as BSL(toStrict, length, null)
 import qualified Data.Map.Strict            as Map
 import qualified Data.Set                   as Set
 import qualified Language.Haskell.TH        as TH
@@ -224,6 +225,8 @@ builderString  = BSL.toStrict . B.toLazyByteString
 builderLength :: B.Builder -> Int
 builderLength  = fromIntegral . BSL.length . B.toLazyByteString
 
+builderIsNull :: B.Builder -> Bool
+builderIsNull = BSL.null . B.toLazyByteString
 
 bToS :: B.Builder -> String
 bToS = BS.unpack . BSL.toStrict . B.toLazyByteString
