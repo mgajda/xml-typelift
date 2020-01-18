@@ -247,6 +247,7 @@ topLevelConst :: IsString a => a
 topLevelConst = "TopLevel"
 
 -- | Eliminate duplicates from the list
+-- TODO use from library
 uniq :: Ord a => [a] -> [a]
 uniq  = Set.toList . Set.fromList
 
@@ -581,8 +582,8 @@ generateParserExtractTopLevel Schema{..} = do
                         withIndent $ do
                             outCodeLine' [qc|first (\case|]
                             withIndent $ do
-                                forM_ opts $ \opt -> do
-                                    tn <- translate (EnumIn opt, TargetTypeName) "" opt
+                                forM_ (uniq opts) $ \opt -> do
+                                    tn <- translate (EnumIn opt, TargetConsName) typeName opt
                                     outCodeLine' [qc|"{opt}" -> {tn} ()|] -- TODO remove '()'
                                 outCodeLine' [qc|) $ extractStringContent ofs|]
                     r@(Restriction _ _) ->
@@ -612,24 +613,6 @@ generateParserExtractTopLevel Schema{..} = do
     extractAdditionalTypes elts =
         let allElts = (universeBi elts :: [Element])
         in map (\(Element _ _ name typ _) -> (name, typ)) allElts
-    getElementSize :: Element  -> CG Int
-    getElementSize el = do
-        x <- getTypeSize $ eType el
-        return x
-    getTypeSize :: Type -> CG Int
-    getTypeSize (Ref ref)
-        | "xs:" `BS.isPrefixOf` ref = return 2
-        | otherwise = do
-            (Map.lookup ref <$> RWS.reader Schema.types) >>= \case
-                Just t -> getTypeSize t
-                Nothing -> error [qc|Don't know size of {ref} (1)|]
-    getTypeSize (Complex{inner}) = getTyPartSize inner
-    getTypeSize (Restriction _ _) = return 100 -- XXX
-    getTypeSize (Extension _ _) = return 200 -- XXX
-    getTyPartSize (Seq parts) = sum <$> mapM getTyPartSize parts
-    getTyPartSize (Choice parts) = sum <$> mapM getTyPartSize parts -- XXX
-    getTyPartSize (Elt el) = getElementSize el
-    getTyPartSize x = error [qc|Don't know size of {x} (3)|]
     generateAuxiliaryFunctions = do
         outCodeLine' [qc|extractStringContent :: Int -> (ByteString, Int)|]
         outCodeLine' [qc|extractStringContent ofs = (BSU.unsafeTake bslen (BSU.unsafeDrop bsofs bs), ofs + 2)|]
