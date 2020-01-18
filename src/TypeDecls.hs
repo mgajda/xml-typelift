@@ -105,10 +105,13 @@ declareNewtype tyDataName tyConstr baseTy =
 
 
 mkNormalC :: TyCon -> TyType -> Q TH.Con
-mkNormalC tyConstr tyName = do
+mkNormalC tyConstr tyName@(TyType bsn) = do
     constrName   <- newConstrName tyConstr
-    baseTypeName <- newTypeName tyName
-    return $ NormalC constrName [(noBang, ConT baseTypeName)]
+    if builderIsNull bsn then do
+        return $ NormalC constrName []
+    else do
+        baseTypeName <- newTypeName tyName
+        return $ NormalC constrName [(noBang, ConT baseTypeName)]
 
 
 noBang :: Bang
