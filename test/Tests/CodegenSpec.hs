@@ -54,7 +54,7 @@ spec = describe "codegen" $ do
         it "decl.presence.2" $ example $ do
             withGeneratedFile True ("test" </> "customersOrders.xsd") $ \hsFilepath -> do
                 hsFilepath `declShouldPresent`
-                    [d|data AddressType = AddressType { name :: Maybe XMLString,
+                    [d|data AddressType = AddressType { customerID :: Maybe XMLString,
                                                         address :: XMLString,
                                                         city :: XMLString,
                                                         region :: XMLString,
