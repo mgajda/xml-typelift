@@ -35,14 +35,12 @@ processSchema Opts{..} = do
         -- putStrLn "Analysis:"
         -- printExceptions input $ check analyzed
         -- putStrLn "\n===== Datatypes:"
-        generatedTypes <- codegen analyzed
         if isGenerateTypesOnly then do
+            generatedTypes <- codegen analyzed
             putStrLn generatedTypes
         else do
             -- **************
             generatedParser <- parserCodegen analyzed
-            putStrLn generatedTypes
-            putStrLn "\n-- Parser\n\n"
             putStrLn generatedParser
             ---- putStrLn generatedParser
             --writeFile "Result.hs" generatedTypes
