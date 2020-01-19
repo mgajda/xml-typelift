@@ -505,7 +505,7 @@ generateParserExtractTopLevel Schema{..} = do
                             -- Output attributes reader
                             forM_ attrs $ \attr -> outCodeLine' [qc|let {aName attr} = Nothing in|]
                             -- Output fields reader
-                            mapM_ (\(el, ofsIdx) -> do
+                            forM_ (zip elements [(1::Int)..]) $ \(el, ofsIdx) -> do
                                 let extractorName = getExtractorName (eType el) (eName el)
                                     ofs = if ofsIdx == 1 then ("ofs"::XMLString) else [qc|ofs{ofsIdx - 1}|]
                                     (fieldQuantifier::(Maybe XMLString)) = case el of
@@ -517,64 +517,6 @@ generateParserExtractTopLevel Schema{..} = do
                                              Nothing -> [qc|extract{extractorName}Content {ofs}|]
                                              Just qntf -> [qc|{qntf} {ofs} extract{extractorName}Content|]
                                 outCodeLine' [qc|let ({normalizeFieldName $ eName el}, ofs{ofsIdx}) = {extractor} in|]
-                                {-
-                                    let (en, isPrimitive) = getExtractorNameAndOfs (eType el) (eName el)
-                                        ofsSimpleStr = if simpleOfs == 0 then "" else [qc| + {simpleOfs}|]
-                                        ofsCalcStr = mconcat (map (\co -> [qc| + {co}|]) calcOfs)
-                                        ofsStr::XMLString =
-                                            if BS.null ofsSimpleStr && BS.null ofsCalcStr
-                                            then "ofs"
-                                            else [qc|(ofs{ofsSimpleStr}{ofsCalcStr})|]
-                                        (simpleOfs', calcOfs', addGetOffsAfter) =
-                                            if isPrimitive
-                                            then (simpleOfs + 2, calcOfs, False)
-                                            else (simpleOfs, [qc|getOffsAfter{en} ofs|] : calcOfs, True)
-                                        (fieldQuantifier::(Maybe XMLString), isSized) = case el of
-                                                Element 0 (MaxOccurs 1) _ _ _ -> (Just "extractMaybe", False)
-                                                Element 1 (MaxOccurs 1) _ _ _ -> (Nothing, False)
-                                                Element 0 Unbounded     _ _ _ -> (Just "extractMany", True)
-                                                Element m n             _ _ _ -> (Just [qc|??extractSome?? {m} {n}|], False) -- error [qc|Unsupported element quantities: ({m}, {n})|]
-                                    size <- getElementSize el
-                                    let sizeStr = if size > 0 && isSized then [qc| {size}|]::XMLString else ""
-                                        getOffsetsAfter' =
-                                            if addGetOffsAfter
-                                            then [qc|getOffsAfter{en} ofs = ofs + 1 + (arr `UV.unsafeIndex` ofs) * {size}|]:getOffsetsAfter
-                                            else getOffsetsAfter
-                                        -- TODO `extractMany` reads **offset to the end of list**, and
-                                        --      then reads all list until end is reached.
-                                        --
-                                        --      So it is need to save offset to end of list in `inManyTags` in previous
-                                        --      parser: it skip one cell in array, then read list, then save offset it that
-                                        --      skipped cell.
-                                        --
-                                        --      So `extractMany` can read this first cell and then use it.
-                                        --
-                                        --      Also `getOffsAfterXXX` can universally read it, so we do not need special
-                                        --      `getOffsAffterXXX`, we just need `getEnd (getEnd (getEnd offs + K) + L) + M` which
-                                        --      simple jumps to ends of arrays (and skip primitive offsets K, L, M).
-                                        --
-                                        --      BTW, so we need sequental list of this skipping and special tests for that.
-                                        --
-                                        --      But now we can suppose that arrays only at the end of struct and `error` other
-                                        --      structures.
-                                        --
-                                        --      TODO
-                                        --      No, problem is that structures can be variable... So we need to precalculate
-                                        --      in generation time does it stable or variable structure. And then decide how
-                                        --      to store array...
-                                        --
-                                        --      At first version we can just output pair `(parsed value, readed size)`.
-                                        --      Then it is need to benchmark and make more simple version.
-                                        --
-                                    let extractor'::XMLString = [qc|extract{en}Content|]
-                                        extractor::XMLString = maybe [qc|{extractor'} {ofsStr}|]
-                                                                     (\fq -> [qc|{fq} {ofsStr}{sizeStr} $ {extractor'}|])
-                                                                     fieldQuantifier
-                                    outCodeLine' [qc|let {normalizeFieldName $ eName el} = {extractor}|]
-                                    return (simpleOfs', calcOfs', getOffsetsAfter')
-                                    -}
-                                    )
-                                (zip elements [(1::Int)..])
                             let lastCnt = length elements
                             outCodeLine' [qc|({haskellTypeName}\{..}, ofs{lastCnt})|]
                         -- when (not $ null ofsAfter) $
