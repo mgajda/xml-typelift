@@ -584,7 +584,7 @@ generateParserExtractTopLevel Schema{..} = do
                             withIndent $ do
                                 forM_ (uniq opts) $ \opt -> do
                                     tn <- translate (EnumIn opt, TargetConsName) typeName opt
-                                    outCodeLine' [qc|"{opt}" -> {tn} ()|] -- TODO remove '()'
+                                    outCodeLine' [qc|"{opt}" -> {tn}|]
                                 outCodeLine' [qc|) $ extractStringContent ofs|]
                     r@(Restriction _ _) ->
                         -- XXX
