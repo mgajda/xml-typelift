@@ -30,31 +30,13 @@ processSchema Opts{..} = do
     parseSchema input >>= (maybe (return ()) $ \schema -> do
         -- putStrLn $ "Successfully parsed " <> filename <> ": " <> show schema
         let (analyzed, schemaErrors) = analyze schema
-        -- pPrint analyzed
         null schemaErrors `unless` printExceptions input schemaErrors
-        -- putStrLn "Analysis:"
-        -- printExceptions input $ check analyzed
-        -- putStrLn "\n===== Datatypes:"
         if isGenerateTypesOnly then do
             generatedTypes <- codegen analyzed
             putStrLn generatedTypes
         else do
-            -- **************
             generatedParser <- parserCodegen analyzed
             putStrLn generatedParser
-            ---- putStrLn generatedParser
-            --writeFile "Result.hs" generatedTypes
-            --appendFile "Result.hs" "\n\n\n\n-- *** PARSER *** --\n\n\n\n"
-            --appendFile "Result.hs" generatedParser
-            --appendFile "Result.hs" "\n\nmain :: IO ()\n"
-            --appendFile "Result.hs" "main = do\n"
-            --appendFile "Result.hs" "  (parseRootToArray <$> BS.readFile \"test/customersOrders.xml\") >>= \\case\n"
-            --appendFile "Result.hs" "    Left str -> Prelude.putStrLn (\"ERROR: \" ++ str)\n"
-            --appendFile "Result.hs" "    Right tl@(TopLevelInternal _ vec) -> do\n"
-            --appendFile "Result.hs" "        pPrint (UV.take 10 vec)\n"
-            --appendFile "Result.hs" "        let root = extractRoot tl\n"
-            --appendFile "Result.hs" "        Prelude.putStrLn \"~~~~~~~\"\n"
-            --appendFile "Result.hs" "        pPrint root\n"
         )
 
 
