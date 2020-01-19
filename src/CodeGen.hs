@@ -583,7 +583,10 @@ generateParserExtractTopLevel Schema{..} = do
                 withIndent $ do
                     let elements = map (\case (Elt e) -> e ; _ -> error [qc|Unsupported type: {take 100 $ show ty}|]) elts
                     -- Output attributes reader
-                    forM_ attrs $ \attr -> outCodeLine' [qc|let {aName attr} = Nothing in|]
+                    forM_ attrs $ \attr -> do
+                        let aname = aName attr
+                        haskellAttrName <- translate (AttributeName, TargetFieldName) aname aname -- TODO container?
+                        outCodeLine' [qc|let {haskellAttrName} = Nothing in|]
                     -- Output fields reader
                     forM_ (zip elements [(1::Int)..]) $ \(el, ofsIdx) -> do
                         extractorName <- getExtractorName (eType el) (eName el)
@@ -596,10 +599,12 @@ generateParserExtractTopLevel Schema{..} = do
                             (extractor::XMLString) = case fieldQuantifier of
                                      Nothing -> [qc|extract{extractorName}Content {ofs}|]
                                      Just qntf -> [qc|{qntf} {ofs} extract{extractorName}Content|]
-                        outCodeLine' [qc|let ({normalizeFieldName $ eName el}, ofs{ofsIdx}) = {extractor} in|]
-                    let lastCnt = length elements
+                        let fieldName' = eName el
+                        fieldName <- translate (ElementName, TargetFieldName) fieldName' fieldName' -- TODO container?
+                        outCodeLine' [qc|let ({fieldName}, ofs{ofsIdx}) = {extractor} in|]
+                    let ofs' = if null elements then "ofs" else [qc|ofs{length elements}|]::XMLString
                     haskellConsName <- translate (SchemaType, TargetConsName) typeName typeName -- TODO container?
-                    outCodeLine' [qc|({haskellConsName}\{..}, ofs{lastCnt})|]
+                    outCodeLine' [qc|({haskellConsName}\{..}, {ofs'})|]
             r@(Ref {}) -> do
                 rname <- getExtractorName r ""
                 outCodeLine' [qc|extract{rname}Content ofs|]
@@ -614,7 +619,7 @@ generateParserExtractTopLevel Schema{..} = do
             r@(Restriction _ _) -> do
                 -- XXX
                 outCodeLine' [qc|-- {r}|]
-                outCodeLine' [qc|return $ Prelude.error "TODO"|]
+                outCodeLine' [qc|Prelude.error "TODO"|]
             e@(Extension _ _) ->
                 getExtendedType e >>= generateContentParser typeName haskellTypeName
             c@(Complex _ _attrs (Choice _elts)) -> do
