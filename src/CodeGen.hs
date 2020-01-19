@@ -120,7 +120,7 @@ generateContentType eName (Complex {attrs, inner=content}) = do
       where
         fun (Elt (elt@(Element {}))) = do
           generateElementInstance eName elt
-        fun  x = error $ "Not yet implemented nested sequence, all or choice:" <> show x
+        fun  x = error [qc|Type {eName}: not yet implemented nested sequence, all or choice: {x}|]
 generateContentType eName (Restriction _ (Enum (uniq -> values))) = do
   tyName     <- translate (SchemaType ,   TargetTypeName) eName        eName -- should it be split into element and type containers?
   translated <- translate (EnumIn eName,  TargetConsName) eName `mapM` values
@@ -152,12 +152,18 @@ generateContentType eName (Extension   base  (cpl@Complex {inner=Seq []})) = do
                                       ,minOccurs=1
                                       ,targetNamespace=""}
   -- TODO: Refactor for parser generation!
-generateContentType eName (Extension   base  _otherType                  ) = do
-  warn "Complex extensions are not implemented yet"
-  tyName   <- translate (SchemaType,  TargetTypeName) base eName
-  consName <- translate (ElementName, TargetConsName) base eName
-  declareNewtype (TyData tyName) (TyCon consName) (TyType "Xeno.Node")
-  return tyName
+generateContentType eName (Extension   base  exType@Complex {attrs=exAttrs,inner=Seq exSeq}) = do
+  getTypeFromSchema base >>= \case
+    Nothing ->
+      error [qc|Can't get base "{base}" for type "{eName}"|]
+    Just (Complex{attrs=baseAttrs, inner=Seq baseSeq }) -> do
+      let combinedType = exType { attrs = baseAttrs    ++ exAttrs
+                                , inner = Seq (baseSeq ++ exSeq) }
+      generateContentType eName combinedType
+    _ ->
+      error [qc|Wrong base type for "{eName}"|]
+generateContentType eName (Extension   _base  _otherType) = do
+    error [qc|Can't generate extension "{eName}"|]
 
 appendElt :: Type -> Element -> Type
 appendElt cpl@Complex { inner=Seq sq } elt  = cpl { inner=Seq (Elt elt:sq   ) }

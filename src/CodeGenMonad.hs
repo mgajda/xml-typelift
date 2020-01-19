@@ -34,6 +34,7 @@ module CodeGenMonad(-- Code generation monad
                    ,TargetIdNS(..)
                    ,XMLIdNS   (..)
                    ,translate
+                   ,getTypeFromSchema
 
                    -- Utilities
                    ,builderUnlines
@@ -212,6 +213,13 @@ translate idClass@(schemaIdClass, haskellIdClass) container xmlName = do
       where
         normName | name==""  = placeholder schemaIdClass haskellIdClass
                  | otherwise = name
+
+
+getTypeFromSchema :: XMLString -> CG (Maybe Type)
+getTypeFromSchema name = do
+  -- TODO use better lens
+  Map.lookup name <$> RWS.asks types
+
 
 -- | Make builder to generate schema code.
 runCodeGen :: Schema -> CG () -> CGOutput

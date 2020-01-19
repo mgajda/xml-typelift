@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <accountNumber>1234</accountNumber>
+  <name>str1234</name>
+  <address>str1234</address>
+  <numberOfPayments>1234</numberOfPayments>
+  <reportedDate>2012-12-13</reportedDate>
+</root>
