@@ -95,7 +95,6 @@ data CGState =
     -- | Set of translation target names that were used before (and are thus unavailable.)
   , _allocatedIdentifiers :: Set.Set (TargetIdNS, XMLString)
 
-
   -- FOR GENERATING
   , _indent :: Int
   }
@@ -110,6 +109,8 @@ data CGOutputEntity = CGDec (TH.Q TH.Dec)
 type CGOutput = [CGOutputEntity]
 
 
+-- | `(a, w) <- cut wrt` redirects all output from wrt to `w`.
+--
 cut :: RWS.MonadWriter w m => m a -> m (a, w)
 cut act = RWS.pass $ do
     r <- RWS.listen act
@@ -134,6 +135,7 @@ instance RWS.MonadReader Schema CG where
   ask    = CG RWS.ask
   -- local  = CG RWS.local
   -- asks   = CG RWS.asks
+  -- TODO
 
 initialState :: CGState
 initialState  = CGState
