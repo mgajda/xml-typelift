@@ -315,8 +315,27 @@ generateParser1 schema = do
 generateParserInternalStructures :: Schema -> CG ()
 generateParserInternalStructures Schema{..} = do
     outCodeLine [qc|-- | Internal representation of TopLevel|]
-    outCodeLine [qc|data TopLevelInternal = TopLevelInternal !ByteString !(UV.Vector Int) deriving (Generic, NFData, Show)|]
+    outCodeLine [qc|data TopLevelInternal = TopLevelInternal !ByteString !(UV.Vector Int) deriving (G.Generic, NFData, Show)|] -- TODO qualify all imports to avoid name clush
     outCodeLine ""
+
+
+data Repeatedness = RepMaybe
+                  | RepOnce
+                  | RepMany
+                  | RepNotLess Int
+                  | RepRange Int Int
+                  deriving Show
+
+
+eltToRepeatedness :: Element -> Repeatedness
+eltToRepeatedness (Element 0 Unbounded     _ _ _) = RepMany
+eltToRepeatedness (Element 0 (MaxOccurs 1) _ _ _) = RepMaybe
+eltToRepeatedness (Element 0 _             _ _ _) = RepMany
+eltToRepeatedness (Element 1 (MaxOccurs 1) _ _ _) = RepOnce
+eltToRepeatedness (Element 1 _             _ _ _) = RepMany
+eltToRepeatedness (Element m Unbounded     _ _ _) = RepNotLess m
+eltToRepeatedness (Element m (MaxOccurs n) _ _ _) = RepRange m n
+
 
 generateParserInternalArray :: Schema -> CG ()
 generateParserInternalArray Schema{..} = do
@@ -359,12 +378,12 @@ generateParserInternalArray Schema{..} = do
             endNum = length elements
         forM_ (zip ofsNames elements) $ \(((arrOfs, strOfs), (arrOfs', strOfs')), el) -> do
             let parserName = getParserName (eType el) (eName el)
-                (isUseArrOfs, tagQuantifier::XMLString) = case el of
-                        Element 0 (MaxOccurs 1) _ _ _ -> (True,  "inMaybeTag")
-                        Element 1 (MaxOccurs 1) _ _ _ -> (False, "inOneTag")
-                        Element 0 Unbounded     _ _ _ -> (True,  "inManyTags")
-                        Element mn mx _ _ _ -> (False, [qc|inSomeTag {mn} {mx}|]) -- XXX
-                        -- Element m n             _ _ _ -> error [qc|Unsupported element quantities: ({m}, {n})|]
+                (isUseArrOfs, tagQuantifier::XMLString) = case eltToRepeatedness el of
+                    RepMaybe      -> (True,  "inMaybeTags")
+                    RepOnce       -> (False, "inOneTag")
+                    RepMany       -> (True,  "inManyTags")
+                    RepNotLess {} -> (True,  "inManyTags")
+                    RepRange {}   -> (True,  "inManyTags")
                 (arrOfs1, arrOfs2)::(XMLString,XMLString) =
                     if isUseArrOfs then ([qc| {arrOfs}|],"") else ("", [qc| {arrOfs}|])
             -- TODO parse with attributes!
@@ -385,6 +404,7 @@ generateParserInternalArray Schema{..} = do
             r@(Restriction _ None) -> do
                 -- XXX
                 outCodeLine' [qc|-- Restriction: {r}|]
+                outCodeLine' [qc|return $ Prelude.error "TODO"|]
             Restriction _ _ ->
                 outCodeLine' [qc|parseString arrStart strStart|]
             Extension base (Complex {inner=Seq exFields}) -> do
@@ -531,17 +551,20 @@ generateParserExtractTopLevel Schema{..} = do
                     forM_ (zip elements [(1::Int)..]) $ \(el, ofsIdx) -> do
                         extractorName <- getExtractorName (eType el) (eName el)
                         let ofs = if ofsIdx == 1 then ("ofs"::XMLString) else [qc|ofs{ofsIdx - 1}|]
-                            (fieldQuantifier::(Maybe XMLString)) = case el of
-                                     Element 0 (MaxOccurs 1) _ _ _ -> (Just "extractMaybe")
-                                     Element 1 (MaxOccurs 1) _ _ _ -> (Nothing)
-                                     Element 0 Unbounded     _ _ _ -> (Just "extractMany")
-                                     Element m n             _ _ _ -> (Just [qc|??extractSome?? {m} {n}|]) -- error [qc|Unsupported element quantities: ({m}, {n})|]
+                            -- TODO add extractExact support
+                            (fieldQuantifier::(Maybe XMLString)) = case eltToRepeatedness el of
+                                RepMaybe -> Just "extractMaybe" 
+                                RepOnce -> Nothing
+                                RepMany -> Just "extractMany"
+                                RepNotLess {} -> Just "extractMany"
+                                RepRange {} -> Just "extractMany"
                             (extractor::XMLString) = case fieldQuantifier of
                                      Nothing -> [qc|extract{extractorName}Content {ofs}|]
                                      Just qntf -> [qc|{qntf} {ofs} extract{extractorName}Content|]
                         outCodeLine' [qc|let ({normalizeFieldName $ eName el}, ofs{ofsIdx}) = {extractor} in|]
                     let lastCnt = length elements
-                    outCodeLine' [qc|({haskellTypeName}\{..}, ofs{lastCnt})|]
+                    haskellConsName <- translate (ElementName, TargetConsName) "" typeName -- TODO container?
+                    outCodeLine' [qc|({haskellConsName}\{..}, ofs{lastCnt})|]
                 -- when (not $ null ofsAfter) $
                 --    forM_ (tail ofsAfter) $ \ofsAft -> outCodeLine' [qc|{ofsAft}|]
             r@(Ref {}) -> do
@@ -555,9 +578,10 @@ generateParserExtractTopLevel Schema{..} = do
                             tn <- translate (EnumIn opt, TargetConsName) typeName opt -- TODO change 'typeName' to 'haskellTypeName' ?
                             outCodeLine' [qc|"{opt}" -> {tn}|]
                         outCodeLine' [qc|) $ extractStringContent ofs|]
-            r@(Restriction _ _) ->
+            r@(Restriction _ _) -> do
                 -- XXX
                 outCodeLine' [qc|-- {r}|]
+                outCodeLine' [qc|return $ Prelude.error "TODO"|]
             e@(Extension _ _) ->
                 getExtendedType e >>= generateContentParser typeName haskellTypeName
             c@(Complex _ _attrs (Choice _elts)) -> do
