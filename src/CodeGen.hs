@@ -294,6 +294,7 @@ withIndent act = do -- TODO use `bracket`
 
 generateParser1 :: Schema -> CG ()
 generateParser1 schema = do
+    generateSchema schema
     outCodeLine [qc|-- PARSER --|]
     generateParserInternalStructures schema
     generateParserInternalArray schema
