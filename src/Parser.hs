@@ -158,7 +158,7 @@ instance FromXML Attr where
       attrAttr cpl attr@(aName, aVal) = case stripNS aName of
         "id"      -> return cpl -- ignore ids for now
         "type"    -> return $ cpl { aType = Ref aVal }
-        "name"    -> return $ cpl { aName = aName    }
+        "name"    -> return $ cpl { aName = aVal     }
         "use"     -> case aVal of
                        "prohibited" -> return cpl -- we can safely ignore, since we do not fully validate
                        "optional"   -> return cpl { use = Optional }
