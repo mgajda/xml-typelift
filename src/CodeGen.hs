@@ -397,7 +397,7 @@ generateParserInternalArray Schema{..} = do
                         outCodeLine' [qc|parse{typeName}Content arrStart strStart = do|]
                         withIndent $ generateContentParserIA typeName ty
                     -- Generate auxiliary functions
-                    generateAuxiliaryFunctions
+                    generateAuxiliaryFunctionsIA
   where
     generateElementsOfComplexParser :: (XMLString, XMLString) -> [Element] -> CG (XMLString, XMLString)
     generateElementsOfComplexParser (arrStart, strStart) elements = do
@@ -457,7 +457,7 @@ generateParserInternalArray Schema{..} = do
     extractAdditionalTypes elts =
         let allElts = (universeBi elts :: [Element])
         in map (\(Element _ _ name typ _) -> (name, typ)) allElts
-    generateAuxiliaryFunctions = do
+    generateAuxiliaryFunctionsIA = do
         --
         -- TODO read this from file!
         --
