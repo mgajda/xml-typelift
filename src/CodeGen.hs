@@ -159,8 +159,7 @@ generateContentType eName (Extension   _base  _otherType) = do
 getExtendedType :: Type -> CG Type
 getExtendedType (Extension base cpl@Complex {inner=Seq {}}) = do
   -- TODO resolve right naming of superTyLabel
-  -- superTyLabel <- translate (SchemaType,TargetFieldName) eName ("Super" <> base) -- should be: MetaKey instead of SchemaType
-  let superTyLabel = "super" <> normalizeTypeName base
+  superTyLabel <- builderString <$> translate (SchemaType,TargetFieldName) base "Super" -- should be: MetaKey instead of SchemaType
   return $ cpl `appendElt` Element {eName=superTyLabel
                                    ,eType=Ref base
                                    ,maxOccurs=MaxOccurs 1
