@@ -291,6 +291,7 @@ withIndent act = do -- TODO use `bracket`
 
 generateParser1 :: Schema -> CG ()
 generateParser1 schema = do
+    -- pTraceShowM schema
     generateSchema schema
     outCodeLine [qc|-- PARSER --|]
     generateParserInternalStructures schema
@@ -391,7 +392,7 @@ generateParserInternalArray Schema{..} = do
                 outCodeLine' [qc|where|]
                 withIndent $ do
                     -- Generate parsers for certain types
-                    let additionalTypes = extractAdditionalTypes tops -- TODO filter out repeated types
+                    let additionalTypes = [] -- extractAdditionalTypes tops -- TODO filter out repeated types
                     forM_ ((Map.toList types) ++ additionalTypes) $ \(typeName, ty) -> do
                         outCodeLine' [qc|parse{typeName}Content arrStart strStart = do|]
                         withIndent $ generateContentParserIA typeName ty
@@ -563,7 +564,7 @@ generateParserExtractTopLevel Schema{..} = do
         outCodeLine' [qc|extractTopLevel (TopLevelInternal bs arr) = fst $ extract{haskellRootName}Content 0|]
     withIndent $ do
         outCodeLine' "where"
-        let additionalTypes = extractAdditionalTypes tops -- TODO filter out repeated types
+        let additionalTypes = [] -- extractAdditionalTypes tops -- TODO filter out repeated types
         withIndent $ do
             forM_ ((Map.toList types) ++ additionalTypes) $ \(typeName, ty) -> do
             -- forM_ (take 1 ((Map.toList types) ++ additionalTypes)) $ \(typeName, ty) -> do
