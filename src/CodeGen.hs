@@ -688,7 +688,7 @@ generateAuxiliaryFunctions _schema = do
     outCodeLine' [qc|zonedTimeStr :: ByteString -> ZonedTime|]
     outCodeLine' [qc|zonedTimeStr = runIdentity . parseTimeM True defaultTimeLocale fmt . BSC.unpack|]
     outCodeLine' [qc|  where|]
-    outCodeLine' [qc|    fmt = iso8601DateFormat (Just "%H:%M:%S")|]
+    outCodeLine' [qc|    fmt = iso8601DateFormat (Just "%H:%M:%S%Q%Z")|]
     outCodeLine' "{-# INLINE zonedTimeStr #-}"
 
 
