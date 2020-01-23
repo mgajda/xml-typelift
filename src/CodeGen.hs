@@ -661,7 +661,7 @@ generateParserExtractTopLevel Schema{..} = do
         outCodeLine' [qc|extractDateTimeContent :: Int -> (ZonedTime, Int)|]
         outCodeLine' [qc|extractDateTimeContent = first zonedTimeStr . extractStringContent|]
         outCodeLine' [qc|extractDayContent :: Int -> (Day, Int)|]
-        outCodeLine' [qc|extractDayContent = undefined|]
+        outCodeLine' [qc|extractDayContent = first (read . BSC.unpack) . extractStringContent|]
         outCodeLine' [qc|extractDurationContent :: Int -> (Duration, Int)|]
         outCodeLine' [qc|extractDurationContent = undefined|]
         outCodeLine' [qc|extractDecimalContent :: Int -> (Scientific, Int)|]
