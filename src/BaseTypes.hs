@@ -47,7 +47,7 @@ basePrologue  = mconcat $ map makeImport modules
               ,"Control.Monad.ST"
               ,"Data.ByteString (ByteString)"
               -- ,"Data.Char"
-              -- ??? ,"Data.Functor.Identity"
+              ,"Data.Functor.Identity(runIdentity)"
               ,"Data.Time.Format"
               ,"Data.Time.LocalTime(ZonedTime)"
               ,"Data.Word"
