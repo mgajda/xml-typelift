@@ -428,10 +428,6 @@ generateParserInternalArray Schema{..} = do
             r@(Ref {}) -> do
                 let parserName = getParserName r ""
                 outCodeLine' [qc|parse{parserName} arrStart strStart -- !! <{typeName}> / <{ty}>|]
-            r@(Restriction _ None) -> do
-                -- XXX
-                outCodeLine' [qc|-- Restriction: {r}|]
-                outCodeLine' [qc|return $ Prelude.error "TODO"|]
             Restriction _ _ ->
                 outCodeLine' [qc|parseString arrStart strStart|]
             Extension base (Complex {inner=Seq exFields}) -> do
@@ -613,18 +609,20 @@ generateParserExtractTopLevel Schema{..} = do
                 rname <- getExtractorName r ""
                 outCodeLine' [qc|extract{rname}Content ofs|]
             Restriction _ (Enum opts) -> do
+                outCodeLine' [qc|first (\case|]
                 withIndent $ do
-                    outCodeLine' [qc|first (\case|]
-                    withIndent $ do
-                        forM_ (uniq opts) $ \opt -> do
-                            tn <- translate (EnumIn typeName, TargetConsName) typeName opt -- TODO change 'typeName' to 'haskellTypeName' ?
-                            outCodeLine' [qc|"{opt}" -> {tn}|]
-                        outCodeLine' [qc|) $ extractStringContent ofs|]
-            r@(Restriction _ _) -> do
-                -- XXX
-                outCodeLine' [qc|-- {r}|]
-                outCodeLine' [qc|Prelude.error "TODO"|]
-            e@(Extension _ _) ->
+                    forM_ (uniq opts) $ \opt -> do
+                        tn <- translate (EnumIn typeName, TargetConsName) typeName opt -- TODO change 'typeName' to 'haskellTypeName' ?
+                        outCodeLine' [qc|"{opt}" -> {tn}|]
+                    outCodeLine' [qc|) $ extractStringContent ofs|]
+            Restriction baseType _ -> do
+                postProcess <- if baseType == "xs:string" || baseType == "xs:token"
+                               then do
+                                   haskellConsName <- translate (SchemaType, TargetConsName) typeName typeName -- TODO container?
+                                   return [qc|first {haskellConsName} $ |]
+                               else return (""::XMLString)
+                outCodeLine' [qc|{postProcess}extractStringContent ofs|]
+            e@(Extension _ _) -> do
                 getExtendedType e >>= generateContentParser typeName haskellTypeName
             c@(Complex _ _attrs (Choice _elts)) -> do
                 -- XXX
