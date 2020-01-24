@@ -1,0 +1,39 @@
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+
+  <xs:complexType name="type1">
+    <xs:sequence>
+      <xs:element name="accountNumber" type="xs:integer" minOccurs="0" />
+      <xs:element name="name" type="xs:string" minOccurs="0" />
+      <xs:element name="address" type="xs:string"/>
+    </xs:sequence>
+  </xs:complexType>
+
+
+  <xs:complexType name="type2">
+    <xs:sequence>
+      <xs:element name="val1" type="xs:integer" minOccurs="0" />
+      <xs:element name="val2" type="xs:string" minOccurs="0" />
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="type3">
+    <xs:sequence>
+      <xs:element name="val13" type="xs:integer" minOccurs="0" />
+      <xs:element name="val23" type="xs:string" minOccurs="0" />
+      <xs:element name="val24" type="xs:string" minOccurs="0" />
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="choiceType">
+    <xs:choice>
+      <xs:element name="v1" type="type1" minOccurs="0" maxOccurs="unbounded" />
+      <xs:element name="v2" type="type2" minOccurs="0" />
+      <xs:element name="v3" type="type3" />
+      <xs:element name="v4" type="xs:integer" />
+      <xs:element name="v5" type="xs:string" />
+    </xs:choice>
+  </xs:complexType>
+
+  <xs:element name="root" type="choiceType"/>
+
+</xs:schema>
