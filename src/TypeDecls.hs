@@ -6,6 +6,7 @@ module TypeDecls( Record
                 , TyType(..)
                 , TyFieldName(..)
                 , TyField
+                , SumAlt
                 , declareAlgebraicType
                 , declareSumType
                 , declareNewtype
