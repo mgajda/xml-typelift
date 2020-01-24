@@ -1,0 +1,28 @@
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+
+  <xs:complexType name="account">
+    <xs:sequence>
+      <xs:element name="accountNumber" type="xs:integer" minOccurs="0" />
+      <xs:element name="name" type="xs:string" minOccurs="0" />
+      <xs:element name="address" type="xs:string"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="extendedAccount">
+    <xs:complexContent>
+      <xs:extension base="account">
+        <xs:sequence>
+          <xs:element name="numberOfPayments" type="xs:integer"/>
+          <xs:element name="reportedDate" type="xs:dateTime" minOccurs="0"/>
+          <xs:choice>
+            <xs:element name="validResult" type="xs:integer" minOccurs="1" maxOccurs="1"/>
+            <xs:element name="invalidated" type="xs:dateTime" minOccurs="1" maxOccurs="1"/>
+          </xs:choice>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:element name="root" type="extendedAccount"/>
+
+</xs:schema>
