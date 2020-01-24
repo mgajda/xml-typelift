@@ -77,6 +77,7 @@ data XMLIdNS = SchemaType
              | ElementName
              | AttributeName
              | EnumIn XMLString -- enumeration inside type/element of given name (should be path)
+             | ChoiceIn XMLString -- xs:choice inside type of given name
   deriving (Eq, Ord, Show)
 
 -- | Which of the target language identifier namespaces do we use here
@@ -176,6 +177,15 @@ placeholder xmlIdClass targetIdClass = classNormalizer targetIdClass $ name xmlI
     name  ElementName   = "UnnamedElement"    -- is not allowed by schema
     name  AttributeName = "UnnamedAttribute"
     name (EnumIn x)     = "EnumIn" <> x
+    name (ChoiceIn x)   = "ChoiceIn" <> x
+
+
+addPrefix :: XMLIdNS -> TargetIdNS -> XMLString -> XMLString
+addPrefix (ChoiceIn {}) TargetTypeName  = Prelude.id
+addPrefix (ChoiceIn cn) TargetConsName  = ((normalizeTypeName cn) <> ) . normalizeTypeName
+addPrefix (ChoiceIn {}) TargetFieldName = error "addPrefix (ChoiceIn {}) TargetFieldName :: Unsupported"
+addPrefix _             _  = Prelude.id
+
 
 classNormalizer :: TargetIdNS -> XMLString -> XMLString
 classNormalizer TargetTypeName  = normalizeTypeName
@@ -208,9 +218,10 @@ translate idClass@(schemaIdClass, haskellIdClass) container xmlName = do
           [] -> error "Impossible happened when trying to find a new identifier - file a bug!"
   where
     normalizer = classNormalizer haskellIdClass
+    initNormalizer = addPrefix schemaIdClass haskellIdClass . normalizer
     proposeTranslations                     :: XMLString -> [(TargetIdNS, XMLString)]
-    proposeTranslations (normalizer -> name) = ((haskellIdClass,) . normalizer) <$>
-        ([BS.take i container <> normName | i :: Int <- [0..BS.length container]] <>
+    proposeTranslations (initNormalizer -> name) = ((haskellIdClass,) . normalizer) <$>
+        ([BS.take i container <> normName | i :: Int <- [0..BS.length container]] <> -- TODO use here `BS.inits`
          [normName <> bshow i | i :: Int <- [1..]])
       where
         normName | name==""  = placeholder schemaIdClass haskellIdClass

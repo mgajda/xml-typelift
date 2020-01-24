@@ -83,6 +83,15 @@ wrapAttr  Optional   ty = "Maybe " <> ty
 wrapAttr  Required   ty =             ty
 wrapAttr (Default _) ty =             ty
 
+
+-- | `escapeSpaces` envelop type declaration into braces if it contains spaces,
+--   for example "Maybe Integer" trasforms to "(Maybe Integer)"
+escapeSpaces :: TyType -> TyType
+escapeSpaces ty@(TyType tyType@(builderString -> tyTypeStr))
+    | BS.elem ' ' tyTypeStr = TyType $ "(" <> tyType <> ")"
+    | otherwise             = ty
+
+
 -- | Given a container with ComplexType details (attributes and children),
 --   generate the type to hold them.
 --   Or if it turns out these are referred types - just return their names.
@@ -91,34 +100,44 @@ generateContentType :: XMLString -- container name
                     -> Type -> CG B.Builder
 generateContentType container (Ref (tyName)) = translate (SchemaType, TargetTypeName) container tyName
   -- TODO: check if the type was already translated (as it should, if it was generated)
-generateContentType eName (Complex {attrs, inner=content}) = do
+generateContentType eName cpl@(Complex {attrs, inner}) = do
     myTypeName  <- translate (SchemaType, TargetTypeName) eName eName
     myConsName  <- translate (SchemaType, TargetConsName) eName eName
     attrFields  :: [TyField] <- tracer "attr fields"  <$> mapM makeAttrType attrs
-    childFields :: [TyField] <- tracer "child fields" <$>
-                                  case content of -- serving only simple Seq of elts or choice of elts for now
-                              -- These would be in ElementType namespace.
-      Seq    ls -> seqInstance ls
-      All    ls -> seqInstance ls -- handling the same way
-      Choice ls -> (:[]) <$> makeAltType ls
-      Elt     e -> error  $ "Unexpected singular Elt inside content of ComplexType: " <> show e
-    declareAlgebraicType (TyData myTypeName, [(TyCon myConsName, attrFields <> childFields)])
-    return      myTypeName
+    case inner of
+        Seq ls -> do
+            childFields <- seqInstance ls
+            declareAlgebraicType (TyData myTypeName, [(TyCon myConsName, attrFields <> childFields)])
+            return myTypeName
+        All ls -> do
+            -- Handling the same way as `Seq`
+            generateContentType eName (cpl {inner = Seq ls})
+        Choice ls -> do
+            unless (null attrFields) $ error "Type {eName}: attributes in 'xs:choice' are unsupported!"
+            childFields <- choiceInstance ls
+            declareSumType (TyData myTypeName, childFields)
+            return myTypeName
+        Elt e -> error  $ "Unexpected singular Elt inside content of ComplexType: " <> show e
   where
     makeAttrType :: Attr -> CG TyField
     makeAttrType Attr {..} = second (\(TyType bs) -> TyType $ wrapAttr use bs) <$> makeFieldType aName aType
     makeFieldType :: XMLString -> Type -> CG TyField
     makeFieldType  aName aType = (,) <$> (TyFieldName <$> translate (AttributeName, TargetFieldName) eName aName)
                                      <*> (TyType      <$> generateContentType                        eName aType)
-    makeAltType :: [TyPart] -> CG TyField
-    makeAltType ls = do
-      warn [qc|"altType not yet implemented: {ls}|]
-      return (TyFieldName "altFields", TyType "Xeno.Node")
     seqInstance = mapM fun
       where
         fun (Elt (elt@(Element {}))) = do
           generateElementInstance eName elt
         fun  x = error [qc|Type {eName}: not yet implemented nested sequence, all or choice: {x}|]
+    choiceInstance :: [TyPart] -> CG [SumAlt]
+    choiceInstance ls = do
+        elts <- catMaybes <$> (forM ls $ \case
+            Elt e -> return $ Just e
+            x     -> warn [qc|Type {eName}: nested types not supported yet // {x}|] >> return Nothing)
+        forM elts $ \elt@Element{eName=tName} -> do
+            tyName <- translate (ChoiceIn eName, TargetConsName) eName tName
+            (_, tyType) <- generateElementInstance tName elt
+            return (TyCon tyName, escapeSpaces tyType)
 generateContentType eName (Restriction _ (Enum (uniq -> values))) = do
   tyName     <- translate (SchemaType ,   TargetTypeName) eName        eName -- should it be split into element and type containers?
   translated <- translate (EnumIn eName,  TargetConsName) eName `mapM` values
