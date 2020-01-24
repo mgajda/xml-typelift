@@ -56,7 +56,7 @@ optsParser =
         (long "version" <> help "Show version")
     programOptions :: Parser Opts
     programOptions =
-        Opts <$> filenameOption (long "schema"              <> metavar "FILENAME"  <> help "Path to XML schema (.xsd file)")
-             <*> switch         (long "generate-types-only" <>                        help "Generate types only")
+        Opts <$> filenameOption (long "schema" <> metavar "FILENAME"  <> help "Path to XML schema (.xsd file)")
+             <*> switch         (long "types"  <>                        help "Generate types only")
     filenameOption = strOption
 
