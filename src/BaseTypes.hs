@@ -52,8 +52,8 @@ basePrologue  = mconcat $ map makeImport modules
               ,"Data.Time.LocalTime(ZonedTime)"
               ,"Data.Word"
               ,"qualified GHC.Generics as G"
-              ,"qualified Data.ByteString as BS"
-              ,"qualified Data.ByteString.Char8 as BSC"
+              ,"qualified Data.ByteString as BSX"
+              ,"qualified Data.ByteString.Char8 as BSC" -- TODO resolve with previous import
               ,"qualified Data.ByteString.Unsafe as BSU"
               ,"qualified Data.Vector.Unboxed as UV"
               ,"qualified Data.Vector.Unboxed.Mutable as UMV"
