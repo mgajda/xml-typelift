@@ -3,25 +3,22 @@
 {-# LANGUAGE NamedFieldPuns      #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RankNTypes          #-}
-{-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TemplateHaskell     #-}
-{-# LANGUAGE TupleSections       #-}
-{-# LANGUAGE ViewPatterns        #-}
 -- | Translating base types
 --   Checking if a given type is
 --   predefined Haskell type,
 module BaseTypes(baseTranslations
                 ,basePrologue
                 ,isSimple
+                ,isXSDBaseType
                 ,reservedWords
                 ,isBaseHaskellType
                 ) where
 
-import           Prelude hiding(lookup)
+import           Prelude               hiding (lookup)
 
-import qualified Data.ByteString.Char8      as BS
-import qualified Data.Set                   as Set
+import qualified Data.ByteString.Char8 as BS
+import qualified Data.Set              as Set
 import           Data.String
 
 import           FromXML
@@ -121,16 +118,21 @@ baseHaskellTypes  = Set.fromList $ usedBases <> otherBases
                  ,"Floating"
                  ]
 
+-- | List of Haskell reserved words that should not clash with
+--   translated identifiers.
 reservedWords :: [XMLString]
 reservedWords  = ["do"
                  ,"module"
                  ,"case", "of"
                  ,"if", "then", "else"
-                 ,"as"
+                 ,"as", "class", "instance", "where", "let"
+                 ,"newtype", "data", "type"
                  ]
 
 predefinedTypes :: Set.Set XMLString
 predefinedTypes = Set.fromList $ map fst baseTranslations
+
+isXSDBaseType = (`Set.member` predefinedTypes)
 
 isSimple :: Type -> Maybe Bool
 isSimple (Ref x)
