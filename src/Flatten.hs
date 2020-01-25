@@ -147,6 +147,8 @@ isFlat (Extension { base
 isFlat e@(Extension {}) = do
   report $ "Extension not  yet handled: " <> show e
   return False
+isFlat (Restriction {}) = do
+  return True
 
 scopeId  ScopeGlobal      = "Global"
 scopeId (ScopeType    ty) = ty <> "T"
@@ -158,9 +160,14 @@ nestedGroupName hint = do
   scope <- ask
   return $ scopeId scope <> hint
 
+tyFlatten, goFlatten :: Type -> Flattener Type
+tyFlatten ty = do
+  terminate <- isFlat ty
+  if terminate
+    then return       ty
+    else goFlatten    ty
 
-tyFlatten :: Type -> Flattener Type
-tyFlatten ty@Complex { mixed
+goFlatten ty@Complex { mixed
                      , attrs
                      , inner } =
   case inner of
@@ -175,7 +182,7 @@ tyFlatten ty@Complex { mixed
       return ty
     -- | Named elements, and groups are already flat
     other -> return ty
-tyFlatten e@(Extension { base
+goFlatten e@(Extension { base
                        , mixin=c@Complex {mixed, inner}}) = do
   mixed <- findIsMixed base
   case inner of
@@ -190,12 +197,16 @@ tyFlatten e@(Extension { base
       newGroup <- splitTyPart mixed inner
       return Extension { base
                        , mixin = c { inner = newGroup } }
-tyFlatten e@(Extension { base
+goFlatten e@(Extension { base
                        , mixin=other
                        }) = do
   report $ "Do not know how to flatten extension of "
         <> show other
   return e
+goFlatten other = do
+  report $ "Do not know how to flatten "
+        <> show other
+  return other
 
 -- | Check if given type is mixed type.
 findIsMixed typeName | isXSDBaseType typeName =
