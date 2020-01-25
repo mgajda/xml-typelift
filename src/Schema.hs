@@ -126,6 +126,7 @@ instance Default Use where
 data TyPart = Seq    [TyPart]
             | Choice [TyPart]
             | All    [TyPart]
+            | Group  XMLString -- named group of elements
             | Elt    Element
              -- no support for xs:all yet
   deriving (Eq, Ord, Show, Generic, NFData, Data, Typeable)
