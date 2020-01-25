@@ -128,6 +128,8 @@ isFlat (Restriction {base}) = do
 isFlat (Complex { inner=Seq (allFlatElts -> True) }) =
   return True
 -- TODO: accept seq extensions of
+isFlat (Complex { attrs=[], inner=Elt _}) =
+  return True
 isFlat (Complex {inner=Choice (allFlatElts -> True)}) =
   return True
 isFlat (Complex { attrs=[], inner=Choice (allFlatElts -> True) }) =
@@ -149,6 +151,8 @@ isFlat e@(Extension {}) = do
   return False
 isFlat (Restriction {}) = do
   return True
+isFlat  other =
+  error $ "isFlat? " <> show other
 
 scopeId  ScopeGlobal      = "Global"
 scopeId (ScopeType    ty) = ty <> "T"
@@ -190,15 +194,12 @@ goFlatten e@(Extension { base
       return e
     Seq s -> do
       s' <- splitTyPart mixed `mapM` s
-      return Extension { base
-                       , mixin = c { inner = Seq s' }
-                       }
+      return e { mixin = c { inner = Seq s' }
+               }
     Choice cs -> do
       newGroup <- splitTyPart mixed inner
-      return Extension { base
-                       , mixin = c { inner = newGroup } }
-goFlatten e@(Extension { base
-                       , mixin=other
+      return e { mixin = c { inner = newGroup } }
+goFlatten e@(Extension { mixin = other
                        }) = do
   report $ "Do not know how to flatten extension of "
         <> show other
