@@ -8,18 +8,21 @@
 {-# LANGUAGE RankNTypes                 #-}
 {-# LANGUAGE RecordWildCards            #-}
 {-# LANGUAGE StandaloneDeriving         #-}
+{-# LANGUAGE ViewPatterns               #-}
 -- | Here we aim to analyze the schema.
 module Flatten(flatten) where
 
 import           Control.Monad.Reader
-import           Control.Monad.RWS
+import           Control.Monad.RWS     (MonadRWS (..), MonadReader (..),
+                                        MonadState (..), MonadWriter (..), RWS,
+                                        evalRWS, gets, modify')
 import qualified Data.Map.Strict       as Map
-import           Data.Maybe            (catMaybes)
+import           Data.Maybe            (catMaybes, isJust)
 
 import           Data.Functor.Identity
 import           FromXML               (XMLString, getStartIndex)
 
-import           BaseTypes
+import           BaseTypes             (isSimple, isXSDBaseType)
 import           Schema
 
 data Message = Message {
@@ -38,7 +41,6 @@ instance Show FScope where
   show  ScopeGlobal           = "top level"
   show (ScopeType    ty     ) = "complex type " <> show ty
   show (ScopeElement eltName) = "element "      <> show eltName
-
 
 -- | Flattening monad
 newtype Flattener a =
@@ -100,6 +102,40 @@ report issue = Flattener $ do
       , inner :: !TyPart
       }
  -}
+
+{-
+allFlatElts = all isFlatElt
+  where
+    -- Is it a straight reference, or a more complex type?
+    isFlatElt (Ref _) = True
+    isFlatElt other   = isJust $ isSimple other
+  -}
+
+allFlatElts = all isFlatElt
+
+isFlatElt (Elt   e) = True
+isFlatElt (Group g) = True
+isFlatElt  _        = False
+
+-- | Is it a single-level structure, or does it need splitting?
+isFlat (Ref _) = return True
+isFlat (Restriction {base}) | isXSDBaseType base =
+  return True
+isFlat (Restriction {base}) = do
+  report $ "Restriction of non-base type: " <> show base
+  return False
+isFlat (Complex { inner=Seq (allFlatElts -> True) }) =
+  return True
+-- TODO: accept seq extensions of
+isFlat (Complex {inner=Seq s}) = undefined
+isFlat (Complex { attrs=[], inner=Choice (allFlatElts -> True) }) =
+  return True
+isFlat (Complex { attrs, inner=Choice []}) =
+  return True
+isFlat (Extension {base,
+                   mixin=Complex {inner=Seq (allFlatElts -> True)}}) = return False
+isFlat (Extension {base}) = return False
+
 tyFlatten :: Type -> Flattener Type
 tyFlatten ty@Complex { mixed
                      , attrs
@@ -111,6 +147,11 @@ tyFlatten ty@Complex { mixed
     Choice {} -> do
       report $ "Choice in Complex type: " <> show  ty
       return ty
+    All {} -> do
+      report $ "No special treatment for xs:all yet: " <> show ty
+      return ty
+    -- | Named elements, and groups are already flat
+    other -> return ty
 --tyFlatten Extension {base, mixin} = undefined
 tyFlatten ty = return ty
 
