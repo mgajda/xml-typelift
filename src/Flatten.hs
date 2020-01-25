@@ -51,9 +51,9 @@ newtype Flattener a =
                         a
   } deriving (Functor, Applicative, Monad)
 
-runFlattener ::  Schema                  -- input schema
-             -> (Type -> Flattener Type) -- transform function
-             -> (Schema, [Message])      -- resulting schema and messages
+runFlattener ::  Schema                  -- ^ input schema
+             -> (Type -> Flattener Type) -- ^ transform function
+             -> (Schema, [Message])      -- ^ resulting schema and messages
 runFlattener Schema { types, tops, namespace } act =
     evalRWS loop ScopeGlobal types
   where
@@ -111,30 +111,53 @@ allFlatElts = all isFlatElt
     isFlatElt other   = isJust $ isSimple other
   -}
 
+allFlatElts :: [TyPart] -> Bool
 allFlatElts = all isFlatElt
 
+isFlatElt :: TyPart -> Bool
 isFlatElt (Elt   e) = True
 isFlatElt (Group g) = True
 isFlatElt  _        = False
 
 -- | Is it a single-level structure, or does it need splitting?
+isFlat :: Type -> Flattener Bool
 isFlat (Ref _) = return True
-isFlat (Restriction {base}) | isXSDBaseType base =
-  return True
 isFlat (Restriction {base}) = do
   report $ "Restriction of non-base type: " <> show base
   return False
 isFlat (Complex { inner=Seq (allFlatElts -> True) }) =
   return True
 -- TODO: accept seq extensions of
-isFlat (Complex {inner=Seq s}) = undefined
+isFlat (Complex {inner=Choice (allFlatElts -> True)}) =
+  return True
 isFlat (Complex { attrs=[], inner=Choice (allFlatElts -> True) }) =
   return True
 isFlat (Complex { attrs, inner=Choice []}) =
   return True
-isFlat (Extension {base,
-                   mixin=Complex {inner=Seq (allFlatElts -> True)}}) = return False
-isFlat (Extension {base}) = return False
+isFlat (Extension { base
+                  , mixin=Complex {inner=Seq (allFlatElts -> True)
+                                  }
+                  }) =
+  return False
+isFlat (Extension { base
+                  , mixin=Complex {inner=Choice cs
+                                  }
+                  }) = do
+  return False
+isFlat e@(Extension {}) = do
+  report $ "Extension not  yet handled: " <> show e
+  return False
+
+scopeId  ScopeGlobal      = "Global"
+scopeId (ScopeType    ty) = ty <> "T"
+scopeId (ScopeElement e ) = e  <> "E"
+
+-- | TODO: check that the name is unique
+nestedGroupName :: XMLString -> Flattener XMLString
+nestedGroupName hint = do
+  scope <- ask
+  return $ scopeId scope <> hint
+
 
 tyFlatten :: Type -> Flattener Type
 tyFlatten ty@Complex { mixed
@@ -152,8 +175,61 @@ tyFlatten ty@Complex { mixed
       return ty
     -- | Named elements, and groups are already flat
     other -> return ty
---tyFlatten Extension {base, mixin} = undefined
-tyFlatten ty = return ty
+tyFlatten e@(Extension { base
+                       , mixin=c@Complex {mixed, inner}}) = do
+  mixed <- findIsMixed base
+  case inner of
+    Seq s | allFlatElts s -> do
+      return e
+    Seq s -> do
+      s' <- splitTyPart mixed `mapM` s
+      return Extension { base
+                       , mixin = c { inner = Seq s' }
+                       }
+    Choice cs -> do
+      newGroup <- splitTyPart mixed inner
+      return Extension { base
+                       , mixin = c { inner = newGroup } }
+tyFlatten e@(Extension { base
+                       , mixin=other
+                       }) = do
+  report $ "Do not know how to flatten extension of "
+        <> show other
+  return e
+
+-- | Check if given type is mixed type.
+findIsMixed typeName | isXSDBaseType typeName =
+  return True -- TODO: check with the spec
+findIsMixed typeName = do
+  ty <- gets $ Map.lookup typeName
+  case ty of
+    Nothing -> do
+      report $ "Cannot find base type "
+            <> show typeName
+      return False -- TODO: check spec?
+    Just  Complex     {mixed} -> return mixed
+    Just  Extension   {base}  ->
+      findIsMixed base
+    Just  Restriction {base}  ->
+      findIsMixed base
+    Just (Ref          name ) ->
+      findIsMixed name
+
+-- | Given `TyPart`, check if it is flat enough to process,
+--   and split it into newly named `Group` if not.
+splitTyPart :: Bool -> TyPart -> Flattener TyPart
+splitTyPart mixed tyPart = do
+    flat <- tyFlatten Complex { mixed
+                              , attrs = []
+                              , inner = tyPart
+                              }
+    name <- nestedGroupName $ nestedGroupNameHint tyPart
+    modify' $ Map.insert name flat
+    return  $ Group name
+
+nestedGroupNameHint (Choice cs) = "Alt"
+nestedGroupNameHint (Seq    cs) = "Rec"
+nestedGroupNameHint  _          = "Inner"
 
 flatten :: Schema -> (Schema, [Message])
 flatten schema = runFlattener schema tyFlatten
