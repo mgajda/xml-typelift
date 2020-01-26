@@ -9,6 +9,7 @@
 {-# LANGUAGE RecordWildCards            #-}
 {-# LANGUAGE StandaloneDeriving         #-}
 {-# LANGUAGE ViewPatterns               #-}
+{-# LANGUAGE QuasiQuotes           #-}
 -- | Here we aim to analyze the schema.
 module Flatten(flatten) where
 
@@ -16,6 +17,8 @@ import           Control.Monad.Reader
 import           Control.Monad.RWS     (MonadRWS (..), MonadReader (..),
                                         MonadState (..), MonadWriter (..), RWS,
                                         evalRWS, gets, modify')
+import           Data.Bool             (bool)
+import qualified Data.ByteString.Char8 as BS
 import qualified Data.Map.Strict       as Map
 import           Data.Maybe            (catMaybes, isJust)
 
@@ -24,6 +27,9 @@ import           FromXML               (XMLString, getStartIndex)
 
 import           BaseTypes             (isSimple, isXSDBaseType)
 import           Schema
+
+import Debug.Pretty.Simple
+import           Text.InterpolatedString.Perl6 (qc)
 
 data Message = Message {
                  inType  :: FScope
@@ -115,8 +121,8 @@ allFlatElts :: [TyPart] -> Bool
 allFlatElts = all isFlatElt
 
 isFlatElt :: TyPart -> Bool
-isFlatElt (Elt   e) = True
-isFlatElt (Group g) = True
+isFlatElt (Elt   _) = True
+isFlatElt (Group _) = True
 isFlatElt  _        = False
 
 -- | Is it a single-level structure, or does it need splitting?
@@ -154,15 +160,20 @@ isFlat (Restriction {}) = do
 isFlat  other =
   error $ "isFlat? " <> show other
 
+scopeId :: FScope -> XMLString
 scopeId  ScopeGlobal      = "Global"
 scopeId (ScopeType    ty) = ty <> "T"
 scopeId (ScopeElement e ) = e  <> "E"
 
--- | TODO: check that the name is unique
 nestedGroupName :: XMLString -> Flattener XMLString
 nestedGroupName hint = do
   scope <- ask
-  return $ scopeId scope <> hint
+  tryNames scope ("": map (BS.pack . show) [(1::Integer)..])
+  where
+    tryNames scope (n:ns) = do
+      let name = scopeId scope <> n <> hint
+      gets (Map.member name) >>= bool (return name) (tryNames scope ns)
+    tryNames _ [] = undefined
 
 tyFlatten, goFlatten :: Type -> Flattener Type
 tyFlatten ty = do
@@ -187,18 +198,21 @@ goFlatten ty@Complex { mixed
     -- | Named elements, and groups are already flat
     other -> return ty
 goFlatten e@(Extension { base
-                       , mixin=c@Complex {mixed, inner}}) = do
+                       , mixin=c@Complex {inner}}) = do
+  pTraceM [qc|goFlatten: {e}|]
   mixed <- findIsMixed base
   case inner of
     Seq s | allFlatElts s -> do
       return e
     Seq s -> do
       s' <- splitTyPart mixed `mapM` s
+      pTraceM [qc|s': <{s'}>|]
       return e { mixin = c { inner = Seq s' }
                }
     Choice cs -> do
       newGroup <- splitTyPart mixed inner
       return e { mixin = c { inner = newGroup } }
+    x -> error [qc|Unhandled {x}|]
 goFlatten e@(Extension { mixin = other
                        }) = do
   report $ "Do not know how to flatten extension of "
@@ -231,6 +245,7 @@ findIsMixed typeName = do
 --   and split it into newly named `Group` if not.
 splitTyPart :: Bool -> TyPart -> Flattener TyPart
 splitTyPart mixed tyPart = do
+    pTraceM [qc|splitTyPart: {mixed} // {tyPart}|]
     flat <- tyFlatten Complex { mixed
                               , attrs = []
                               , inner = tyPart
