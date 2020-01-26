@@ -28,9 +28,6 @@ import           FromXML               (XMLString, getStartIndex)
 import           BaseTypes             (isSimple, isXSDBaseType)
 import           Schema
 
-import Debug.Pretty.Simple
-import           Text.InterpolatedString.Perl6 (qc)
-
 data Message = Message {
                  inType  :: FScope
                , content :: String
@@ -199,20 +196,18 @@ goFlatten ty@Complex { mixed
     other -> return ty
 goFlatten e@(Extension { base
                        , mixin=c@Complex {inner}}) = do
-  pTraceM [qc|goFlatten: {e}|]
   mixed <- findIsMixed base
   case inner of
     Seq s | allFlatElts s -> do
       return e
     Seq s -> do
       s' <- splitTyPart mixed `mapM` s
-      pTraceM [qc|s': <{s'}>|]
       return e { mixin = c { inner = Seq s' }
                }
     Choice cs -> do
       newGroup <- splitTyPart mixed inner
       return e { mixin = c { inner = newGroup } }
-    x -> error [qc|Unhandled {x}|]
+    x -> error $ "Unhandled " <> show x
 goFlatten e@(Extension { mixin = other
                        }) = do
   report $ "Do not know how to flatten extension of "
@@ -245,7 +240,6 @@ findIsMixed typeName = do
 --   and split it into newly named `Group` if not.
 splitTyPart :: Bool -> TyPart -> Flattener TyPart
 splitTyPart mixed tyPart = do
-    pTraceM [qc|splitTyPart: {mixed} // {tyPart}|]
     flat <- tyFlatten Complex { mixed
                               , attrs = []
                               , inner = tyPart
