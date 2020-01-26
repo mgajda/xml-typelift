@@ -17,7 +17,7 @@ buildTypelift:  # A job to build the static website - replace it with your build
     # check that CLI application is working and output some reasonable
     - stack exec -- xml-typelift-cli --version
     - stack exec -- xml-typelift-cli --help
-    - stack exec -- xml-typelift-cli --schema test/customersOrders.xsd --generate-types-only > types.hs
+    - stack exec -- xml-typelift-cli --schema test/customersOrders.xsd --types > types.hs
     - stack exec -- xml-typelift-cli --schema test/customersOrders.xsd > parser.hs
     - grep -z "\<data Customers.*= Customers {.*}" types.hs > /dev/null
     - grep -z "\<parseTopLevelToArray " parser.hs > /dev/null
