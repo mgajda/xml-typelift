@@ -8,8 +8,6 @@
 {-# LANGUAGE RankNTypes                 #-}
 {-# LANGUAGE RecordWildCards            #-}
 {-# LANGUAGE StandaloneDeriving         #-}
-{-# LANGUAGE ViewPatterns               #-}
-{-# LANGUAGE QuasiQuotes           #-}
 -- | Here we aim to analyze the schema.
 module Flatten(flatten) where
 
@@ -90,72 +88,68 @@ report issue = Flattener $ do
   scope <- ask
   tell [Message scope issue]
 
-{-
-  | Restriction {
-        base       :: !XMLString
-      , restricted :: !Restriction
-      }
-  | Extension {
-        base  :: !XMLString
-      , mixin :: !Type
-      } -- ^ Extension of complexType
-  | Complex {
-        mixed :: !Bool
-      , attrs :: ![Attr]
-      , inner :: !TyPart
-      }
- -}
+class ComplexityLevel t where
+  complexityLevel :: t -> Flattener Int
 
-{-
-allFlatElts = all isFlatElt
-  where
-    -- Is it a straight reference, or a more complex type?
-    isFlatElt (Ref _) = True
-    isFlatElt other   = isJust $ isSimple other
-  -}
-
-allFlatElts :: [TyPart] -> Bool
-allFlatElts = all isFlatElt
-
-isFlatElt :: TyPart -> Bool
-isFlatElt (Elt   _) = True
-isFlatElt (Group _) = True
-isFlatElt  _        = False
-
+instance ComplexityLevel Type where
 -- | Is it a single-level structure, or does it need splitting?
-isFlat :: Type -> Flattener Bool
-isFlat (Ref _) = return True
-isFlat (Restriction {base}) = do
-  report $ "Restriction of non-base type: " <> show base
-  return False
-isFlat (Complex { inner=Seq (allFlatElts -> True) }) =
-  return True
--- TODO: accept seq extensions of
-isFlat (Complex { attrs=[], inner=Elt _}) =
-  return True
-isFlat (Complex {inner=Choice (allFlatElts -> True)}) =
-  return True
-isFlat (Complex { attrs=[], inner=Choice (allFlatElts -> True) }) =
-  return True
-isFlat (Complex { attrs, inner=Choice []}) =
-  return True
-isFlat (Extension { base
-                  , mixin=Complex {inner=Seq (allFlatElts -> True)
-                                  }
-                  }) =
-  return False
-isFlat (Extension { base
-                  , mixin=Complex {inner=Choice cs
-                                  }
-                  }) = do
-  return False
-isFlat e@(Extension {}) = do
-  report $ "Extension not  yet handled: " <> show e
-  return False
-isFlat (Restriction {}) = do
-  return True
-isFlat  other =
-  error $ "isFlat? " <> show other
+--   Types of level 0 are just references to other declarations
+--   Types of level 1 need a single declaration
+--   Types of higher level need splitting to eliminate nesting
+  complexityLevel (Ref _) = return 0
+  complexityLevel (Restriction {base}) = do
+    when (not $ isXSDBaseType base) $
+      report $ "Restriction of non-base type: " <> show base
+    return 1
+  complexityLevel (Complex { inner=Seq s }) =
+    complexityLevel s
+  -- TODO: accept seq extensions of
+  complexityLevel (Complex { attrs=[], inner=Elt _ }) =
+    return 1
+  complexityLevel (Complex { attrs=[], inner=Choice cs }) =
+    complexityLevel cs
+  complexityLevel (Complex { attrs, inner=Choice []}) =
+    return 1
+  complexityLevel (Complex { attrs=(_a:_as), inner=Choice cs }) =
+    complexityLevel cs
+  complexityLevel (Extension {
+                      base
+                    , mixin=Complex { inner=Seq s
+                                    }
+                    }) =
+    -- Extension on top of sequence adds only single level of complexity (like Seq does),
+    -- since base type will be mentioned as reference.
+    complexityLevel s
+  complexityLevel (Extension { base
+                    , mixin=Complex {inner=Choice cs
+                                    }
+                    }) =
+    -- Extension on top of choice adds only single level of complexity,
+    -- since we need to declare sum type anyway
+    complexityLevel cs
+  complexityLevel e@(Extension {mixin}) = do
+    report $ "Extension not  yet handled: " <> show e
+    (1+) <$> complexityLevel mixin
+  complexityLevel (Restriction {}) = do
+    return 1
+  complexityLevel  other =
+    error $ "complexityLevel? " <> show other
+
+instance ComplexityLevel [TyPart] where
+  complexityLevel s =
+    ((+1) . maximum . (0:)) <$> mapM complexityLevel s
+
+instance ComplexityLevel TyPart where
+  complexityLevel (Elt    e ) =
+    return 0
+  complexityLevel (Group  g ) =
+    return 0
+  complexityLevel (Seq    s ) =
+    complexityLevel s
+  complexityLevel (Choice cs) =
+    complexityLevel cs
+  complexityLevel (All    s ) =
+    complexityLevel s
 
 scopeId :: FScope -> XMLString
 scopeId  ScopeGlobal      = "Global"
@@ -174,10 +168,11 @@ nestedGroupName hint = do
 
 tyFlatten, goFlatten :: Type -> Flattener Type
 tyFlatten ty = do
-  terminate <- isFlat ty
-  if terminate
-    then return       ty
-    else goFlatten    ty
+  level <- complexityLevel ty
+  case level of
+    0 -> return    ty -- Should be `newtype` alias
+    1 -> return    ty -- Will be a single new declaration
+    _ -> goFlatten ty -- Needs to be splitted
 
 goFlatten ty@Complex { mixed
                      , attrs
@@ -198,12 +193,14 @@ goFlatten e@(Extension { base
                        , mixin=c@Complex {inner}}) = do
   mixed <- findIsMixed base
   case inner of
-    Seq s | allFlatElts s -> do
-      return e
     Seq s -> do
-      s' <- splitTyPart mixed `mapM` s
-      return e { mixin = c { inner = Seq s' }
-               }
+      level <- complexityLevel s
+      case level of
+        0 -> return e
+        _ -> do
+          s' <- splitTyPart mixed `mapM` s
+          return e { mixin = c { inner = Seq s' }
+                   }
     Choice cs -> do
       newGroup <- splitTyPart mixed inner
       return e { mixin = c { inner = newGroup } }
