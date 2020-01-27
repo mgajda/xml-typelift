@@ -190,7 +190,7 @@ goFlatten ty@Complex { mixed
     -- | Named elements, and groups are already flat
     other -> return ty
 goFlatten e@(Extension { base
-                       , mixin=c@Complex {inner}}) = do
+                       , mixin=c@Complex {attrs, inner}}) = do
   mixed <- findIsMixed base
   case inner of
     Seq s -> do
@@ -198,10 +198,19 @@ goFlatten e@(Extension { base
       case level of
         0 -> return e
         _ -> do
-          s' <- splitTyPart mixed `mapM` s
+          s' <- trySplitTyPart mixed `mapM` s
           return e { mixin = c { inner = Seq s' }
                    }
     Choice cs -> do
+      baseType <- gets $ Map.lookup base
+      -- base type should be choice, or flat
+      {- TODO: gather bases, and merge
+        case base of
+        Complex {attrs = baseAttrs,
+                ,mixed
+                ,inner = baseInner} ->
+        other ->
+       -}
       newGroup <- splitTyPart mixed inner
       return e { mixin = c { inner = newGroup } }
     x -> error $ "Unhandled " <> show x
@@ -214,6 +223,13 @@ goFlatten other = do
   report $ "Do not know how to flatten "
         <> show other
   return other
+
+-- | Split `TyPart` if it has complexity >0
+trySplitTyPart mixed ty = do
+  level <- complexityLevel ty
+  case level of
+    0 -> return ty
+    _ -> splitTyPart mixed ty
 
 -- | Check if given type is mixed type.
 findIsMixed typeName | isXSDBaseType typeName =
