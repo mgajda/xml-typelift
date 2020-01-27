@@ -49,20 +49,20 @@ module CodeGenMonad(-- Code generation monad
                    ,getIndent
                    ) where
 
-import           Prelude hiding(lookup)
+import           Prelude                  hiding (lookup)
 
-import           Control.Lens as Lens
+import           Control.Lens             as Lens
 -- import           Text.InterpolatedString.Perl6 (qc)
-import qualified Control.Monad.RWS.Strict   as RWS
-import qualified Data.ByteString.Builder    as B
-import qualified Data.ByteString.Char8      as BS
-import qualified Data.ByteString.Lazy       as BSL(toStrict, length, null)
-import qualified Data.Map.Strict            as Map
-import qualified Data.Set                   as Set
-import qualified Language.Haskell.TH        as TH
+import qualified Control.Monad.RWS.Strict as RWS
+import qualified Data.ByteString.Builder  as B
+import qualified Data.ByteString.Char8    as BS
+import qualified Data.ByteString.Lazy     as BSL (length, null, toStrict)
+import qualified Data.Map.Strict          as Map
+import qualified Data.Set                 as Set
+import qualified Language.Haskell.TH      as TH
 
 import           BaseTypes
-import           FromXML(XMLString)
+import           FromXML                  (XMLString)
 import           Identifiers
 import           Schema
 
@@ -78,6 +78,7 @@ data XMLIdNS = SchemaType
              | AttributeName
              | EnumIn XMLString -- enumeration inside type/element of given name (should be path)
              | ChoiceIn XMLString -- xs:choice inside type of given name
+             | SchemaGroup
   deriving (Eq, Ord, Show)
 
 -- | Which of the target language identifier namespaces do we use here
@@ -97,7 +98,7 @@ data CGState =
   , _allocatedIdentifiers :: Set.Set (TargetIdNS, XMLString)
 
   -- FOR GENERATING
-  , _indent :: Int
+  , _indent               :: Int
   }
 makeLenses ''CGState
 
@@ -174,6 +175,7 @@ placeholder :: XMLIdNS -> TargetIdNS -> XMLString
 placeholder xmlIdClass targetIdClass = classNormalizer targetIdClass $ name xmlIdClass
   where
     name  SchemaType    = "UnnamedSchemaType"
+    name  SchemaGroup   = "UnnamedGroupType"
     name  ElementName   = "UnnamedElement"    -- is not allowed by schema
     name  AttributeName = "UnnamedAttribute"
     name (EnumIn x)     = "EnumIn" <> x
@@ -206,7 +208,7 @@ translate idClass@(schemaIdClass, haskellIdClass) container xmlName = do
       Nothing -> do
         let isValid (_, x) | rejectInvalidTypeName x = False
             isValid     x  | x `Set.member` allocs   = False
-            isValid  _                               = True
+            isValid  _     = True
             proposals = isValid `filter` proposeTranslations xmlName
         case proposals of
           (goodProposal:_) ->
@@ -268,5 +270,3 @@ decIndent = do
 
 getIndent :: CG Int
 getIndent = RWS.gets _indent
-
-

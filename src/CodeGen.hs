@@ -1,47 +1,47 @@
-{-# LANGUAGE LambdaCase            #-}
-{-# LANGUAGE TupleSections         #-}
-{-# LANGUAGE NamedFieldPuns        #-}
-{-# LANGUAGE OverloadedStrings     #-}
-{-# LANGUAGE QuasiQuotes           #-}
-{-# LANGUAGE RecordWildCards       #-}
-{-# LANGUAGE ScopedTypeVariables   #-}
-{-# LANGUAGE TemplateHaskell       #-}
-{-# LANGUAGE TypeFamilies          #-}
-{-# LANGUAGE ViewPatterns          #-}
 {-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE LambdaCase                #-}
+{-# LANGUAGE NamedFieldPuns            #-}
+{-# LANGUAGE OverloadedStrings         #-}
+{-# LANGUAGE QuasiQuotes               #-}
+{-# LANGUAGE RecordWildCards           #-}
+{-# LANGUAGE ScopedTypeVariables       #-}
+{-# LANGUAGE TemplateHaskell           #-}
+{-# LANGUAGE TupleSections             #-}
+{-# LANGUAGE TypeFamilies              #-}
+{-# LANGUAGE ViewPatterns              #-}
 {-# OPTIONS_GHC -fno-warn-orphans  #-}
 -- | Here we aim to analyze the schema.
 module CodeGen(codegen, parserCodegen) where
 
 
-import           Prelude hiding(lookup, id)
+import           Prelude                           hiding (id, lookup)
 
 import           Control.Arrow
-import           Data.Maybe
 import           Control.Monad
-import           Control.Monad(forM, forM_, when)
-import qualified Data.ByteString.Builder     as B
-import qualified Data.ByteString.Char8       as BS
+import           Control.Monad                     (forM, forM_, when)
+import qualified Data.ByteString.Builder           as B
+import qualified Data.ByteString.Char8             as BS
+import qualified Data.Map.Strict                   as Map
+import           Data.Maybe
+import qualified Data.Set                          as Set
 import           Data.String
-import qualified Data.Map.Strict             as Map
-import qualified Data.Set                    as Set
-import qualified Language.Haskell.TH         as TH
-import           Text.InterpolatedString.Perl6 (qc)
+import qualified Language.Haskell.TH               as TH
+import           Text.InterpolatedString.Perl6     (qc)
 
-import           FromXML(XMLString)
+import           FromXML                           (XMLString)
 
 import           BaseTypes
 import           CodeGenMonad
 import           Schema
 import           TypeDecls
 
-import Data.Generics.Uniplate.Operations
+import           Data.Generics.Uniplate.Operations
 
-import Debug.Pretty.Simple
-import Text.Pretty.Simple
+import           Debug.Pretty.Simple
+import           Text.Pretty.Simple
 
 
-import Identifiers
+import           Identifiers
 
 
 -- | Returns a pair of field name, and type code.
@@ -58,6 +58,14 @@ generateElementInstance container elt@(Element {minOccurs, maxOccurs, eName, ..}
                    | otherwise                              = "["      <> tyName <> "]"
 {-generateElementInstance container _ = return ( B.byteString container
                                              , "generateElementInstanceNotFullyImplemented" )-}
+
+generateGroupType :: XMLString -- group name
+                  -> CG TyField
+generateGroupType groupName =
+    (,) <$> (TyFieldName <$> trans TargetFieldName)
+        <*> (TyType      <$> trans TargetTypeName )
+  where
+    trans tgt = translate (SchemaGroup, tgt) groupName groupName
 
 -- | Generate type of given <element/>, if not already declared by type="..." attribute reference.
 generateElementType :: XMLString -- container name
@@ -118,6 +126,7 @@ generateContentType eName cpl@(Complex {attrs, inner}) = do
             declareSumType (TyData myTypeName, childFields)
             return myTypeName
         Elt e -> error  $ "Unexpected singular Elt inside content of ComplexType: " <> show e
+        Group gName -> error $ "Did not yet implement complexType referring only to the xs:group " <> show gName
   where
     makeAttrType :: Attr -> CG TyField
     makeAttrType Attr {..} = second (\(TyType bs) -> TyType $ wrapAttr use bs) <$> makeFieldType aName aType
@@ -128,7 +137,10 @@ generateContentType eName cpl@(Complex {attrs, inner}) = do
       where
         fun (Elt (elt@(Element {}))) = do
           generateElementInstance eName elt
-        fun  x = error [qc|Type {eName}: not yet implemented nested sequence, all or choice: {x}|]
+        fun (Group gName) =
+          generateGroupType gName
+        fun  x =
+          error [qc|Type {eName}: not yet implemented nested sequence, all or choice: {x}|]
     choiceInstance :: [TyPart] -> CG [SumAlt]
     choiceInstance ls = do
         elts <- catMaybes <$> (forM ls $ \case -- TODO move to `forM`
@@ -427,9 +439,9 @@ generateParserInternalArray Schema{..} = do
         forM_ (zip ofsNames elements) $ \(((arrOfs, strOfs), (arrOfs', strOfs')), el) -> do
             let parserName = getParserName (eType el) (eName el)
                 (isUseArrOfs, tagQuantifier::XMLString) = case eltToRepeatedness el of
-                    RepMaybe      -> (True,  "inMaybeTag")
-                    RepOnce       -> (False, "inOneTag")
-                    _             -> (True,  "inManyTags")
+                    RepMaybe -> (True,  "inMaybeTag")
+                    RepOnce  -> (False, "inOneTag")
+                    _        -> (True,  "inManyTags")
                 (arrOfs1, arrOfs2)::(XMLString,XMLString) =
                     if isUseArrOfs then ([qc| {arrOfs}|],"") else ("", [qc| {arrOfs}|])
             -- TODO parse with attributes!
@@ -739,4 +751,3 @@ generateParserTop :: Schema -> CG ()
 generateParserTop _schema = do
     outCodeLine "parser :: ByteString -> Either String TopLevel" -- TODO
     outCodeLine "parser = fmap extractTopLevel . parseTopLevelToArray"
-
