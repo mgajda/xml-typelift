@@ -162,7 +162,7 @@ instance FromXML Attr where
         "use"     -> case aVal of
                        "prohibited" -> return cpl -- we can safely ignore, since we do not fully validate
                        "optional"   -> return cpl { use = Optional }
-                       "required"   -> return cpl { use = Required }
+                       "required"   -> return cpl { use = Optional } -- TODO make attributes parsing again!
                        _            -> ("Cannot parse attribute use qualifier: '" <> aVal <> "'")
                                            `failHere` aVal
         "default" -> return $ cpl { use = Default aVal }
