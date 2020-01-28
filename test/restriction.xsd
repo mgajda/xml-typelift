@@ -1,0 +1,18 @@
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    <xs:simpleType name="SomeRestriction">
+        <xs:restriction base="xs:token">
+            <xs:enumeration value="restrA" />
+            <xs:enumeration value="restrB" />
+            <xs:enumeration value="restrC" />
+            <xs:enumeration value="restrD" />
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element name="RootElt">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element name="restr" type="SomeRestriction" />
+                <xs:element name="str1" type="xs:string" minOccurs="0" />
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+</xs:schema>

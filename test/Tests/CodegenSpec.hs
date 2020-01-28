@@ -1,16 +1,19 @@
-{-# LANGUAGE BangPatterns  #-}
-{-# LANGUAGE LambdaCase  #-}
-{-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE BangPatterns         #-}
+{-# LANGUAGE LambdaCase           #-}
+{-# LANGUAGE QuasiQuotes          #-}
 {-# LANGUAGE ScopedTypeVariables  #-}
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TemplateHaskell      #-}
 module Tests.CodegenSpec where
 
 
 import Control.Exception
+import Control.Monad
 import Language.Haskell.SourceMatch
 import System.FilePath.Posix
 import Language.Haskell.TH.Lib
 import System.Process
+import System.Exit
+import System.IO
 import Test.Hspec
 --import Text.InterpolatedString.Perl6 (qc)
 
@@ -21,26 +24,25 @@ import FromXML
 
 spec :: Spec
 spec = describe "codegen" $ do
-    describe "compiling" $ do
-        it "can compile 1" $ example $ do
-            tryCompile False ("test" </> "person.xsd")
-        it "can compile 2" $ example $ do
-            tryCompile False ("test" </> "customersOrders.xsd")
-        it "can compile 3" $ example $ do
-            tryCompile False ("test" </> "shiporder.xsd")
-        it "can compile 4" $ example $ do
-            tryCompile False ("test" </> "contactExample.xsd")
+    describe "compiling" $
+        -- forM_ ["person.xsd", "customersOrders.xsd", "shiporder.xsd", "contactExample.xsd"] $ \fn ->
+        forM_ ["person.xsd"] $ \fn ->
+            forM_ [True, False] $ \isTestTypesGeneration -> do
+                let genType = if isTestTypesGeneration then "types " else "parser"
+                it ("can compile " ++ genType ++ " for \"" ++ fn ++ "\"") $ example $
+                    -- tryCompile isTestTypesGeneration ("test" </> fn)
+                    tryCompile True ("test" </> fn) -- TODO return tests!
     describe "declarations presence" $ do
         it "decl.presence.1" $ example $ do
-            withGeneratedFile ("test" </> "person.xsd") $ \hsFilepath -> do
+            withGeneratedFile True ("test" </> "person.xsd") $ \hsFilepath -> do
                 hsFilepath `declShouldPresent`
                     [d|data Birthplace = Birthplace {
                                   city :: XMLString
-                                , country :: XMLString }|]
+                                , country :: XMLString } deriving Show|]
                 hsFilepath `declShouldPresent`
                     [d|data Education = Education {
                                   degree :: XMLString
-                                , yearobtained :: XMLString }|]
+                                , yearobtained :: XMLString } deriving Show|]
                 -- TODO:
                 --hsFilepath `declShouldPresent`
                 --    [d|data Person = Person {
@@ -50,28 +52,45 @@ spec = describe "codegen" $ do
                 --                , sex :: Integer
                 --                , education :: Education }|]
         it "decl.presence.2" $ example $ do
-            withGeneratedFile ("test" </> "customersOrders.xsd") $ \hsFilepath -> do
+            withGeneratedFile True ("test" </> "customersOrders.xsd") $ \hsFilepath -> do
                 hsFilepath `declShouldPresent`
-                    [d|data AddressType = AddressType { name :: Maybe XMLString,
+                    [d|data AddressType = AddressType { customerID :: Maybe XMLString,
                                                         address :: XMLString,
                                                         city :: XMLString,
                                                         region :: XMLString,
                                                         postalCode :: XMLString,
-                                                        country :: XMLString}|]
+                                                        country :: XMLString} deriving Show|]
 
 
 -- * --------------------------------------------------------------------------
 
 
+callProcess' :: FilePath -> [String] -> IO ()
+callProcess' cmd args = do
+    (_, pstdout, pstderr, p) <- createProcess ((proc cmd args) { std_out = CreatePipe, std_err = CreatePipe })
+    waitForProcess p >>= \case
+        ExitSuccess -> do
+            whenMaybe hClose pstdout
+            whenMaybe hClose pstderr
+        ExitFailure r -> do
+            whenMaybe (dumpHandle stdout) pstdout
+            whenMaybe (dumpHandle stderr) pstderr
+            fail ("Running \"" ++ cmd ++ "\" " ++ show args ++ " has failed with " ++ show r)
+  where
+    dumpHandle outhndl inhnd = hGetContents inhnd >>= hPutStr outhndl
+    whenMaybe a m = maybe (return ()) a m
+
+
 tryCompile :: Bool -> FilePath -> IO ()
-tryCompile failOnWarns xmlFilename =
-    withGeneratedFile xmlFilename $ \hsFilename ->
-        (callProcess "stack" $ ["exec", "--", "ghc", "-O0", hsFilename] ++ compileArgs)
+tryCompile generateOnlyTypes xmlFilename =
+    withGeneratedFile generateOnlyTypes xmlFilename $ \hsFilename ->
+        (callProcess' "stack" $ ["exec", "--", "ghc", "-O0", hsFilename] ++ compileArgs)
             `catch`
             (\(e::SomeException) -> do print e >> throw e)
         -- TODO reimplement with 'cabal', see `runAutotype`
         -- in https://gitlab.com/migamake/json-autotype/blob/master/json-autotype/test/TestExamples.hs
   where
+    failOnWarns = False
     compileArgs | failOnWarns = ["-Wall", "-Werror"]
                 | otherwise   = ["-Wno-all"]
 

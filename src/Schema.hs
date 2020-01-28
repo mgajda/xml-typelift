@@ -1,33 +1,34 @@
-{-# LANGUAGE DeriveAnyClass             #-}
-{-# LANGUAGE DeriveDataTypeable         #-}
-{-# LANGUAGE DeriveGeneric              #-}
-{-# LANGUAGE OverloadedStrings          #-}
-{-# LANGUAGE ScopedTypeVariables        #-}
-{-# LANGUAGE Strict                     #-}
-{-# LANGUAGE ViewPatterns               #-}
+{-# LANGUAGE DeriveAnyClass      #-}
+{-# LANGUAGE DeriveDataTypeable  #-}
+{-# LANGUAGE DeriveGeneric       #-}
+{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE Strict              #-}
 {-# OPTIONS_GHC -funbox-strict-fields   #-}
 -- | Simplification of XML Schema and RelaxNG schema
 module Schema where
 
-import Prelude hiding(id)
-import Control.DeepSeq
+import           Control.DeepSeq
+import           Prelude                     hiding (id)
 --import Data.ByteString.Char8 as BS
 --import Data.Set as Set
-import Data.Map
-import Data.Data
-import GHC.Generics
-import Data.Generics.Uniplate.Data()
+import           Data.Data
+import           Data.Generics.Uniplate.Data ()
+import           Data.Map
+import           GHC.Generics
 
-import FromXML(XMLString)
+import           FromXML                     (XMLString)
 
 class Default a where
   def :: a
 
+type TypeDict = Map XMLString Type
+
 -- | Top level XML Schema
 data Schema = Schema {
-    types     :: !(Map XMLString Type) -- ^ Types defined by name
-  , tops      :: ![Element]            -- ^ Possible top level elements
-  , namespace :: !XMLString
+    types     :: !TypeDict  -- ^ Types defined by name
+  , tops      :: ![Element] -- ^ Possible top level elements
+  , namespace :: !XMLString -- ^ Default namespace
   }
   deriving (Eq, Ord, Show, Generic, NFData, Data, Typeable)
 
@@ -40,13 +41,16 @@ newtype ID = ID XMLString
 data MaxOccurs = Unbounded | MaxOccurs Int
   deriving (Eq, Ord, Generic, NFData, Data, Typeable, Show, Read)
 
+type ElementName = XMLString
+
+type NamespaceName = XMLString
 
 data Element = Element {
     minOccurs       :: !Int
   , maxOccurs       :: !MaxOccurs
-  , eName           :: !XMLString
+  , eName           :: !ElementName
   , eType           :: !Type
-  , targetNamespace :: !XMLString
+  , targetNamespace :: !NamespaceName
   }
   deriving (Eq, Ord, Show, Generic, NFData, Data, Typeable)
 
@@ -61,10 +65,6 @@ instance Default Element where
 -- | Check that is a simple type.
 simpleType :: Type -> Bool
 simpleType  = undefined
-
--- | Expand references, extensions, and restrictions
-flatten :: Type -> Map XMLString Type -> Type
-flatten = undefined
 
 validType :: Type -> Bool
 validType  = undefined
@@ -126,6 +126,7 @@ instance Default Use where
 data TyPart = Seq    [TyPart]
             | Choice [TyPart]
             | All    [TyPart]
+            | Group  XMLString -- named group of elements
             | Elt    Element
              -- no support for xs:all yet
   deriving (Eq, Ord, Show, Generic, NFData, Data, Typeable)
@@ -145,4 +146,3 @@ instance NFData Schema
 instance NFData Type
 instance NFData Use
  -}
-

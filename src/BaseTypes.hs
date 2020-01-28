@@ -3,25 +3,22 @@
 {-# LANGUAGE NamedFieldPuns      #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RankNTypes          #-}
-{-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TemplateHaskell     #-}
-{-# LANGUAGE TupleSections       #-}
-{-# LANGUAGE ViewPatterns        #-}
 -- | Translating base types
 --   Checking if a given type is
 --   predefined Haskell type,
 module BaseTypes(baseTranslations
                 ,basePrologue
                 ,isSimple
+                ,isXSDBaseType
                 ,reservedWords
                 ,isBaseHaskellType
                 ) where
 
-import           Prelude hiding(lookup)
+import           Prelude               hiding (lookup)
 
-import qualified Data.ByteString.Char8      as BS
-import qualified Data.Set                   as Set
+import qualified Data.ByteString.Char8 as BS
+import qualified Data.Set              as Set
 import           Data.String
 
 import           FromXML
@@ -35,12 +32,30 @@ basePrologue  = mconcat $ map makeImport modules
     modules = ["Data.Time.LocalTime(ZonedTime)"
               ,"Data.ByteString.Char8 as BS"
               ,"Data.Int(Int64)"
-              ,"Data.Scientific"
+              ,"Data.Scientific (Scientific)"
               ,"Data.Time.ISO8601.Duration"
               ,"FromXML"
               ,"Data.Time.Calendar(Day)"
               ,"Data.Time.Clock"
-              ,"Xeno.DOM as Xeno"
+              ,"qualified Xeno.DOM as Xeno" -- TODO
+              -- TODO check imports:
+              ,"Control.DeepSeq"
+              ,"Control.Monad.Fix"
+              ,"Control.Monad.ST"
+              ,"Data.ByteString (ByteString)"
+              -- ,"Data.Char"
+              ,"Data.Functor.Identity(runIdentity)"
+              ,"Data.Time.Format"
+              ,"Data.Time.LocalTime(ZonedTime)"
+              ,"Data.Word"
+              ,"qualified GHC.Generics as G"
+              ,"qualified Data.ByteString as BSX"
+              ,"qualified Data.ByteString.Char8 as BSC" -- TODO resolve with previous import
+              ,"qualified Data.ByteString.Unsafe as BSU"
+              ,"qualified Data.Vector.Unboxed as UV"
+              ,"qualified Data.Vector.Unboxed.Mutable as UMV"
+              -- TODO
+              ,"Text.Pretty.Simple"
               ]
 
 baseTranslations :: [(BS.ByteString, BS.ByteString)]
@@ -103,16 +118,21 @@ baseHaskellTypes  = Set.fromList $ usedBases <> otherBases
                  ,"Floating"
                  ]
 
+-- | List of Haskell reserved words that should not clash with
+--   translated identifiers.
 reservedWords :: [XMLString]
 reservedWords  = ["do"
                  ,"module"
                  ,"case", "of"
                  ,"if", "then", "else"
-                 ,"as"
+                 ,"as", "class", "instance", "where", "let"
+                 ,"newtype", "data", "type"
                  ]
 
 predefinedTypes :: Set.Set XMLString
 predefinedTypes = Set.fromList $ map fst baseTranslations
+
+isXSDBaseType = (`Set.member` predefinedTypes)
 
 isSimple :: Type -> Maybe Bool
 isSimple (Ref x)

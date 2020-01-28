@@ -158,11 +158,11 @@ instance FromXML Attr where
       attrAttr cpl attr@(aName, aVal) = case stripNS aName of
         "id"      -> return cpl -- ignore ids for now
         "type"    -> return $ cpl { aType = Ref aVal }
-        "name"    -> return $ cpl { aName = aName    }
+        "name"    -> return $ cpl { aName = aVal     }
         "use"     -> case aVal of
                        "prohibited" -> return cpl -- we can safely ignore, since we do not fully validate
                        "optional"   -> return cpl { use = Optional }
-                       "required"   -> return cpl { use = Required }
+                       "required"   -> return cpl { use = Optional } -- TODO make attributes parsing again!
                        _            -> ("Cannot parse attribute use qualifier: '" <> aVal <> "'")
                                            `failHere` aVal
         "default" -> return $ cpl { use = Default aVal }
@@ -239,7 +239,7 @@ eltAttrHandler elt attr@(aName, aVal) =
     _           -> unknownAttrHandler "element" attr
 
 readMaxOccurs :: BS.ByteString -> Result MaxOccurs
-readMaxOccurs  "unbounded"                 = return $ MaxOccurs maxBound
+readMaxOccurs  "unbounded"                 = return $ Unbounded
 readMaxOccurs (BS.readInt -> Just (v, "")) = return $ MaxOccurs v
 readMaxOccurs  other                       = ("Cannot decode '" <> other <> "' as maxoccurs value")
                                                  `failHere` other

@@ -28,3 +28,34 @@ It is part of DataHaskell initiative on type providers in Haskell.
 * We will use Haskell code generation like [`json-autotype`](http://github.com/mgajda/json-autotype)
 * Sample schemas will be put into `test/` directory
 
+
+## `xml-typelift-cli` utility
+
+`xml-typelift-cli` is a CLI to XML Typelift functions. It is allow to generate parser and types for XML files by XML Schema.
+
+To build this utility run
+
+```
+stack build xml-typelift:exe:xml-typelift-cli
+```
+
+You can view supported command line arguments as usual by running `xml-typelift-cli --help` (or using `stack`: `stack run --
+`xml-typelift-cli --help`):
+
+```
+XML Typelift command line interface
+
+Usage: xml-typelift-cli [--version] --schema FILENAME [--types]
+  Generates types and parser for XML files by XML schema (.xsd) files
+
+Available options:
+  -h,--help                Show this help text
+  --version                Show version
+  --schema FILENAME        Path to XML schema (.xsd file)
+  --types                  Generate types only
+```
+
+So to generate parser for XML Schema `your_schema.xsd` you can run `xml-typelift-cli --schema your_schema.xsd`
+and parser and auxiliary types will be output to stdout. Also you can get only types (without parser) by running
+`xml-typelift-cli --schema your_schema.xsd --types`.
+

@@ -1,10 +1,12 @@
 -- | Generating type declarations in code generation monad.
+{-# LANGUAGE OverloadedStrings #-}
 module TypeDecls( Record
                 , TyData(..)
                 , TyCon(..)
                 , TyType(..)
                 , TyFieldName(..)
                 , TyField
+                , SumAlt
                 , declareAlgebraicType
                 , declareSumType
                 , declareNewtype
@@ -61,12 +63,20 @@ newFieldName :: TyFieldName -> Q Name
 newFieldName (TyFieldName bsn) = newName'' bsn
 
 
+-- | Creates 'deriving Show' clause
+makeShowDc :: Q DerivClause
+makeShowDc = do
+    showDc <- newName'' (B.byteString "Show")
+    return $ DerivClause Nothing [ConT showDc]
+
+
 declareAlgebraicType :: (TyData, [Record]) -> CG ()
 declareAlgebraicType    (_,          []) = error "Empty list of records"
 declareAlgebraicType    (tyDataName,   records) =
     out $ do dataName <- newDataName tyDataName
              recs     <- mapM formatRecord records
-             return $ DataD [] dataName [] Nothing recs []
+             showDc   <- makeShowDc
+             return $ DataD [] dataName [] Nothing recs [showDc]
 
 
 formatRecord :: Record -> Q Con
@@ -86,25 +96,31 @@ declareSumType :: SumType
                -> CG ()
 declareSumType (tyName, []) =
     out $ do dataName <- newDataName tyName
-             return $ DataD [] dataName [] Nothing [NormalC dataName []] []
+             showDc   <- makeShowDc
+             return $ DataD [] dataName [] Nothing [NormalC dataName []] [showDc]
 declareSumType (tyDataName, sumTypes) =
     out $ do dataName <- newDataName tyDataName
              constrs  <- mapM (uncurry mkNormalC) sumTypes
-             return $ DataD [] dataName [] Nothing constrs []
+             showDc   <- makeShowDc
+             return $ DataD [] dataName [] Nothing constrs [showDc]
 
 
 declareNewtype :: TyData -> TyCon -> TyType -> CG ()
 declareNewtype tyDataName tyConstr baseTy =
     out $ do dataName <- newDataName tyDataName
              constr   <- mkNormalC tyConstr baseTy
-             return $ NewtypeD [] dataName [] Nothing constr []
+             showDc   <- makeShowDc
+             return $ NewtypeD [] dataName [] Nothing constr [showDc]
 
 
 mkNormalC :: TyCon -> TyType -> Q TH.Con
-mkNormalC tyConstr tyName = do
+mkNormalC tyConstr tyName@(TyType bsn) = do
     constrName   <- newConstrName tyConstr
-    baseTypeName <- newTypeName tyName
-    return $ NormalC constrName [(noBang, ConT baseTypeName)]
+    if builderIsNull bsn then do
+        return $ NormalC constrName []
+    else do
+        baseTypeName <- newTypeName tyName
+        return $ NormalC constrName [(noBang, ConT baseTypeName)]
 
 
 noBang :: Bang

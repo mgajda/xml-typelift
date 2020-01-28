@@ -60,6 +60,8 @@ executables:
       - app
       - bench
     dependencies:
+      - gitrev
+      - optparse-applicative
       - xml-typelift
   mkxml:
     main: Main.hs
@@ -76,6 +78,8 @@ executables:
       - time
       - vector
     ghc-options: -O2
+
+benchmarks:
   parser5:
     main: Main.hs
     source-dirs:
@@ -128,20 +132,6 @@ executables:
       - vector
     ghc-options: -O2
 
-tests:
-  unit-tests:
-    source-dirs:
-      - test
-      - src
-    main: Tests.hs
-    dependencies:
-      - hspec
-      - xml-typelift
-      - temporary
-      - process
-      - template-haskell
-
-benchmarks:
   speed:
     source-dirs:
       - bench/speed
@@ -152,6 +142,7 @@ benchmarks:
       - criterion >= 1.5.0.0
       - weigh
       - xml-typelift
+
   memory:
     source-dirs:
       - bench/memory
@@ -207,3 +198,15 @@ benchmarks:
     when:
       - condition: flag(use-parser2)
         cpp-options: -DBENCH_USE_PARSER2
+tests:
+  unit-tests:
+    source-dirs:
+      - test
+      - src
+    main: Tests.hs
+    dependencies:
+      - hspec
+      - xml-typelift
+      - temporary
+      - process
+      - template-haskell
