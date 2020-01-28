@@ -501,8 +501,8 @@ generateParserInternalArray Schema{..} = do
                 else [qc|{r}Content|]
             Just rr -> rr
     getParserName (Complex {}) xname     = [qc|{xname}Content|]
-    getParserName e@(Extension {base}) _ =
-        fromMaybe (error [qc|Don't know how to generate {e}|]) $ getParserForStandardXsd base
+    getParserName (Extension {base}) xname =
+        fromMaybe [qc|{xname}Content|] $ getParserForStandardXsd base
     getParserName t _                    = [qc|???{t}|]
     extractAdditionalTypes :: [Element] -> [(XMLString, Type)]
     extractAdditionalTypes elts =
