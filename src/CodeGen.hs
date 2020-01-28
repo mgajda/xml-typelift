@@ -661,6 +661,7 @@ generateParserExtractTopLevel Schema{..} = do
                         ofs' = if null elts then "ofs" else [qc|ofs{length elts}|]::XMLString
                     haskellConsName <- translate (SchemaType, TargetConsName) typeName typeName -- TODO container?
                     case fields of
+                        []         -> outCodeLine' [qc|({haskellConsName}, {ofs'})|]
                         [oneField] -> outCodeLine' [qc|({haskellConsName} {oneField}, {ofs'})|]
                         _          -> outCodeLine' [qc|({haskellConsName}\{..}, {ofs'})|]
             r@(Ref {}) -> do
