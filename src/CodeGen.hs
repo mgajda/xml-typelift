@@ -78,9 +78,7 @@ generateElementType container (eType -> Ref (tyName)) =
 generateElementType _         (Element {eName, eType})   =
   case eType of
     Complex   {} -> generateContentType eName eType
-    Extension {} -> do
-      warn [qc|-- Did not implement elements with extension types yet {eType}|]
-      return "Xeno.Node"
+    Extension {} -> generateContentType eName eType
     other        -> do
       warn [qc|-- Unimplemented type {other}|]
       return "Xeno.Node"
@@ -397,6 +395,17 @@ getParserForStandardXsd "xs:anyURI"             = Just "String" -- TODO
 getParserForStandardXsd _                       = Nothing
 
 
+extractAdditionalCommonTypes :: TypeDict -> CG [(XMLString, Type)]
+extractAdditionalCommonTypes types = do
+    let typeList = Map.toList types
+        allElts = (universeBi typeList :: [Element])
+        additionalTypes = (flip mapMaybe) allElts $ \case
+                                Element _ _ en ty@(Extension {}) _ -> Just (en, ty)
+                                Element _ _ en ty@(Complex {}) _   -> Just (en, ty)
+                                _                                  -> Nothing
+    return (typeList ++ additionalTypes) -- TODO check for duplicates
+
+
 generateParserInternalArray :: Schema -> CG ()
 generateParserInternalArray Schema{..} = do
     outCodeLine [qc|-- PARSER --|]
@@ -423,8 +432,8 @@ generateParserInternalArray Schema{..} = do
                 outCodeLine' [qc|where|]
                 withIndent $ do
                     -- Generate parsers for certain types
-                    let additionalTypes = [] -- extractAdditionalTypes tops -- TODO filter out repeated types
-                    forM_ ((Map.toList types) ++ additionalTypes) $ \(typeName, ty) -> do
+                    types' <- extractAdditionalCommonTypes types
+                    forM_ types' $ \(typeName, ty) -> do
                         outCodeLine' [qc|parse{typeName}Content arrStart strStart = do|]
                         withIndent $ generateContentParserIA typeName ty
                     -- Generate auxiliary functions
@@ -491,8 +500,10 @@ generateParserInternalArray Schema{..} = do
                 then (error [qc|Standard type `{r}` is not supported|])
                 else [qc|{r}Content|]
             Just rr -> rr
-    getParserName (Complex {}) xname              = [qc|{xname}Content|]
-    getParserName t _                             = [qc|???{t}|]
+    getParserName (Complex {}) xname     = [qc|{xname}Content|]
+    getParserName e@(Extension {base}) _ =
+        fromMaybe (error [qc|Don't know how to generate {e}|]) $ getParserForStandardXsd base
+    getParserName t _                    = [qc|???{t}|]
     extractAdditionalTypes :: [Element] -> [(XMLString, Type)]
     extractAdditionalTypes elts =
         let allElts = (universeBi elts :: [Element])
@@ -610,9 +621,9 @@ generateParserExtractTopLevel Schema{..} = do
         outCodeLine' [qc|extractTopLevel (TopLevelInternal bs arr) = fst $ extract{haskellRootName}Content 0|]
     withIndent $ do
         outCodeLine' "where"
-        let additionalTypes = [] -- extractAdditionalTypes tops -- TODO filter out repeated types
+        types' <- extractAdditionalCommonTypes types
         withIndent $ do
-            forM_ ((Map.toList types) ++ additionalTypes) $ \(typeName, ty) -> do
+            forM_ types' $ \(typeName, ty) -> do
             -- forM_ (take 1 ((Map.toList types) ++ additionalTypes)) $ \(typeName, ty) -> do
                 -- OK: haskellTypeName <- translate (SchemaType, TargetTypeName) typeName typeName -- TODO container?
                 haskellTypeName <- translate (ElementName, TargetTypeName) typeName typeName -- TODO container?
@@ -696,16 +707,16 @@ generateParserExtractTopLevel Schema{..} = do
                         (x, _) -> warn [qc|Type {c}: nested types not supported yet // {x}|]
             _ -> error [qc|Unsupported type: {show ty}|]
     getExtractorName :: Type -> XMLString -> CG B.Builder
-    getExtractorName (Ref r) _                =
+    getExtractorName (Ref r) _ =
         case getParserForStandardXsd r of
             Nothing ->
                 if "xs:" `BS.isPrefixOf` r
                 then (error [qc|Standard type `{r}` is not supported|])
                 else translate (ElementName, TargetTypeName) r r -- TODO container?
             Just rr -> return $ B.byteString rr
-    getExtractorName (Complex {}) xname           = return $ B.byteString xname
-    getExtractorName (Extension {}) xname         = return $ "??Extension??:" <> B.byteString xname
-    getExtractorName t _                          = error [qc|Don't know how to generate {take 100 $ show t}|]
+    getExtractorName (Complex {}) xname   = translate (ElementName, TargetTypeName) xname xname
+    getExtractorName (Extension {}) xname = translate (ElementName, TargetTypeName) xname xname
+    getExtractorName t _                  = error [qc|Don't know how to generate {take 100 $ show t}|]
     extractAdditionalTypes :: [Element] -> [(XMLString, Type)]
     extractAdditionalTypes elts =
         let allElts = (universeBi elts :: [Element])
