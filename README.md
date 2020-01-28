@@ -45,17 +45,17 @@ You can view supported command line arguments as usual by running `xml-typelift-
 ```
 XML Typelift command line interface
 
-Usage: xml-typelift-cli [--version] --schema FILENAME [--generate-types-only]
+Usage: xml-typelift-cli [--version] --schema FILENAME [--types]
   Generates types and parser for XML files by XML schema (.xsd) files
 
 Available options:
   -h,--help                Show this help text
   --version                Show version
   --schema FILENAME        Path to XML schema (.xsd file)
-  --generate-types-only    Generate types only
+  --types                  Generate types only
 ```
 
 So to generate parser for XML Schema `your_schema.xsd` you can run `xml-typelift-cli --schema your_schema.xsd`
 and parser and auxiliary types will be output to stdout. Also you can get only types (without parser) by running
-`xml-typelift-cli --schema your_schema.xsd --generate-types-only`.
+`xml-typelift-cli --schema your_schema.xsd --types`.
 
