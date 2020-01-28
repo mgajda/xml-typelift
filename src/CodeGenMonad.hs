@@ -200,6 +200,9 @@ translate :: IdClass
           -> XMLString               -- input container name
           -> XMLString               -- input name
           -> CG B.Builder -- TODO special variant of monad which only can write to dictionary, but can't output
+translate (SchemaGroup, TargetTypeName) container xmlName =
+    -- Treated as ordinary schema type name
+    translate (SchemaType, TargetTypeName) container xmlName
 translate idClass@(schemaIdClass, haskellIdClass) container xmlName = do
     tr     <- Lens.use translations
     allocs <- Lens.use allocatedIdentifiers
