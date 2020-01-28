@@ -3,7 +3,7 @@
   <xs:complexType name="account">
     <xs:sequence>
       <xs:element name="accountNumber" type="xs:integer" minOccurs="0" />
-      <xs:element name="name" type="xs:string" minOccurs="0" />
+      <xs:element name="name" type="xs:string" maxOccurs="unbounded" />
       <xs:element name="address" type="xs:string"/>
     </xs:sequence>
   </xs:complexType>
