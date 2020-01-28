@@ -164,9 +164,9 @@ generateContentType eName (Restriction base (Pattern _)) = do
   declareNewtype (TyData tyName) (TyCon consName) (TyType baseTy)
   return tyName
 generateContentType eName (Extension   base (Complex False [] (Seq []))) = do
-  tyName   <- translate (SchemaType,  TargetTypeName) base eName
-  consName <- translate (ElementName, TargetConsName) base eName
-  baseTy   <- translate (SchemaType,  TargetTypeName) base eName
+  tyName   <- translate (SchemaType, TargetTypeName) base eName
+  consName <- translate (SchemaType, TargetConsName) base eName
+  baseTy   <- translate (SchemaType, TargetTypeName) base base
   declareNewtype (TyData tyName) (TyCon consName) (TyType baseTy)
   return tyName
 generateContentType eName  (Restriction base  None      ) =
