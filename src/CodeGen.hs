@@ -637,26 +637,32 @@ generateParserExtractTopLevel Schema{..} = do
         case ty of
             Complex _ attrs (Seq elts) ->
                 withIndent $ do
-                    forM_ attrs $ \attr -> do
+                    attrFields <- forM attrs $ \attr -> do
                         let aname = aName attr
                         haskellAttrName <- translate (AttributeName, TargetFieldName) aname aname -- TODO container?
                         outCodeLine' [qc|let {haskellAttrName} = Nothing in|]
-                    forM_ (zip elts [1..]) $ \case
+                        return haskellAttrName
+                    properFields <- forM (zip elts [1..]) $ \case
                         (Elt el, ofsIdx::Int) -> do
                             let ofs = if ofsIdx == 1 then ("ofs"::XMLString) else [qc|ofs{ofsIdx - 1}|]
                                 fieldName' = eName el
                             extractor <- getExtractorNameWithQuant ofs el
                             fieldName <- translate (ElementName, TargetFieldName) fieldName' fieldName' -- TODO container?
                             outCodeLine' [qc|let ({fieldName}, ofs{ofsIdx}) = {extractor} in|]
+                            return fieldName
                         (Group gName, ofsIdx) -> do
                             outCodeLine' [qc|-- Group: {gName}|]
                             extractor <- translate (SchemaGroup, TargetConsName) gName gName
                             fieldName <- translate (SchemaGroup, TargetFieldName) gName gName -- TODO container?
                             outCodeLine' [qc|let ({fieldName}, ofs{ofsIdx}) = extract{extractor}Content ofs{ofsIdx - 1} in|]
+                            return fieldName
                         _ -> error [qc|Unsupported type: {take 100 $ show ty}|]
-                    let ofs' = if null elts then "ofs" else [qc|ofs{length elts}|]::XMLString
+                    let fields = attrFields ++ properFields
+                        ofs' = if null elts then "ofs" else [qc|ofs{length elts}|]::XMLString
                     haskellConsName <- translate (SchemaType, TargetConsName) typeName typeName -- TODO container?
-                    outCodeLine' [qc|({haskellConsName}\{..}, {ofs'})|]
+                    case fields of
+                        [oneField] -> outCodeLine' [qc|({haskellConsName} {oneField}, {ofs'})|]
+                        _          -> outCodeLine' [qc|({haskellConsName}\{..}, {ofs'})|]
             r@(Ref {}) -> do
                 rname <- getExtractorName r ""
                 outCodeLine' [qc|extract{rname}Content ofs|]
