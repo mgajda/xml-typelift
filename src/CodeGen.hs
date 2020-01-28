@@ -430,29 +430,34 @@ generateParserInternalArray Schema{..} = do
                     -- Generate auxiliary functions
                     generateAuxiliaryFunctionsIA
   where
-    generateElementsOfComplexParser :: (XMLString, XMLString) -> [Element] -> CG (XMLString, XMLString)
-    generateElementsOfComplexParser (arrStart, strStart) elements = do
+    generateElementsOfComplexParser :: (XMLString, XMLString) -> [TyPart] -> CG (XMLString, XMLString)
+    generateElementsOfComplexParser (arrStart, strStart) typarts = do
         let ofsNames' = ((arrStart, strStart) : [ ( [qc|arrOfs{i}|], [qc|strOfs{i}|]) | i <- [(1::Int)..]])
                         :: [(XMLString, XMLString)]
             ofsNames = zip ofsNames' (tail ofsNames')
-            endNum = length elements
-        forM_ (zip ofsNames elements) $ \(((arrOfs, strOfs), (arrOfs', strOfs')), el) -> do
-            let parserName = getParserName (eType el) (eName el)
-                (isUseArrOfs, tagQuantifier::XMLString) = case eltToRepeatedness el of
-                    RepMaybe -> (True,  "inMaybeTag")
-                    RepOnce  -> (False, "inOneTag")
-                    _        -> (True,  "inManyTags")
-                (arrOfs1, arrOfs2)::(XMLString,XMLString) =
-                    if isUseArrOfs then ([qc| {arrOfs}|],"") else ("", [qc| {arrOfs}|])
-            -- TODO parse with attributes!
-            outCodeLine' [qc|({arrOfs'}, {strOfs'}) <- {tagQuantifier} "{eName el}"{arrOfs1} {strOfs} $ parse{parserName}{arrOfs2}|]
+            endNum = length typarts
+        forM_ (zip ofsNames typarts) $ \(((arrOfs, strOfs), (arrOfs', strOfs')), typart) -> do
+            case typart of
+                Elt el -> do
+                    let parserName = getParserName (eType el) (eName el)
+                        (isUseArrOfs, tagQuantifier::XMLString) = case eltToRepeatedness el of
+                            RepMaybe -> (True,  "inMaybeTag")
+                            RepOnce  -> (False, "inOneTag")
+                            _        -> (True,  "inManyTags")
+                        (arrOfs1, arrOfs2)::(XMLString,XMLString) =
+                            if isUseArrOfs then ([qc| {arrOfs}|],"") else ("", [qc| {arrOfs}|])
+                    -- TODO parse with attributes!
+                    outCodeLine' [qc|({arrOfs'}, {strOfs'}) <- {tagQuantifier} "{eName el}"{arrOfs1} {strOfs} $ parse{parserName}{arrOfs2}|]
+                Group gName ->
+                    outCodeLine' [qc|({arrOfs'}, {strOfs'}) <- parse{gName}Content {arrOfs} {strOfs}|]
+                _ -> error [qc|Unsupported type: {take 100 $ show typart}|]
         return $ fst $ ofsNames !! endNum
     ofsToReturn :: (XMLString, XMLString) -> CG ()
     ofsToReturn (arrLastOfs, strLastOfs) = outCodeLine' [qc|return ({arrLastOfs}, {strLastOfs})|]
     generateContentParserIA typeName ty = do
         case ty of
             Complex _ _attrs (Seq elts) -> do
-                generateElementsOfComplexParser ("arrStart", "strStart") (onlyElements elts) >>= ofsToReturn
+                generateElementsOfComplexParser ("arrStart", "strStart") elts >>= ofsToReturn
             c@(Complex _ _attrs (Choice choices)) -> do
                 -- outCodeLine' [qc|-- Complex: {c}|]
                 outCodeLine' [qc|let arrOfs' = arrStart + 1|]
@@ -463,7 +468,7 @@ generateParserInternalArray Schema{..} = do
                         (Elt e, i) -> do
                             outCodeLine' [qc|"{eName e}" -> do|]
                             withIndent $ do
-                                (a,o) <- generateElementsOfComplexParser ("arrOfs'", "strStart") [e]
+                                (a,o) <- generateElementsOfComplexParser ("arrOfs'", "strStart") [Elt e]
                                 outCodeLine' [qc|UMV.unsafeWrite vec arrStart {i::Int}|]
                                 outCodeLine' [qc|return ({a}, {o})|]
                         (x, _) -> warn [qc|Type {c}: nested types not supported yet // {x}|]
@@ -475,11 +480,8 @@ generateParserInternalArray Schema{..} = do
             Extension base (Complex {inner=Seq exFields}) -> do
                 let baseParserName = fromMaybe [qc|{base}Content|] $ getParserForStandardXsd base
                 outCodeLine' [qc|(arrOfs', strOfs') <- parse{baseParserName} arrStart strStart|]
-                generateElementsOfComplexParser ("arrOfs'", "strOfs'") (onlyElements exFields) >>= ofsToReturn
+                generateElementsOfComplexParser ("arrOfs'", "strOfs'") exFields >>= ofsToReturn
             _ -> error [qc|Unsupported type: {ty}|]
-      where
-        onlyElements :: [TyPart] -> [Element]
-        onlyElements = map (\case (Elt e) -> e ; _ -> error [qc|Unsupported type: {take 100 $ show ty}|])
     -- TODO unite with extractor
     getParserName :: Type -> XMLString -> XMLString
     getParserName (Ref r) _ =
@@ -631,24 +633,28 @@ generateParserExtractTopLevel Schema{..} = do
         return $ case fieldQuantifier of
                  Nothing   -> [qc|extract{extractorName}Content {ofs}|]
                  Just qntf -> [qc|{qntf} {ofs} extract{extractorName}Content|]
-    generateContentParser typeName haskellTypeName ty = do
+    generateContentParser typeName haskellTypeName ty =
         case ty of
-            Complex _ attrs (Seq elts) -> do
+            Complex _ attrs (Seq elts) ->
                 withIndent $ do
-                    let elements = map (\case (Elt e) -> e ; _ -> error [qc|Unsupported type: {take 100 $ show ty}|]) elts
-                    -- Output attributes reader
                     forM_ attrs $ \attr -> do
                         let aname = aName attr
                         haskellAttrName <- translate (AttributeName, TargetFieldName) aname aname -- TODO container?
                         outCodeLine' [qc|let {haskellAttrName} = Nothing in|]
-                    -- Output fields reader
-                    forM_ (zip elements [(1::Int)..]) $ \(el, ofsIdx) -> do
-                        let ofs = if ofsIdx == 1 then ("ofs"::XMLString) else [qc|ofs{ofsIdx - 1}|]
-                            fieldName' = eName el
-                        extractor <- getExtractorNameWithQuant ofs el
-                        fieldName <- translate (ElementName, TargetFieldName) fieldName' fieldName' -- TODO container?
-                        outCodeLine' [qc|let ({fieldName}, ofs{ofsIdx}) = {extractor} in|]
-                    let ofs' = if null elements then "ofs" else [qc|ofs{length elements}|]::XMLString
+                    forM_ (zip elts [1..]) $ \case
+                        (Elt el, ofsIdx::Int) -> do
+                            let ofs = if ofsIdx == 1 then ("ofs"::XMLString) else [qc|ofs{ofsIdx - 1}|]
+                                fieldName' = eName el
+                            extractor <- getExtractorNameWithQuant ofs el
+                            fieldName <- translate (ElementName, TargetFieldName) fieldName' fieldName' -- TODO container?
+                            outCodeLine' [qc|let ({fieldName}, ofs{ofsIdx}) = {extractor} in|]
+                        (Group gName, ofsIdx) -> do
+                            outCodeLine' [qc|-- Group: {gName}|]
+                            extractor <- translate (SchemaGroup, TargetConsName) gName gName
+                            fieldName <- translate (SchemaGroup, TargetFieldName) gName gName -- TODO container?
+                            outCodeLine' [qc|let ({fieldName}, ofs{ofsIdx}) = extract{extractor}Content ofs{ofsIdx - 1} in|]
+                        _ -> error [qc|Unsupported type: {take 100 $ show ty}|]
+                    let ofs' = if null elts then "ofs" else [qc|ofs{length elts}|]::XMLString
                     haskellConsName <- translate (SchemaType, TargetConsName) typeName typeName -- TODO container?
                     outCodeLine' [qc|({haskellConsName}\{..}, {ofs'})|]
             r@(Ref {}) -> do
