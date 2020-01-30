@@ -6,4 +6,8 @@
         url = https://github.com/mgajda/iso8601-duration.git
 [submodule "haskell-src-match"]
 	path = haskell-src-match
-	url = https://gitlab.com/migamake/haskell-src-match.git
+        url = https://gitlab.com/migamake/haskell-src-match.git
+[submodule "biztalk-schemas"]
+        path = bench/biztalk-schemas/BizTalk Server/Schema
+        url = git@github.com:microsoft/Integration.git
+

@@ -195,6 +195,7 @@ schemaAttr sch attr@(aName, aVal) =
     (_,       "attributeFormDefault") -> return sch
     (_,       "xmlns"               ) -> return sch
     ("xmlns", _                     ) -> return sch
+    (_,       "version"             ) -> return sch
     _                                 -> unknownAttrHandler "schema" attr
 
 schemaElt :: ChildHandler Schema
