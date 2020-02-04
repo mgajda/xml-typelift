@@ -396,15 +396,18 @@ getParserForStandardXsd "xs:anyURI"             = Just "String" -- TODO
 getParserForStandardXsd _                       = Nothing
 
 
-extractAdditionalCommonTypes :: TypeDict -> CG [(XMLString, Type)]
-extractAdditionalCommonTypes types = do
-    let typeList = Map.toList types
-        allElts = (universeBi typeList :: [Element])
-        additionalTypes = (flip mapMaybe) allElts $ \case
+extractAdditionalCommonTypes :: TypeDict -> [Element] -> [(XMLString, Type)]
+extractAdditionalCommonTypes types tops =
+    removeDuplicatesInFavourOfFirst $ typeList ++ additionalTypes ++ referencedTypes
+  where
+    typeList = Map.toList types
+    allElts = (universeBi typeList :: [Element]) ++ (universeBi tops :: [Element])
+    additionalTypes = (flip mapMaybe) allElts $ \case
                                 Element _ _ en ty@(Extension {}) _ -> Just (en, ty)
                                 Element _ _ en ty@(Complex {}) _   -> Just (en, ty)
                                 _                                  -> Nothing
-    return (typeList ++ additionalTypes) -- TODO check for duplicates
+    referencedTypes = map (\(Element _ _ name typ _) -> (name, typ)) allElts
+    removeDuplicatesInFavourOfFirst = Map.toList . Map.fromList . reverse
 
 
 generateParserInternalArray :: Schema -> CG ()
@@ -433,7 +436,7 @@ generateParserInternalArray Schema{..} = do
                 outCodeLine' [qc|where|]
                 withIndent $ do
                     -- Generate parsers for certain types
-                    types' <- extractAdditionalCommonTypes types
+                    let types' = extractAdditionalCommonTypes types tops
                     forM_ types' $ \(typeName, ty) -> do
                         outCodeLine' [qc|parse{typeName}Content arrStart strStart = do|]
                         withIndent $ generateContentParserIA typeName ty
@@ -625,7 +628,7 @@ generateParserExtractTopLevel Schema{..} = do
         outCodeLine' [qc|extractTopLevel (TopLevelInternal bs arr) = fst $ extract{haskellRootName}Content 0|]
     withIndent $ do
         outCodeLine' "where"
-        types' <- extractAdditionalCommonTypes types
+        let types' = extractAdditionalCommonTypes types tops
         withIndent $ do
             forM_ types' $ \(typeName, ty) -> do
             -- forM_ (take 1 ((Map.toList types) ++ additionalTypes)) $ \(typeName, ty) -> do
