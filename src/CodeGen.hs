@@ -418,7 +418,7 @@ generateParserInternalArray Schema{..} = do
     outCodeLine' [qc|parseTopLevelToArray :: ByteString -> Either String TopLevelInternal|]
     outCodeLine' [qc|parseTopLevelToArray bs = Right $ TopLevelInternal bs $ UV.create $ do|]
     withIndent $ do
-        outCodeLine' [qc|vec <- UMV.new ((max 1 (BS.length bs `div` 7)) * 2)|] -- TODO back to UMV.unsafeNew
+        outCodeLine' [qc|vec <- UMV.unsafeNew ((max 1 (BS.length bs `div` 7)) * 2)|] -- TODO add code to strip vector
         outCodeLine' [qc|parse{topName} vec|]
         outCodeLine' [qc|return vec|]
         outCodeLine' [qc|where|]
