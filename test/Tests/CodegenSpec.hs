@@ -30,10 +30,10 @@ spec = describe "codegen" $ do
             forM_ [True, False] $ \isTestTypesGeneration -> do
                 let genType = if isTestTypesGeneration then "types " else "parser"
                 it ("can compile " ++ genType ++ " for \"" ++ fn ++ "\"") $ example $
-                    tryCompile isTestTypesGeneration ("test" </> fn)
+                    tryCompile isTestTypesGeneration ("test" </> "data" </> fn)
     describe "declarations presence" $ do
         it "decl.presence.1" $ example $ do
-            withGeneratedFile True ("test" </> "person.xsd") $ \hsFilepath -> do
+            withGeneratedFile True ("test" </> "data" </> "person.xsd") $ \hsFilepath -> do
                 hsFilepath `declShouldPresent`
                     [d|data Birthplace = Birthplace {
                                   city :: XMLString
@@ -51,7 +51,7 @@ spec = describe "codegen" $ do
                 --                , sex :: Integer
                 --                , education :: Education }|]
         it "decl.presence.2" $ example $ do
-            withGeneratedFile True ("test" </> "customersOrders.xsd") $ \hsFilepath -> do
+            withGeneratedFile True ("test" </> "data" </> "customersOrders.xsd") $ \hsFilepath -> do
                 hsFilepath `declShouldPresent`
                     [d|data AddressType = AddressType { customerID :: Maybe XMLString,
                                                         address :: XMLString,
