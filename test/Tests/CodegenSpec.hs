@@ -30,8 +30,7 @@ spec = describe "codegen" $ do
             forM_ [True, False] $ \isTestTypesGeneration -> do
                 let genType = if isTestTypesGeneration then "types " else "parser"
                 it ("can compile " ++ genType ++ " for \"" ++ fn ++ "\"") $ example $
-                    -- tryCompile isTestTypesGeneration ("test" </> fn)
-                    tryCompile True ("test" </> fn) -- TODO return tests!
+                    tryCompile isTestTypesGeneration ("test" </> fn)
     describe "declarations presence" $ do
         it "decl.presence.1" $ example $ do
             withGeneratedFile True ("test" </> "person.xsd") $ \hsFilepath -> do
