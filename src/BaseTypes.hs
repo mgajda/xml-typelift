@@ -56,6 +56,7 @@ basePrologue  = mconcat $ map makeImport modules
               ,"qualified Data.Vector.Unboxed.Mutable as UMV"
               -- TODO
               ,"Text.Pretty.Simple"
+              ,"Data.Either"
               ]
 
 baseTranslations :: [(BS.ByteString, BS.ByteString)]
