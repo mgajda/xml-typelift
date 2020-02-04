@@ -742,7 +742,7 @@ generateParserExtractTopLevel Schema{..} = do
         outCodeLine' [qc|extractDayContent :: Int -> (Day, Int)|]
         outCodeLine' [qc|extractDayContent = first (read . BSC.unpack) . extractStringContent|]
         outCodeLine' [qc|extractDurationContent :: Int -> (Duration, Int)|]
-        outCodeLine' [qc|extractDurationContent = undefined|]
+        outCodeLine' [qc|extractDurationContent = first (\d -> fromRight (Prelude.error $ "Can't parse duration \"" ++ BSC.unpack d ++ "\"") $ parseDuration d) . extractStringContent|]
         outCodeLine' [qc|extractDecimalContent :: Int -> (Scientific, Int)|]
         outCodeLine' [qc|extractDecimalContent = first (read . BSC.unpack) . extractStringContent|]
         outCodeLine' [qc|extractIntegerContent :: Int -> (Integer, Int)|]
