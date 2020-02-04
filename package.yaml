@@ -205,8 +205,10 @@ tests:
       - src
     main: Tests.hs
     dependencies:
+      - directory
+      - exceptions
       - hspec
-      - xml-typelift
-      - temporary
       - process
       - template-haskell
+      - temporary
+      - xml-typelift
