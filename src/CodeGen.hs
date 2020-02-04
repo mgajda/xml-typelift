@@ -254,6 +254,7 @@ generateSchema sch = do
     outCodeLine "{-# LANGUAGE DeriveGeneric #-}"
     outCodeLine "{-# LANGUAGE DeriveAnyClass #-}"
     outCodeLine "{-# LANGUAGE RecordWildCards #-}"
+    outCodeLine "{-# LANGUAGE ScopedTypeVariables #-}"
     -- TODO also add in parser generator
     --
     --
@@ -537,6 +538,7 @@ generateParserInternalArray Schema{..} = do
         outCodeLine' [qc|                return Nothing|]
         -- ~~~~~~~~
         outCodeLine' [qc|inMaybeTag tag arrOfs strOfs inParser = inMaybeTag' True tag arrOfs strOfs inParser|] -- TODO add attributes processing
+        outCodeLine' [qc|inMaybeTag' :: Bool -> ByteString -> Int -> Int -> (Int -> Int -> ST s (Int, Int)) -> ST s (Int, Int)|]
         outCodeLine' [qc|inMaybeTag' hasAttrs tag arrOfs strOfs inParser = do|]
         outCodeLine' [qc|    inOneTag' hasAttrs tag strOfs (inParser $ arrOfs + 1) >>= \case|]
         outCodeLine' [qc|        Just res -> do|]
@@ -547,6 +549,7 @@ generateParserInternalArray Schema{..} = do
         outCodeLine' [qc|            return (arrOfs + 1, strOfs)|]
         outCodeLine' [qc|inManyTags tag arrOfs strOfs inParser = inManyTags' True tag arrOfs strOfs inParser|] -- TODO add attributes processing
         outCodeLine' [qc|inManyTagsWithAttrs tag arrOfs strOfs inParser = inManyTags' True tag arrOfs strOfs inParser|]
+        outCodeLine' [qc|inManyTags' :: Bool -> ByteString -> Int -> Int -> (Int -> Int -> ST s (Int, Int)) -> ST s (Int, Int)|]
         outCodeLine' [qc|inManyTags' hasAttrs tag arrOfs strOfs inParser = do|]
         outCodeLine' [qc|    (cnt, endArrOfs, endStrOfs) <- flip fix (0, (arrOfs + 1), strOfs) $ \next (cnt, arrOfs', strOfs') ->|]
         outCodeLine' [qc|        inOneTag' hasAttrs tag strOfs' (inParser arrOfs') >>= \case|]
@@ -576,6 +579,7 @@ generateParserInternalArray Schema{..} = do
         outCodeLine' [qc|ptake :: ByteString -> Int -> Int -> ByteString|]
         outCodeLine' [qc|ptake bs ofs len = BS.take len $ BS.drop ofs bs -- TODO replace with UNSAFE?|]
         outCodeLine' [qc|--|]
+        outCodeLine' [qc|parseString :: Int -> Int -> ST s (Int, Int)|]
         outCodeLine' [qc|parseString arrStart strStart = do|]
         outCodeLine' [qc|  let strEnd = skipToOpenTag strStart|]
         outCodeLine' [qc|  UMV.unsafeWrite vec arrStart     strStart|]
