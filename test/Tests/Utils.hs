@@ -3,11 +3,12 @@
 module Tests.Utils where
 
 
-import           Control.DeepSeq
-import           Control.Exception
 import           Control.Monad
+import           System.Directory
 import           System.FilePath.Posix
+import           System.IO
 import           System.IO.Temp
+import qualified Control.Monad.Catch as MC
 import qualified Data.ByteString.Char8 as BS
 
 import Analyze
@@ -21,14 +22,33 @@ withGeneratedFile generateOnlyTypes xmlFilename action = do
     (Just schema) <- parseSchema input
     let (analyzed, schemaErrors) = analyze schema
     unless (null schemaErrors) $ error "Schema has errors"
-    types <- codegen analyzed
-    result <- if generateOnlyTypes then
-                  return types
-              else do
-                  parser <- parserCodegen analyzed
-                  return (types <> "\n\n\n" <> parser)
-    withSystemTempDirectory "xml-typelift" $ \dirname -> do
+    result <- (if generateOnlyTypes then codegen else do parserCodegen) analyzed
+    withPreservedSystemTempDirectory "xml-typelift" $ \dirname -> do
         let testfn = dirname </> "XMLSchema.hs"
         writeFile testfn result
         action testfn
 
+-- * Adapted from `temporary` package
+
+withPreservedSystemTempDirectory :: String   -- ^ Directory name template
+                        -> (FilePath -> IO a) -- ^ Callback that can use the directory
+                        -> IO a
+withPreservedSystemTempDirectory template action =
+    getCanonicalTemporaryDirectory >>= \tmpDir -> withPreservedTempDirectory tmpDir template action
+
+
+withPreservedTempDirectory :: FilePath -- ^ Parent directory to create the directory in
+                           -> String   -- ^ Directory name template
+                           -> (FilePath -> IO a) -- ^ Callback that can use the directory
+                           -> IO a
+withPreservedTempDirectory targetDir template action = do
+    dirName <- createTempDirectory targetDir template
+    (do r <- action dirName
+        ignoringIOErrors $ removeDirectoryRecursive dirName
+        return r)
+            `MC.onError`
+            (hPutStrLn stderr $ "Test directory preserved in \"" ++ dirName ++ "\"")
+
+
+ignoringIOErrors :: MC.MonadCatch m => m () -> m ()
+ignoringIOErrors ioe = ioe `MC.catch` (\e -> const (return ()) (e :: IOError))
