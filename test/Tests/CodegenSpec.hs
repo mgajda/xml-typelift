@@ -25,8 +25,8 @@ import FromXML
 spec :: Spec
 spec = describe "codegen" $ do
     describe "compiling" $
+        forM_ ["person.xsd", "customersOrders.xsd", "shiporder.xsd"] $ \fn ->
         -- forM_ ["person.xsd", "customersOrders.xsd", "shiporder.xsd", "contactExample.xsd"] $ \fn ->
-        forM_ ["person.xsd"] $ \fn ->
             forM_ [True, False] $ \isTestTypesGeneration -> do
                 let genType = if isTestTypesGeneration then "types " else "parser"
                 it ("can compile " ++ genType ++ " for \"" ++ fn ++ "\"") $ example $
