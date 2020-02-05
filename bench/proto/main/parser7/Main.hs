@@ -6,5 +6,5 @@ import Parser7
 
 
 main :: IO ()
-main = BSC.readFile "test/customersOrders.xml" >>= (pPrint . parseMethod7)
+main = BSC.readFile "test/data/customersOrders.xml" >>= (pPrint . parseMethod7)
 

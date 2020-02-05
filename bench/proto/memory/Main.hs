@@ -23,8 +23,8 @@ import System.IO.MMap
 
 
 filenames :: [(String, FilePath)]
-filenames = [ ("16Kb",  "test/customersOrders.xml")
-            , ("7.6Mb", "test/customersOrdersBig(incorrect).xml")
+filenames = [ ("16Kb",  "test/data/customersOrders.xml")
+            , ("7.6Mb", "test/data/customersOrdersBig(incorrect).xml")
             ]
 
 
