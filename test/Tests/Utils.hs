@@ -12,17 +12,20 @@ import qualified Control.Monad.Catch as MC
 import qualified Data.ByteString.Char8 as BS
 
 import Analyze
-import Parser
 import CodeGen
+import Flatten
+import Parser
 
 
 withGeneratedFile :: Bool -> FilePath -> (FilePath -> IO ()) -> IO ()
 withGeneratedFile generateOnlyTypes xmlFilename action = do
     input <- BS.readFile xmlFilename
     (Just schema) <- parseSchema input
-    let (analyzed, schemaErrors) = analyze schema
+    let (flattened, msgs) = flatten schema
+    unless (null msgs) $ error ("Flattened with errors: " ++ show msgs)
+    let (analyzed, schemaErrors) = analyze flattened
     unless (null schemaErrors) $ error "Schema has errors"
-    result <- (if generateOnlyTypes then codegen else do parserCodegen) analyzed
+    result <- (if generateOnlyTypes then codegen else parserCodegen) analyzed
     withPreservedSystemTempDirectory "xml-typelift" $ \dirname -> do
         let testfn = dirname </> "XMLSchema.hs"
         writeFile testfn result
