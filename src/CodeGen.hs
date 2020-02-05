@@ -396,16 +396,16 @@ getParserForStandardXsd "xs:anyURI"             = Just "String" -- TODO
 getParserForStandardXsd _                       = Nothing
 
 
-extractAdditionalCommonTypes :: TypeDict -> [Element] -> [(XMLString, Type)]
-extractAdditionalCommonTypes types tops =
-    removeDuplicatesInFavourOfFirst $ typeList ++ additionalTypes ++ referencedTypes
+-- | Retrieve all schema types (even not declared on top level)
+--   in order to generate parsers for each of them.
+--
+--   First are returned types declared on top schema level, then other types.
+extractAllTypes :: TypeDict -> [Element] -> [(XMLString, Type)]
+extractAllTypes types tops =
+    removeDuplicatesInFavourOfFirst $ typeList ++ referencedTypes
   where
     typeList = Map.toList types
-    allElts = (universeBi typeList :: [Element]) ++ (universeBi tops :: [Element])
-    additionalTypes = (flip mapMaybe) allElts $ \case
-                                Element _ _ en ty@(Extension {}) _ -> Just (en, ty)
-                                Element _ _ en ty@(Complex {}) _   -> Just (en, ty)
-                                _                                  -> Nothing
+    allElts = universeBi typeList ++ universeBi tops
     referencedTypes = map (\(Element _ _ name typ _) -> (name, typ)) allElts
     removeDuplicatesInFavourOfFirst = Map.toList . Map.fromList . reverse
 
@@ -436,7 +436,7 @@ generateParserInternalArray Schema{..} = do
                 outCodeLine' [qc|where|]
                 withIndent $ do
                     -- Generate parsers for certain types
-                    let types' = extractAdditionalCommonTypes types tops
+                    let types' = extractAllTypes types tops
                     forM_ types' $ \(typeName, ty) -> do
                         outCodeLine' [qc|parse{typeName}Content arrStart strStart = do|]
                         withIndent $ generateContentParserIA typeName ty
@@ -508,10 +508,6 @@ generateParserInternalArray Schema{..} = do
     getParserName (Extension {base}) xname =
         fromMaybe [qc|{xname}Content|] $ getParserForStandardXsd base
     getParserName t _                    = [qc|???{t}|]
-    extractAdditionalTypes :: [Element] -> [(XMLString, Type)]
-    extractAdditionalTypes elts =
-        let allElts = (universeBi elts :: [Element])
-        in map (\(Element _ _ name typ _) -> (name, typ)) allElts
     generateAuxiliaryFunctionsIA = do
         --
         -- TODO read this from file!
@@ -620,7 +616,7 @@ generateParserInternalArray Schema{..} = do
 
 
 generateParserExtractTopLevel :: Schema -> CG ()
-generateParserExtractTopLevel Schema{..} = do
+generateParserExtractTopLevel sch@Schema{..} = do
     forM_ tops $ \topEl -> do
         let rootName = eName topEl
         haskellRootName <- translate (ElementName, TargetTypeName) "" rootName -- TODO container?
@@ -628,7 +624,7 @@ generateParserExtractTopLevel Schema{..} = do
         outCodeLine' [qc|extractTopLevel (TopLevelInternal bs arr) = fst $ extract{haskellRootName}Content 0|]
     withIndent $ do
         outCodeLine' "where"
-        let types' = extractAdditionalCommonTypes types tops
+        let types' = extractAllTypes types tops
         withIndent $ do
             forM_ types' $ \(typeName, ty) -> do
             -- forM_ (take 1 ((Map.toList types) ++ additionalTypes)) $ \(typeName, ty) -> do
@@ -724,10 +720,6 @@ generateParserExtractTopLevel Schema{..} = do
     getExtractorName (Complex {}) xname   = translate (ElementName, TargetTypeName) xname xname
     getExtractorName (Extension {}) xname = translate (ElementName, TargetTypeName) xname xname
     getExtractorName t _                  = error [qc|Don't know how to generate {take 100 $ show t}|]
-    extractAdditionalTypes :: [Element] -> [(XMLString, Type)]
-    extractAdditionalTypes elts =
-        let allElts = (universeBi elts :: [Element])
-        in map (\(Element _ _ name typ _) -> (name, typ)) allElts
     generateAuxiliaryFunctions = do
         outCodeLine' [qc|extractStringContent :: Int -> (ByteString, Int)|]
         outCodeLine' [qc|extractStringContent ofs = (BSU.unsafeTake bslen (BSU.unsafeDrop bsofs bs), ofs + 2)|]
