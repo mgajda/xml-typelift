@@ -2,15 +2,15 @@
 module TestSet(testFiles) where
 
 testFiles :: [String]
-testFiles = ["test/person.xsd"
+testFiles = ["test/data/person.xsd"
             ,"test/simple.xsd"
             ,"test/test.xsd"
             --,"test/shiporder.xsd"
-            ,"test/customersOrders.xsd"
+            ,"test/data/customersOrders.xsd"
             --,"test/address.xsd"
             --,"test/shiporder.divided.xsd"
             --,"test/cd-list.xsd"
-            ,"test/shiporder.named.xsd"
+            ,"test/data/shiporder.named.xsd"
             --,"test/XMLSchema-cleaned.xsd"
             ,"test/contactExample.xsd"
             --,"test/purchaseOrder.xsd"
