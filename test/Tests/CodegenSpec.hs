@@ -25,16 +25,20 @@ import FromXML
 spec :: Spec
 spec = describe "codegen" $ do
     describe "compiling" $
-        -- forM_ ["person.xsd", "customersOrders.xsd", "shiporder.xsd", "contactExample.xsd"] $ \fn ->
-        forM_ ["person.xsd"] $ \fn ->
-            forM_ [True, False] $ \isTestTypesGeneration -> do
-                let genType = if isTestTypesGeneration then "types " else "parser"
-                it ("can compile " ++ genType ++ " for \"" ++ fn ++ "\"") $ example $
-                    -- tryCompile isTestTypesGeneration ("test" </> fn)
-                    tryCompile True ("test" </> fn) -- TODO return tests!
+        forM_ ["person.xsd", "customersOrders.xsd", "shiporder.xsd", "choice.xsd", "extensions.xsd", "nested-extensions.xsd", "restriction.xsd"] $ \fn -> do
+            it ("can compile generated types for \"" ++ fn ++ "\"") $ example $
+                tryCompile True  (inTestDir fn)
+            it ("can compile generated parser for \"" ++ fn ++ "\"") $ example $
+                tryCompile False (inTestDir fn)
+            it ("can parse XML generated parser for \"" ++ fn ++ "\"") $ example $
+                tryParse (inTestDir fn) (inTestDir fn -<.> "xml")
+    describe "compiling types" $
+        forM_ ["simple.xsd", "test.xsd", "contactExample.xsd"] $ \fn ->
+            it ("can compile types for \"" ++ fn ++ "\"") $ example $
+                tryCompile True ("test" </> "data" </> fn)
     describe "declarations presence" $ do
         it "decl.presence.1" $ example $ do
-            withGeneratedFile True ("test" </> "person.xsd") $ \hsFilepath -> do
+            withGeneratedFile True ("test" </> "data" </> "person.xsd") $ \hsFilepath -> do
                 hsFilepath `declShouldPresent`
                     [d|data Birthplace = Birthplace {
                                   city :: XMLString
@@ -52,7 +56,7 @@ spec = describe "codegen" $ do
                 --                , sex :: Integer
                 --                , education :: Education }|]
         it "decl.presence.2" $ example $ do
-            withGeneratedFile True ("test" </> "customersOrders.xsd") $ \hsFilepath -> do
+            withGeneratedFile True ("test" </> "data" </> "customersOrders.xsd") $ \hsFilepath -> do
                 hsFilepath `declShouldPresent`
                     [d|data AddressType = AddressType { customerID :: Maybe XMLString,
                                                         address :: XMLString,
@@ -82,8 +86,8 @@ callProcess' cmd args = do
 
 
 tryCompile :: Bool -> FilePath -> IO ()
-tryCompile generateOnlyTypes xmlFilename =
-    withGeneratedFile generateOnlyTypes xmlFilename $ \hsFilename ->
+tryCompile generateOnlyTypes xsdFileName =
+    withGeneratedFile generateOnlyTypes xsdFileName $ \hsFilename ->
         (callProcess' "stack" $ ["exec", "--", "ghc", "-O0", hsFilename] ++ compileArgs)
             `catch`
             (\(e::SomeException) -> do print e >> throw e)
@@ -95,9 +99,28 @@ tryCompile generateOnlyTypes xmlFilename =
                 | otherwise   = ["-Wno-all"]
 
 
+tryParse :: FilePath -> FilePath -> IO ()
+tryParse xsdFileName _xmlFileName =
+    withGeneratedFile False xsdFileName $ \hsFilename ->
+        (do callProcess' "stack" $ ["exec", "--", "ghc", "-O0", hsFilename] ++ compileArgs
+            -- TODO Wait for #41 and run here compiled program with xmlFileName
+            return ()
+            )
+            `catch`
+            (\(e::SomeException) -> do print e >> throw e)
+  where
+    failOnWarns = False
+    compileArgs | failOnWarns = ["-Wall", "-Werror"]
+                | otherwise   = ["-Wno-all"]
+
+
 declShouldPresent :: (HasCallStack) => FilePath -> DecsQ -> Expectation
 declShouldPresent hsFilepath decl =
     isFileMatchedToDecl hsFilepath decl >>= \case
         Left err -> error (show err)
         Right _  -> return ()
+
+
+inTestDir :: FilePath -> FilePath
+inTestDir fn = "test" </> "data" </> fn
 

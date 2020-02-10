@@ -18,7 +18,6 @@ build-type:          Simple
 extra-source-files:
   - README.md
   - changelog.md
-  - test/person.xsd
 bug-reports:         https://github.com/DataHaskell/xml-typelift/issues
 github: DataHaskell/xml-typelift
 
@@ -205,8 +204,10 @@ tests:
       - src
     main: Tests.hs
     dependencies:
+      - directory
+      - exceptions
       - hspec
-      - xml-typelift
-      - temporary
       - process
       - template-haskell
+      - temporary
+      - xml-typelift

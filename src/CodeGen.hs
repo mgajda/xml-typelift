@@ -254,6 +254,7 @@ generateSchema sch = do
     outCodeLine "{-# LANGUAGE DeriveGeneric #-}"
     outCodeLine "{-# LANGUAGE DeriveAnyClass #-}"
     outCodeLine "{-# LANGUAGE RecordWildCards #-}"
+    outCodeLine "{-# LANGUAGE ScopedTypeVariables #-}"
     -- TODO also add in parser generator
     --
     --
@@ -395,15 +396,18 @@ getParserForStandardXsd "xs:anyURI"             = Just "String" -- TODO
 getParserForStandardXsd _                       = Nothing
 
 
-extractAdditionalCommonTypes :: TypeDict -> CG [(XMLString, Type)]
-extractAdditionalCommonTypes types = do
-    let typeList = Map.toList types
-        allElts = (universeBi typeList :: [Element])
-        additionalTypes = (flip mapMaybe) allElts $ \case
-                                Element _ _ en ty@(Extension {}) _ -> Just (en, ty)
-                                Element _ _ en ty@(Complex {}) _   -> Just (en, ty)
-                                _                                  -> Nothing
-    return (typeList ++ additionalTypes) -- TODO check for duplicates
+-- | Retrieve all schema types (even not declared on top level)
+--   in order to generate parsers for each of them.
+--
+--   First are returned types declared on top schema level, then other types.
+extractAllTypes :: TypeDict -> [Element] -> [(XMLString, Type)]
+extractAllTypes types tops =
+    removeDuplicatesInFavourOfFirst $ typeList ++ referencedTypes
+  where
+    typeList = Map.toList types
+    allElts = universeBi typeList ++ universeBi tops
+    referencedTypes = map (\(Element _ _ name typ _) -> (name, typ)) allElts
+    removeDuplicatesInFavourOfFirst = Map.toList . Map.fromList . reverse
 
 
 generateParserInternalArray :: Schema -> CG ()
@@ -418,7 +422,7 @@ generateParserInternalArray Schema{..} = do
     outCodeLine' [qc|parseTopLevelToArray :: ByteString -> Either String TopLevelInternal|]
     outCodeLine' [qc|parseTopLevelToArray bs = Right $ TopLevelInternal bs $ UV.create $ do|]
     withIndent $ do
-        outCodeLine' [qc|vec <- UMV.new ((max 1 (BS.length bs `div` 7)) * 2)|] -- TODO back to UMV.unsafeNew
+        outCodeLine' [qc|vec <- UMV.unsafeNew ((max 1 (BS.length bs `div` 7)) * 2)|] -- TODO add code to strip vector
         outCodeLine' [qc|parse{topName} vec|]
         outCodeLine' [qc|return vec|]
         outCodeLine' [qc|where|]
@@ -432,7 +436,7 @@ generateParserInternalArray Schema{..} = do
                 outCodeLine' [qc|where|]
                 withIndent $ do
                     -- Generate parsers for certain types
-                    types' <- extractAdditionalCommonTypes types
+                    let types' = extractAllTypes types tops
                     forM_ types' $ \(typeName, ty) -> do
                         outCodeLine' [qc|parse{typeName}Content arrStart strStart = do|]
                         withIndent $ generateContentParserIA typeName ty
@@ -504,10 +508,6 @@ generateParserInternalArray Schema{..} = do
     getParserName (Extension {base}) xname =
         fromMaybe [qc|{xname}Content|] $ getParserForStandardXsd base
     getParserName t _                    = [qc|???{t}|]
-    extractAdditionalTypes :: [Element] -> [(XMLString, Type)]
-    extractAdditionalTypes elts =
-        let allElts = (universeBi elts :: [Element])
-        in map (\(Element _ _ name typ _) -> (name, typ)) allElts
     generateAuxiliaryFunctionsIA = do
         --
         -- TODO read this from file!
@@ -537,6 +537,7 @@ generateParserInternalArray Schema{..} = do
         outCodeLine' [qc|                return Nothing|]
         -- ~~~~~~~~
         outCodeLine' [qc|inMaybeTag tag arrOfs strOfs inParser = inMaybeTag' True tag arrOfs strOfs inParser|] -- TODO add attributes processing
+        outCodeLine' [qc|inMaybeTag' :: Bool -> ByteString -> Int -> Int -> (Int -> Int -> ST s (Int, Int)) -> ST s (Int, Int)|]
         outCodeLine' [qc|inMaybeTag' hasAttrs tag arrOfs strOfs inParser = do|]
         outCodeLine' [qc|    inOneTag' hasAttrs tag strOfs (inParser $ arrOfs + 1) >>= \case|]
         outCodeLine' [qc|        Just res -> do|]
@@ -547,6 +548,7 @@ generateParserInternalArray Schema{..} = do
         outCodeLine' [qc|            return (arrOfs + 1, strOfs)|]
         outCodeLine' [qc|inManyTags tag arrOfs strOfs inParser = inManyTags' True tag arrOfs strOfs inParser|] -- TODO add attributes processing
         outCodeLine' [qc|inManyTagsWithAttrs tag arrOfs strOfs inParser = inManyTags' True tag arrOfs strOfs inParser|]
+        outCodeLine' [qc|inManyTags' :: Bool -> ByteString -> Int -> Int -> (Int -> Int -> ST s (Int, Int)) -> ST s (Int, Int)|]
         outCodeLine' [qc|inManyTags' hasAttrs tag arrOfs strOfs inParser = do|]
         outCodeLine' [qc|    (cnt, endArrOfs, endStrOfs) <- flip fix (0, (arrOfs + 1), strOfs) $ \next (cnt, arrOfs', strOfs') ->|]
         outCodeLine' [qc|        inOneTag' hasAttrs tag strOfs' (inParser arrOfs') >>= \case|]
@@ -576,6 +578,7 @@ generateParserInternalArray Schema{..} = do
         outCodeLine' [qc|ptake :: ByteString -> Int -> Int -> ByteString|]
         outCodeLine' [qc|ptake bs ofs len = BS.take len $ BS.drop ofs bs -- TODO replace with UNSAFE?|]
         outCodeLine' [qc|--|]
+        outCodeLine' [qc|parseString :: Int -> Int -> ST s (Int, Int)|]
         outCodeLine' [qc|parseString arrStart strStart = do|]
         outCodeLine' [qc|  let strEnd = skipToOpenTag strStart|]
         outCodeLine' [qc|  UMV.unsafeWrite vec arrStart     strStart|]
@@ -613,7 +616,7 @@ generateParserInternalArray Schema{..} = do
 
 
 generateParserExtractTopLevel :: Schema -> CG ()
-generateParserExtractTopLevel Schema{..} = do
+generateParserExtractTopLevel sch@Schema{..} = do
     forM_ tops $ \topEl -> do
         let rootName = eName topEl
         haskellRootName <- translate (ElementName, TargetTypeName) "" rootName -- TODO container?
@@ -621,7 +624,7 @@ generateParserExtractTopLevel Schema{..} = do
         outCodeLine' [qc|extractTopLevel (TopLevelInternal bs arr) = fst $ extract{haskellRootName}Content 0|]
     withIndent $ do
         outCodeLine' "where"
-        types' <- extractAdditionalCommonTypes types
+        let types' = extractAllTypes types tops
         withIndent $ do
             forM_ types' $ \(typeName, ty) -> do
             -- forM_ (take 1 ((Map.toList types) ++ additionalTypes)) $ \(typeName, ty) -> do
@@ -717,10 +720,6 @@ generateParserExtractTopLevel Schema{..} = do
     getExtractorName (Complex {}) xname   = translate (ElementName, TargetTypeName) xname xname
     getExtractorName (Extension {}) xname = translate (ElementName, TargetTypeName) xname xname
     getExtractorName t _                  = error [qc|Don't know how to generate {take 100 $ show t}|]
-    extractAdditionalTypes :: [Element] -> [(XMLString, Type)]
-    extractAdditionalTypes elts =
-        let allElts = (universeBi elts :: [Element])
-        in map (\(Element _ _ name typ _) -> (name, typ)) allElts
     generateAuxiliaryFunctions = do
         outCodeLine' [qc|extractStringContent :: Int -> (ByteString, Int)|]
         outCodeLine' [qc|extractStringContent ofs = (BSU.unsafeTake bslen (BSU.unsafeDrop bsofs bs), ofs + 2)|]
