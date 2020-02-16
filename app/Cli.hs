@@ -22,6 +22,7 @@ import           Parser
 data Opts = Opts
     { schemaFilename      :: FilePath
     , isGenerateTypesOnly :: Bool
+    , generateOpts        :: GenerateOpts
     } deriving Show
 
 
@@ -38,7 +39,7 @@ processSchema Opts{..} = do
             generatedTypes <- codegen analyzed
             putStrLn generatedTypes
         else do
-            generatedParser <- parserCodegen analyzed
+            generatedParser <- parserCodegen generateOpts analyzed
             putStrLn generatedParser
         )
 
@@ -61,4 +62,6 @@ optsParser =
     programOptions =
         Opts <$> filenameOption (long "schema" <> metavar "FILENAME"  <> help "Path to XML schema (.xsd file)")
              <*> switch         (long "types"  <>                        help "Generate types only")
+             <*> (GenerateOpts <$>
+                 switch         (long "main"   <>                        help "Generate `main` function"))
     filenameOption = strOption

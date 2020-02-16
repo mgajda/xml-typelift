@@ -11,7 +11,7 @@
 {-# LANGUAGE ViewPatterns              #-}
 {-# OPTIONS_GHC -fno-warn-orphans  #-}
 -- | Here we aim to analyze the schema.
-module CodeGen(codegen, parserCodegen) where
+module CodeGen(GenerateOpts(..), codegen, parserCodegen) where
 
 
 import           Prelude                           hiding (id, lookup)
@@ -21,6 +21,7 @@ import           Control.Monad
 import           Control.Monad                     (forM, forM_, when)
 import qualified Data.ByteString.Builder           as B
 import qualified Data.ByteString.Char8             as BS
+import           Data.Default                      as Def
 import qualified Data.Map.Strict                   as Map
 import           Data.Maybe
 import qualified Data.Set                          as Set
@@ -41,7 +42,18 @@ import           Debug.Pretty.Simple
 import           Text.Pretty.Simple
 
 
+
 import           Identifiers
+
+
+-- | Options for generating
+data GenerateOpts = GenerateOpts
+    { isGenerateMainFunction :: Bool
+    } deriving Show
+
+
+instance Def.Default GenerateOpts where
+    def = GenerateOpts False
 
 
 -- | Returns a pair of field name, and type code.
@@ -226,12 +238,12 @@ codegen sch = codegen' sch (generateSchema sch)
 
 
 -- | Make parser for schema
-parserCodegen :: Schema -> IO String
-parserCodegen sch = do
+parserCodegen :: GenerateOpts -> Schema -> IO String
+parserCodegen opts sch = do
     --putStrLn "~~~~~~ Schema: ~~~~~~~~~"
     --pPrint sch
     --putStrLn "~~~~~~~~~~~~~~~~~~~~~~~~"
-    codegen' sch (generateParser1 sch)
+    codegen' sch (generateParser1 opts sch)
 
 
 -- | Generate content type, and put an type name on it.
@@ -319,8 +331,8 @@ withIndent act = do -- TODO use `bracket`
     decIndent
     return r
 
-generateParser1 :: Schema -> CG ()
-generateParser1 schema = do
+generateParser1 :: GenerateOpts -> Schema -> CG ()
+generateParser1 GenerateOpts{..} schema = do
     -- pTraceShowM schema
     generateSchema schema
     outCodeLine [qc|-- PARSER --|]
@@ -339,6 +351,7 @@ generateParser1 schema = do
     outCodeLine ""
     generateParserTop schema
     generateAuxiliaryFunctions schema
+    when isGenerateMainFunction $ generateMainFunction schema
 
 
 generateParserInternalStructures :: Schema -> CG ()
@@ -772,5 +785,34 @@ generateAuxiliaryFunctions _schema = do
 
 generateParserTop :: Schema -> CG ()
 generateParserTop _schema = do
-    outCodeLine "parser :: ByteString -> Either String TopLevel" -- TODO
-    outCodeLine "parser = fmap extractTopLevel . parseTopLevelToArray"
+    outCodeLine "parse :: ByteString -> Either String TopLevel" -- TODO
+    outCodeLine "parse = fmap extractTopLevel . parseTopLevelToArray"
+
+generateMainFunction :: Schema -> CG ()
+generateMainFunction _schema = do
+    outCodeLine' [qc|parseAndPrintFiles :: Bool -> [FilePath] -> IO ()|]
+    outCodeLine' [qc|parseAndPrintFiles isPrinting filenames =|]
+    withIndent $ do
+        outCodeLine' [qc|forM_ filenames $ \filename -> do|]
+        withIndent $ do
+            outCodeLine' [qc|file <- BS.readFile filename|]
+            outCodeLine' [qc|case parse file of|]
+            withIndent $ do
+                outCodeLine' [qc|Left err -> do|]
+                withIndent $ do
+                    outCodeLine' [qc|hPutStrLn stderr $ "Error while parsing \"" ++ filename ++ "\": " ++ err|]
+                    outCodeLine' [qc|exitFailure|]
+                outCodeLine' [qc|Right result -> do|]
+                withIndent $ do
+                    outCodeLine' [qc|when isPrinting $ pPrint result|]
+                    outCodeLine' [qc|result `seq` Prelude.putStrLn $ "Successfully parsed " ++ filename|]
+    outCodeLine' ""
+    outCodeLine' "main :: IO ()"
+    outCodeLine' "main = do"
+    withIndent $ do
+        outCodeLine' [qc|args <- getArgs|]
+        outCodeLine' [qc|case Data.List.span (== "--print") args of|]
+        withIndent $ do
+            outCodeLine' [qc|([], filenames) -> parseAndPrintFiles False filenames|]
+            outCodeLine' [qc|(_,  filenames) -> parseAndPrintFiles True  filenames|]
+        outCodeLine' "exitSuccess"

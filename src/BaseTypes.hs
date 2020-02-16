@@ -30,7 +30,7 @@ basePrologue  = mconcat $ map makeImport modules
   where
     makeImport modPath = "import " <> modPath <> "\n"
     modules = ["Data.Time.LocalTime(ZonedTime)"
-              ,"Data.ByteString.Char8 as BS"
+              ,"qualified Data.ByteString.Char8 as BS"
               ,"Data.Int(Int64)"
               ,"Data.Scientific (Scientific)"
               ,"Data.Time.ISO8601.Duration"
@@ -55,8 +55,14 @@ basePrologue  = mconcat $ map makeImport modules
               ,"qualified Data.Vector.Unboxed as UV"
               ,"qualified Data.Vector.Unboxed.Mutable as UMV"
               -- TODO
-              ,"Text.Pretty.Simple"
               ,"Data.Either"
+              -- TODO only when `isMainGenerate`
+              ,"Data.List"
+              ,"System.Environment (getArgs)"
+              ,"System.Exit (exitSuccess, exitFailure)"
+              ,"System.IO (hPutStrLn, stderr)"
+              ,"Control.Monad"
+              ,"Text.Pretty.Simple"
               ]
 
 baseTranslations :: [(BS.ByteString, BS.ByteString)]

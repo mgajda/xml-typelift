@@ -4,6 +4,7 @@ module Tests.Utils where
 
 
 import           Control.Monad
+import           Data.Default
 import           System.Directory
 import           System.FilePath.Posix
 import           System.IO
@@ -25,7 +26,7 @@ withGeneratedFile generateOnlyTypes xmlFilename action = do
     unless (null msgs) $ error ("Flattened with errors: " ++ show msgs)
     let (analyzed, schemaErrors) = analyze flattened
     unless (null schemaErrors) $ error "Schema has errors"
-    result <- (if generateOnlyTypes then codegen else parserCodegen) analyzed
+    result <- (if generateOnlyTypes then codegen else parserCodegen def) analyzed
     withPreservedSystemTempDirectory "xml-typelift" $ \dirname -> do
         let testfn = dirname </> "XMLSchema.hs"
         writeFile testfn result
