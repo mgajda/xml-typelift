@@ -15,7 +15,7 @@ import System.Process
 import System.Exit
 import System.IO
 import Test.Hspec
---import Text.InterpolatedString.Perl6 (qc)
+import Text.InterpolatedString.Perl6 (qc)
 
 import Tests.Utils
 
@@ -26,19 +26,19 @@ spec :: Spec
 spec = describe "codegen" $ do
     describe "compiling" $
         forM_ ["person.xsd", "customersOrders.xsd", "shiporder.xsd", "choice.xsd", "extensions.xsd", "nested-extensions.xsd", "restriction.xsd"] $ \fn -> do
-            it ("can compile generated types for \"" ++ fn ++ "\"") $ example $
+            it [qc|can compile generated types for "{fn}"|] $ example $
                 tryCompile True  (inTestDir fn)
-            it ("can compile generated parser for \"" ++ fn ++ "\"") $ example $
+            it [qc|can compile generated parser for "{fn}"|] $ example $
                 tryCompile False (inTestDir fn)
-            it ("can parse XML generated parser for \"" ++ fn ++ "\"") $ example $
+            it [qc|can parse XML generated parser for "{fn}"|] $ example $
                 tryParse (inTestDir fn) (inTestDir fn -<.> "xml")
     describe "compiling types" $
         forM_ ["simple.xsd", "test.xsd", "contactExample.xsd"] $ \fn ->
-            it ("can compile types for \"" ++ fn ++ "\"") $ example $
-                tryCompile True ("test" </> "data" </> fn)
+            it [qc|can compile types for "{fn}"|] $ example $
+                tryCompile True (inTestDir fn)
     describe "declarations presence" $ do
         it "decl.presence.1" $ example $ do
-            withGeneratedFile True ("test" </> "data" </> "person.xsd") $ \hsFilepath -> do
+            withGeneratedFile True (inTestDir "person.xsd") $ \hsFilepath -> do
                 hsFilepath `declShouldPresent`
                     [d|data Birthplace = Birthplace {
                                   city :: XMLString
@@ -56,7 +56,7 @@ spec = describe "codegen" $ do
                 --                , sex :: Integer
                 --                , education :: Education }|]
         it "decl.presence.2" $ example $ do
-            withGeneratedFile True ("test" </> "data" </> "customersOrders.xsd") $ \hsFilepath -> do
+            withGeneratedFile True (inTestDir "customersOrders.xsd") $ \hsFilepath -> do
                 hsFilepath `declShouldPresent`
                     [d|data AddressType = AddressType { customerID :: Maybe XMLString,
                                                         address :: XMLString,
@@ -79,20 +79,24 @@ callProcess' cmd args = do
         ExitFailure r -> do
             whenMaybe (dumpHandle stdout) pstdout
             whenMaybe (dumpHandle stderr) pstderr
-            fail ("Running \"" ++ cmd ++ "\" " ++ show args ++ " has failed with " ++ show r)
+            fail [qc|Running "{cmd}" "{args}" has failed with "{r}"|]
   where
     dumpHandle outhndl inhnd = hGetContents inhnd >>= hPutStr outhndl
     whenMaybe a m = maybe (return ()) a m
 
 
+runGhc :: [String] -> IO ()
+runGhc args = do
+    handle (\(e::SomeException) -> do print e >> throw e) $ do
+        -- TODO reimplement with 'cabal', see `runAutotype`
+        -- TODO reimplement running as here: https://github.com/migamake/json-autotype/blob/master/json-autotype/src/Data/Aeson/AutoType/CodeGen/Haskell.hs
+        callProcess' "stack" args
+
+
 tryCompile :: Bool -> FilePath -> IO ()
 tryCompile generateOnlyTypes xsdFileName =
     withGeneratedFile generateOnlyTypes xsdFileName $ \hsFilename ->
-        (callProcess' "stack" $ ["exec", "--", "ghc", "-O0", hsFilename] ++ compileArgs)
-            `catch`
-            (\(e::SomeException) -> do print e >> throw e)
-        -- TODO reimplement with 'cabal', see `runAutotype`
-        -- in https://gitlab.com/migamake/json-autotype/blob/master/json-autotype/test/TestExamples.hs
+        runGhc $ ["exec", "--", "ghc", "-O0", hsFilename] ++ compileArgs
   where
     failOnWarns = False
     compileArgs | failOnWarns = ["-Wall", "-Werror"]
@@ -100,18 +104,9 @@ tryCompile generateOnlyTypes xsdFileName =
 
 
 tryParse :: FilePath -> FilePath -> IO ()
-tryParse xsdFileName _xmlFileName =
+tryParse xsdFileName xmlFileName =
     withGeneratedFile False xsdFileName $ \hsFilename ->
-        (do callProcess' "stack" $ ["exec", "--", "ghc", "-O0", hsFilename] ++ compileArgs
-            -- TODO Wait for #41 and run here compiled program with xmlFileName
-            return ()
-            )
-            `catch`
-            (\(e::SomeException) -> do print e >> throw e)
-  where
-    failOnWarns = False
-    compileArgs | failOnWarns = ["-Wall", "-Werror"]
-                | otherwise   = ["-Wno-all"]
+        runGhc ["exec", "--", "runghc", hsFilename, xmlFileName]
 
 
 declShouldPresent :: (HasCallStack) => FilePath -> DecsQ -> Expectation
