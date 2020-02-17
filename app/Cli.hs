@@ -113,5 +113,5 @@ optsParser =
                  filenameOption (long "test-document" <> metavar "FILENAME"  <> help "Path to test document (.xml file) (turn on `--main` and turn off `--types`)"))
              <*> (switch        (long "print-result"                         <> help "Print result of test document parsing"))
              <*> (optional $
-                 filenameOption (long "output"        <> metavar "FILENAME"  <> help "Output generated parser to FILENAME"))
+                 filenameOption (long "output" <> metavar "FILENAME"         <> help "Output generated parser to FILENAME"))
     filenameOption = strOption
