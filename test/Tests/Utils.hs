@@ -25,8 +25,5 @@ withGeneratedFile generateOnlyTypes xmlFilename action = do
     let (analyzed, schemaErrors) = analyze flattened
     unless (null schemaErrors) $ error "Schema has errors"
     result <- (if generateOnlyTypes then codegen else parserCodegen (def { isGenerateMainFunction = True })) analyzed
-    withPreservedSystemTempDirectory "xml-typelift" $ \dirname -> do
-        let testfn = dirname </> "XMLSchema.hs"
-        writeFile testfn result
-        action testfn
+    withTempSavedFile result "XMLSchema.hs" action
 
