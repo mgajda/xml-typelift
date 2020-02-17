@@ -1,6 +1,7 @@
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell     #-}
+{-# LANGUAGE QuasiQuotes         #-}
 module Main(main) where
 -- module Cli(main, testExpr) where
 
@@ -10,7 +11,7 @@ import           Options.Applicative
 import           Data.Version          (showVersion)
 import           Development.GitRev    (gitHash)
 import           Paths_xml_typelift    (version)
-import           System.IO
+import           Text.InterpolatedString.Perl6 (qc)
 import           Xeno.Errors           (printExceptions)
 import           System.IO
 import           Xeno.Errors           (printExceptions)
