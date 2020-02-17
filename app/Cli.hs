@@ -12,6 +12,7 @@ import           Data.Version          (showVersion)
 import           Development.GitRev    (gitHash)
 import           Paths_xml_typelift    (version)
 import           Xeno.Errors           (printExceptions)
+import           System.IO
 
 import           Analyze
 import           CodeGen
@@ -23,6 +24,7 @@ data Opts = Opts
     { schemaFilename      :: FilePath
     , isGenerateTypesOnly :: Bool
     , generateOpts        :: GenerateOpts
+    , outputToFile        :: Maybe FilePath
     } deriving Show
 
 
@@ -30,17 +32,14 @@ processSchema :: Opts -> IO ()
 processSchema Opts{..} = do
     input       <- BS.readFile schemaFilename
     parseSchema input >>= (maybe (return ()) $ \schema -> do
-        -- putStrLn $ "Successfully parsed " <> filename <> ": " <> show schema
         let (flattened, msgs) = flatten schema
-        forM_ msgs print
+        mapM_ (hPutStrLn stderr . show) msgs
         let (analyzed, schemaErrors) = analyze flattened
         null schemaErrors `unless` printExceptions input schemaErrors
-        if isGenerateTypesOnly then do
-            generatedTypes <- codegen analyzed
-            putStrLn generatedTypes
-        else do
-            generatedParser <- parserCodegen generateOpts analyzed
-            putStrLn generatedParser
+        let generator | isGenerateTypesOnly = codegen
+                      | otherwise           = parserCodegen generateOpts
+        generatedFile <- generator analyzed
+        (maybe putStrLn writeFile outputToFile) generatedFile
         )
 
 
@@ -64,4 +63,6 @@ optsParser =
              <*> switch         (long "types"  <>                        help "Generate types only")
              <*> (GenerateOpts <$>
                  switch         (long "main"   <>                        help "Generate `main` function"))
+             <*> (optional $
+                 filenameOption (long "output" <> metavar "FILENAME"  <> help "Output generated parser to FILENAME"))
     filenameOption = strOption
