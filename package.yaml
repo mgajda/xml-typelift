@@ -29,6 +29,8 @@ dependencies:
   - containers
   - data-default
   - deepseq
+  - directory
+  - exceptions
   - filepath
   - haskell-src-match
   - interpolatedstring-perl6
@@ -36,7 +38,9 @@ dependencies:
   - lens
   - mtl
   - pretty-simple
+  - process
   - template-haskell
+  - temporary
   - uniplate
   - xeno
 
@@ -206,10 +210,5 @@ tests:
       - src
     main: Tests.hs
     dependencies:
-      - directory
-      - exceptions
       - hspec
-      - process
-      - template-haskell
-      - temporary
       - xml-typelift

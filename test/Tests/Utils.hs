@@ -5,17 +5,15 @@ module Tests.Utils where
 
 import           Control.Monad
 import           Data.Default
-import           System.Directory
 import           System.FilePath.Posix
-import           System.IO
-import           System.IO.Temp
-import qualified Control.Monad.Catch as MC
 import qualified Data.ByteString.Char8 as BS
+
 
 import Analyze
 import CodeGen
 import Flatten
 import Parser
+import TestUtils
 
 
 withGeneratedFile :: Bool -> FilePath -> (FilePath -> IO ()) -> IO ()
@@ -32,27 +30,3 @@ withGeneratedFile generateOnlyTypes xmlFilename action = do
         writeFile testfn result
         action testfn
 
--- * Adapted from `temporary` package
-
-withPreservedSystemTempDirectory :: String   -- ^ Directory name template
-                        -> (FilePath -> IO a) -- ^ Callback that can use the directory
-                        -> IO a
-withPreservedSystemTempDirectory template action =
-    getCanonicalTemporaryDirectory >>= \tmpDir -> withPreservedTempDirectory tmpDir template action
-
-
-withPreservedTempDirectory :: FilePath -- ^ Parent directory to create the directory in
-                           -> String   -- ^ Directory name template
-                           -> (FilePath -> IO a) -- ^ Callback that can use the directory
-                           -> IO a
-withPreservedTempDirectory targetDir template action = do
-    dirName <- createTempDirectory targetDir template
-    (do r <- action dirName
-        ignoringIOErrors $ removeDirectoryRecursive dirName
-        return r)
-            `MC.onError`
-            (hPutStrLn stderr $ "Test directory preserved in \"" ++ dirName ++ "\"")
-
-
-ignoringIOErrors :: MC.MonadCatch m => m () -> m ()
-ignoringIOErrors ioe = ioe `MC.catch` (\e -> const (return ()) (e :: IOError))

@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP                 #-}
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell     #-}
@@ -8,10 +7,10 @@ module Main(main) where
 import           Control.Monad
 import qualified Data.ByteString.Char8 as BS
 import           Options.Applicative
--- import           Text.Pretty.Simple
 import           Data.Version          (showVersion)
 import           Development.GitRev    (gitHash)
 import           Paths_xml_typelift    (version)
+import           System.IO
 import           Xeno.Errors           (printExceptions)
 import           System.IO
 import           Xeno.Errors           (printExceptions)
@@ -23,12 +22,14 @@ import           Analyze
 import           CodeGen
 import           Flatten
 import           Parser
+import           TestUtils
 
 
 data Opts = Opts
     { schemaFilename      :: FilePath
     , isGenerateTypesOnly :: Bool
     , generateOpts        :: GenerateOpts
+    , testXmlFilename     :: Maybe FilePath
     , outputToFile        :: Maybe FilePath
     } deriving Show
 
@@ -44,12 +45,35 @@ processSchema Opts{..} = do
         let generator | isGenerateTypesOnly = codegen
                       | otherwise           = parserCodegen generateOpts
         generatedFile <- generator analyzed
-        (maybe putStrLn writeFile outputToFile) generatedFile
+        let defoutputer = maybe putStrLn (\_ -> \_ -> return ()) testXmlFilename
+        (maybe defoutputer writeFile outputToFile) generatedFile
+        unless isGenerateTypesOnly $ do
+            maybe putStrLn testGeneratedParser testXmlFilename generatedParser
         )
 
 
+-- | Compile generated parser and run it with specified XML document
+--
+testGeneratedParser :: FilePath -- ^ XML document for test
+                    -> String   -- ^ Generated Parser
+                    -> IO ()
+testGeneratedParser xmlFilename generatedParser =
+    withTempSavedFile generatedParser "XMLSchema.hs" $ \parserFilename -> do
+        runHaskellModule parserFilename [xmlFilename]
+        putStrLn [qc|File {xmlFilename} processed successfully|]
+
+
 main :: IO ()
-main = execParser optsParser >>= processSchema
+main = execParser' optsParser >>= processSchema
+
+
+execParser' :: ParserInfo Opts -> IO Opts
+execParser' = fmap postProcessOpts . execParser
+  where
+    postProcessOpts opts@Opts{..}
+      | isJust testXmlFilename = opts { generateOpts = generateOpts { isGenerateMainFunction = True }
+                                      , isGenerateTypesOnly = False }
+      | otherwise              = opts
 
 
 optsParser :: ParserInfo Opts
@@ -64,10 +88,13 @@ optsParser =
         (long "version" <> help "Show version")
     programOptions :: Parser Opts
     programOptions =
-        Opts <$> filenameOption (long "schema" <> metavar "FILENAME"  <> help "Path to XML schema (.xsd file)")
-             <*> switch         (long "types"  <>                        help "Generate types only")
+        Opts <$> filenameOption (long "schema"        <> metavar "FILENAME"  <> help "Path to XML schema (.xsd file)")
+             <*> switch         (long "types"         <>                        help "Generate types only")
              <*> (GenerateOpts <$>
-                 switch         (long "main"   <>                        help "Generate `main` function"))
+                 switch         (long "main"          <>                        help "Generate `main` function"))
              <*> (optional $
-                 filenameOption (long "output" <> metavar "FILENAME"  <> help "Output generated parser to FILENAME"))
+                 filenameOption (long "test-document" <> metavar "FILENAME"  <> help "Path to test document (.xml file) \
+                                                                                     \(turn on `--main` and turn off `--types`)"))
+             <*> (optional $
+                 filenameOption (long "output" <> metavar "FILENAME"         <> help "Output generated parser to FILENAME"))
     filenameOption = strOption

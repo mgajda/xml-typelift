@@ -6,25 +6,22 @@
 module Tests.CodegenSpec where
 
 
-import Control.Exception
 import Control.Monad
 import Language.Haskell.SourceMatch
-import System.FilePath.Posix
 import Language.Haskell.TH.Lib
-import System.Process
-import System.Exit
-import System.IO
+import System.FilePath.Posix
 import Test.Hspec
 import Text.InterpolatedString.Perl6 (qc)
 
 import Tests.Utils
 
 import FromXML
+import TestUtils
 
 
 spec :: Spec
 spec = describe "codegen" $ do
-    xdescribe "compiling" $
+    describe "compiling" $
         forM_ ["person.xsd", "customersOrders.xsd", "shiporder.xsd", "choice.xsd", "extensions.xsd", "nested-extensions.xsd", "restriction.xsd"] $ \fn -> do
             it [qc|can compile generated types for "{fn}"|] $ example $
                 tryCompile True  (inTestDir fn)
@@ -32,7 +29,7 @@ spec = describe "codegen" $ do
                 tryCompile False (inTestDir fn)
             it [qc|can parse XML generated parser for "{fn}"|] $ example $
                 tryParse (inTestDir fn) (inTestDir fn -<.> "xml")
-    xdescribe "compiling types" $
+    describe "compiling types" $
         forM_ ["simple.xsd", "test.xsd", "contactExample.xsd"] $ \fn ->
             it [qc|can compile types for "{fn}"|] $ example $
                 tryCompile True (inTestDir fn)
@@ -68,32 +65,6 @@ spec = describe "codegen" $ do
 
 -- * --------------------------------------------------------------------------
 
-
-callProcess' :: FilePath -> [String] -> IO ()
-callProcess' cmd args = do
-    (_, pstdout, pstderr, p) <- createProcess ((proc cmd args) { std_out = CreatePipe, std_err = CreatePipe })
-    waitForProcess p >>= \case
-        ExitSuccess -> do
-            whenMaybe hClose pstdout
-            whenMaybe hClose pstderr
-        ExitFailure r -> do
-            whenMaybe (dumpHandle stdout) pstdout
-            whenMaybe (dumpHandle stderr) pstderr
-            fail [qc|Running "{cmd}" "{args}" has failed with "{r}"|]
-  where
-    dumpHandle outhndl inhnd = hGetContents inhnd >>= hPutStr outhndl
-    whenMaybe a m = maybe (return ()) a m
-
-
-runGhc :: [String] -> IO ()
-runGhc args = do
-    handle (\(e::SomeException) -> do print e >> throw e) $ do
-        -- TODO: reimplement with 'cabal', see `runAutotype`
-        -- TODO: reimplement running as here: https://github.com/migamake/json-autotype/blob/master/json-autotype/src/Data/Aeson/AutoType/CodeGen/Haskell.hs
-        -- TODO: Output stderr upon failure
-        callProcess' "stack" args
-
-
 tryCompile :: Bool -> FilePath -> IO ()
 tryCompile generateOnlyTypes xsdFileName =
     withGeneratedFile generateOnlyTypes xsdFileName $ \hsFilename ->
@@ -107,7 +78,7 @@ tryCompile generateOnlyTypes xsdFileName =
 tryParse :: FilePath -> FilePath -> IO ()
 tryParse xsdFileName xmlFileName =
     withGeneratedFile False xsdFileName $ \hsFilename ->
-        runGhc ["exec", "--", "runghc", hsFilename, xmlFileName]
+        runHaskellModule hsFilename [xmlFileName]
 
 
 declShouldPresent :: (HasCallStack) => FilePath -> DecsQ -> Expectation
