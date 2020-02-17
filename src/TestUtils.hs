@@ -4,16 +4,19 @@
 {-# LANGUAGE QuasiQuotes          #-}
 {-# LANGUAGE ScopedTypeVariables  #-}
 module TestUtils
-    ( runGhc
+    ( compileHaskellModule
     , runHaskellModule
+    , runHaskellModule'
     , withTempSavedFile
     , withPreservedSystemTempDirectory
     ) where
 
 
 import           Control.Exception
+import           Control.Monad
 import qualified Control.Monad.Catch as MC
 import           System.Directory
+import           System.Environment
 import           System.Exit
 import           System.FilePath.Posix
 import           System.IO
@@ -40,19 +43,53 @@ callProcess' cmd args = do
     whenMaybe a m = maybe (return ()) a m
 
 
+data GhcTool = Runner | Compiler
+
+
+findGhc :: Bool -> GhcTool -> IO (FilePath, [String])
+findGhc verbose ghcTool = do
+    stack <- lookupEnv "STACK_EXE"
+    cabal <- lookupEnv "CABAL_SANDBOX_CONFIG"
+    when verbose $ putStrLn [qc|STACK_EXE={stack} ; CABAL_SANDBOX_CONFIG={cabal}|]
+    let res@(exe, exeArgs') | Just stackExec <- stack = (stackExec, [tool, "--"])
+                            | Just _         <- cabal = ("cabal", ["exec", tool, "--"])
+                            | otherwise               = (tool, [])
+        exeArgs = case ghcTool of
+                    Compiler -> exeArgs' ++ ["-O0"]
+                    Runner   -> exeArgs
+    when verbose $ putStrLn [qc|Use exe "{exe}", and additional arguments: {exeArgs}|]
+    return res
+  where
+    tool = case ghcTool of
+               Runner   -> "runghc"
+               Compiler ->  "ghc"
+
+
+passModuleToGhc :: Bool -> GhcTool -> FilePath -> [String] -> IO ()
+passModuleToGhc verbose ghcTool moduleFilename args =
+    handle (\(e::SomeException) -> do print e >> throw e) $ do
+        (exe, exeArgs) <- findGhc verbose ghcTool
+        callProcess' exe (exeArgs ++ moduleFilename:args)
+
+
 -- | Find ghc with cabal/stack and run it with specified arguments
 --
-runGhc :: [String] -> IO ()
-runGhc args = do
-    handle (\(e::SomeException) -> do print e >> throw e) $ do
-        -- TODO reimplement with 'cabal', see `runAutotype`
-        -- TODO reimplement running as here: https://github.com/migamake/json-autotype/blob/master/json-autotype/src/Data/Aeson/AutoType/CodeGen/Haskell.hs
-        callProcess' "stack" args
+compileHaskellModule :: FilePath -> [String] -> IO ()
+compileHaskellModule moduleFilename args = passModuleToGhc False Compiler moduleFilename args
 
 
 -- | Run Haskell module in specified file with arguments
+--
+runHaskellModuleVerb :: Bool -> FilePath -> [String] -> IO ()
+runHaskellModuleVerb verbose moduleFilename args = passModuleToGhc verbose Runner moduleFilename args
+
+
 runHaskellModule :: FilePath -> [String] -> IO ()
-runHaskellModule moduleFilename args = runGhc $ ["exec", "--", "runghc"] ++ (moduleFilename : args)
+runHaskellModule moduleFilename args = runHaskellModuleVerb False moduleFilename args
+
+
+runHaskellModule' :: FilePath -> [String] -> IO ()
+runHaskellModule' moduleFilename args = runHaskellModuleVerb True moduleFilename args
 
 
 -- | Save data in temporary directory with specified filename.

@@ -68,7 +68,7 @@ spec = describe "codegen" $ do
 tryCompile :: Bool -> FilePath -> IO ()
 tryCompile generateOnlyTypes xsdFileName =
     withGeneratedFile generateOnlyTypes xsdFileName $ \hsFilename ->
-        runGhc $ ["exec", "--", "ghc", "-O0", hsFilename] ++ compileArgs
+        compileHaskellModule hsFilename compileArgs
   where
     failOnWarns = False
     compileArgs | failOnWarns = ["-Wall", "-Werror"]
