@@ -8,10 +8,12 @@ module Main(main) where
 import           Control.Monad
 import qualified Data.ByteString.Char8 as BS
 import           Options.Applicative
+import           Data.Maybe
 import           Data.Version          (showVersion)
 import           Development.GitRev    (gitHash)
 import           Paths_xml_typelift    (version)
 import           Text.InterpolatedString.Perl6 (qc)
+import           System.IO
 import           Xeno.Errors           (printExceptions)
 import           System.IO
 import           Xeno.Errors           (printExceptions)
@@ -37,7 +39,7 @@ data Opts = Opts
 
 processSchema :: Opts -> IO ()
 processSchema Opts{..} = do
-    input       <- BS.readFile schemaFilename
+    input <- BS.readFile schemaFilename
     parseSchema input >>= (maybe (return ()) $ \schema -> do
         let (flattened, msgs) = flatten schema
         mapM_ (hPutStrLn stderr . show) msgs
@@ -48,8 +50,9 @@ processSchema Opts{..} = do
         generatedFile <- generator analyzed
         let defoutputer = maybe putStrLn (\_ -> \_ -> return ()) testXmlFilename
         (maybe defoutputer writeFile outputToFile) generatedFile
-        unless isGenerateTypesOnly $ do
-            maybe putStrLn testGeneratedParser testXmlFilename generatedParser
+        case (isGenerateTypesOnly, testXmlFilename) of
+            (True, Just tfn) -> testGeneratedParser tfn generatedFile
+            _ -> return ()
         )
 
 
