@@ -49,10 +49,8 @@ processSchema Opts{..} = do
                       | otherwise           = parserCodegen generateOpts
         generatedFile <- generator analyzed
         let defoutputer = maybe putStrLn (\_ -> \_ -> return ()) testXmlFilename
-        (maybe defoutputer writeFile outputToFile) generatedFile
-        case (isGenerateTypesOnly, testXmlFilename) of
-            (True, Just tfn) -> testGeneratedParser tfn generatedFile
-            _ -> return ()
+        maybe defoutputer writeFile outputToFile generatedFile
+        maybe (return ()) (flip testGeneratedParser generatedFile) testXmlFilename
         )
 
 
@@ -75,9 +73,13 @@ execParser' :: ParserInfo Opts -> IO Opts
 execParser' = fmap postProcessOpts . execParser
   where
     postProcessOpts opts@Opts{..}
-      | isJust testXmlFilename = opts { generateOpts = generateOpts { isGenerateMainFunction = True }
-                                      , isGenerateTypesOnly = False }
-      | otherwise              = opts
+      | isGenerateTypesOnly && isJust testXmlFilename
+      = error "`--types` don't compatable with `--test-document`"
+      | isJust testXmlFilename
+      = opts { generateOpts = generateOpts { isGenerateMainFunction = True }
+             , isGenerateTypesOnly = False }
+      | otherwise
+      = opts
 
 
 optsParser :: ParserInfo Opts
