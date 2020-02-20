@@ -8,6 +8,7 @@ module Main(main) where
 import           Control.Monad
 import qualified Data.ByteString.Char8 as BS
 import           Options.Applicative
+import           Data.Default
 import           Data.Maybe
 import           Data.Version          (showVersion)
 import           Development.GitRev    (gitHash)
@@ -33,6 +34,7 @@ data Opts = Opts
     , isGenerateTypesOnly :: Bool
     , generateOpts        :: GenerateOpts
     , testXmlFilename     :: Maybe FilePath
+    , textXmlIsPrint      :: Bool
     , outputToFile        :: Maybe FilePath
     } deriving Show
 
@@ -50,19 +52,23 @@ processSchema Opts{..} = do
         generatedFile <- generator analyzed
         let defoutputer = maybe putStrLn (\_ -> \_ -> return ()) testXmlFilename
         maybe defoutputer writeFile outputToFile generatedFile
-        maybe (return ()) (flip testGeneratedParser generatedFile) testXmlFilename
+        maybe (return ()) (testGeneratedParser generatedFile textXmlIsPrint) testXmlFilename
         )
 
 
 -- | Compile generated parser and run it with specified XML document
 --
-testGeneratedParser :: FilePath -- ^ XML document for test
-                    -> String   -- ^ Generated Parser
+testGeneratedParser :: String   -- ^ Generated Parser
+                    -> Bool     -- ^ Print result of parsing
+                    -> FilePath -- ^ XML document for test
                     -> IO ()
-testGeneratedParser xmlFilename generatedParser =
-    withTempSavedFile generatedParser "XMLSchema.hs" $ \parserFilename -> do
-        runHaskellModule parserFilename [xmlFilename]
-        putStrLn [qc|File {xmlFilename} processed successfully|]
+testGeneratedParser generatedParser isPrintParsingResult xmlFilename =
+    withTempSavedFile generatedParser "XMLSchema.hs" $ \parserFilename ->
+        if isPrintParsingResult then do
+            runHaskellModule' (def { showStdout = True }) parserFilename ["--print", xmlFilename]
+        else do
+            runHaskellModule' def parserFilename [xmlFilename]
+            putStrLn [qc|File {xmlFilename} processed successfully|]
 
 
 main :: IO ()
@@ -75,6 +81,8 @@ execParser' = fmap postProcessOpts . execParser
     postProcessOpts opts@Opts{..}
       | isGenerateTypesOnly && isJust testXmlFilename
       = error "`--types` don't compatable with `--test-document`"
+      | textXmlIsPrint && isNothing testXmlFilename
+      = error "Specify test XML document for parse and print"
       | isJust testXmlFilename
       = opts { generateOpts = generateOpts { isGenerateMainFunction = True }
              , isGenerateTypesOnly = False }
@@ -95,12 +103,13 @@ optsParser =
     programOptions :: Parser Opts
     programOptions =
         Opts <$> filenameOption (long "schema"        <> metavar "FILENAME"  <> help "Path to XML schema (.xsd file)")
-             <*> switch         (long "types"         <>                        help "Generate types only")
+             <*> switch         (long "types"                                <> help "Generate types only")
              <*> (GenerateOpts <$>
-                 switch         (long "main"          <>                        help "Generate `main` function"))
+                 switch         (long "main"                                 <> help "Generate `main` function"))
              <*> (optional $
                  filenameOption (long "test-document" <> metavar "FILENAME"  <> help "Path to test document (.xml file) \
                                                                                      \(turn on `--main` and turn off `--types`)"))
+             <*> (switch        (long "print-result"                         <> help "Print result of test document parsing"))
              <*> (optional $
-                 filenameOption (long "output" <> metavar "FILENAME"         <> help "Output generated parser to FILENAME"))
+                 filenameOption (long "output"        <> metavar "FILENAME"  <> help "Output generated parser to FILENAME"))
     filenameOption = strOption

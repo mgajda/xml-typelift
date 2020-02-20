@@ -2,9 +2,11 @@
 --
 {-# LANGUAGE LambdaCase           #-}
 {-# LANGUAGE QuasiQuotes          #-}
+{-# LANGUAGE RecordWildCards      #-}
 {-# LANGUAGE ScopedTypeVariables  #-}
 module TestUtils
-    ( compileHaskellModule
+    ( RunOptions(..)
+    , compileHaskellModule
     , runHaskellModule
     , runHaskellModule'
     , withTempSavedFile
@@ -15,6 +17,7 @@ module TestUtils
 import           Control.Exception
 import           Control.Monad
 import qualified Control.Monad.Catch as MC
+import           Data.Default
 import           System.Directory
 import           System.Environment
 import           System.Exit
@@ -25,14 +28,29 @@ import           System.Process
 import           Text.InterpolatedString.Perl6 (qc)
 
 
+data RunOptions = RunOptions
+        { verbose    :: Bool
+        , showStdout :: Bool
+        }
+
+
+instance Default RunOptions where
+    def = RunOptions { verbose = False
+                     , showStdout = False
+                     }
+
+
+data GhcTool = Runner | Compiler
+
+
 -- | Call specified process with args and print its output when it fails.
 --
-callProcess' :: FilePath -> [String] -> IO ()
-callProcess' cmd args = do
-    (_, pstdout, pstderr, p) <- createProcess ((proc cmd args) { std_out = CreatePipe, std_err = CreatePipe })
+callProcess' :: RunOptions -> FilePath -> [String] -> IO ()
+callProcess' RunOptions{..} cmd args = do
+    (_, pstdout, pstderr, p) <- createProcess ((proc cmd args) { std_out = if showStdout then Inherit else CreatePipe, std_err = CreatePipe })
     waitForProcess p >>= \case
         ExitSuccess -> do
-            whenMaybe hClose pstdout
+            -- whenMaybe hClose pstdout
             whenMaybe hClose pstderr
         ExitFailure r -> do
             whenMaybe (dumpHandle stdout) pstdout
@@ -43,11 +61,8 @@ callProcess' cmd args = do
     whenMaybe a m = maybe (return ()) a m
 
 
-data GhcTool = Runner | Compiler
-
-
-findGhc :: Bool -> GhcTool -> IO (FilePath, [String])
-findGhc verbose ghcTool = do
+findGhc :: RunOptions -> GhcTool -> IO (FilePath, [String])
+findGhc RunOptions{..} ghcTool = do
     stack <- lookupEnv "STACK_EXE"
     cabal <- lookupEnv "CABAL_SANDBOX_CONFIG"
     when verbose $ putStrLn [qc|STACK_EXE={stack} ; CABAL_SANDBOX_CONFIG={cabal}|]
@@ -65,31 +80,27 @@ findGhc verbose ghcTool = do
                Compiler ->  "ghc"
 
 
-passModuleToGhc :: Bool -> GhcTool -> FilePath -> [String] -> IO ()
-passModuleToGhc verbose ghcTool moduleFilename args =
+passModuleToGhc :: RunOptions -> GhcTool -> FilePath -> [String] -> IO ()
+passModuleToGhc ro ghcTool moduleFilename args =
     handle (\(e::SomeException) -> do print e >> throw e) $ do
-        (exe, exeArgs) <- findGhc verbose ghcTool
-        callProcess' exe (exeArgs ++ moduleFilename:args)
+        (exe, exeArgs) <- findGhc ro ghcTool
+        callProcess' ro exe (exeArgs ++ moduleFilename:args)
 
 
 -- | Find ghc with cabal/stack and run it with specified arguments
 --
 compileHaskellModule :: FilePath -> [String] -> IO ()
-compileHaskellModule moduleFilename args = passModuleToGhc False Compiler moduleFilename args
+compileHaskellModule moduleFilename args = passModuleToGhc def Compiler moduleFilename args
 
 
 -- | Run Haskell module in specified file with arguments
 --
-runHaskellModuleVerb :: Bool -> FilePath -> [String] -> IO ()
-runHaskellModuleVerb verbose moduleFilename args = passModuleToGhc verbose Runner moduleFilename args
+runHaskellModule' :: RunOptions -> FilePath -> [String] -> IO ()
+runHaskellModule' ro moduleFilename args = passModuleToGhc ro Runner moduleFilename args
 
 
 runHaskellModule :: FilePath -> [String] -> IO ()
-runHaskellModule moduleFilename args = runHaskellModuleVerb False moduleFilename args
-
-
-runHaskellModule' :: FilePath -> [String] -> IO ()
-runHaskellModule' moduleFilename args = runHaskellModuleVerb True moduleFilename args
+runHaskellModule moduleFilename args = runHaskellModule' def moduleFilename args
 
 
 -- | Save data in temporary directory with specified filename.
