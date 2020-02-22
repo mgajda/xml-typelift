@@ -2,7 +2,7 @@ stages:
   - build
 
 buildTypelift:  # A job to build the static website - replace it with your build methods
-  image: "migamake/haskell-build:8.6.2"
+  image: "migamake/haskell-build:8.6"
   stage: build
   variables:
     LC_ALL: C.UTF-8
