@@ -9,9 +9,9 @@ hpack
 
 # Build it
 message "Build it"
-cabal v1-install --dependencies-only
-cabal v1-build   --system-ghc
-cabal v1-test    --system-ghc
+cabal v1-install --dependencies-only --allow-newer
+cabal v1-build   --system-ghc        --allow-newer
+cabal v1-test    --system-ghc        --allow-newer
 
 # check that CLI application is working and output is reasonable
 message "Check CLI"
