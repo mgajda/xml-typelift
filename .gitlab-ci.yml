@@ -1,6 +1,9 @@
 stages:
   - build
 
+variables:
+  GIT_SUBMODULE_STRATEGY: recursive
+
 .build:
   image: "migamake/haskell-build:${GHC_VER}"
   stage: build
