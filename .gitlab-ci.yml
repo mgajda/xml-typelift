@@ -7,6 +7,35 @@ stages:
   variables:
     LC_ALL: C.UTF-8
   before_script:
+    - cabal --version
+    - ghc   --version
+    - echo ${CI_COMMIT_REF_SLUG}
+  script:
+    # Build it
+    - cabal install --dependencies-only
+    - cabal build   --system-ghc
+    - cabal test    --system-ghc
+    # check that CLI application is working and output is reasonable
+    - cabal exec -- xml-typelift-cli --version
+    - cabal exec -- xml-typelift-cli --help
+    - cabal exec -- xml-typelift-cli --schema test/data/customersOrders.xsd --types > types.hs
+    - cabal exec -- xml-typelift-cli --schema test/data/customersOrders.xsd > parser.hs
+    - grep -z "\<data Customers.*= Customers {.*}" types.hs > /dev/null
+    - grep -z "\<parseTopLevelToArray " parser.hs > /dev/null
+    - cabal exec -- ghc types.hs
+    - cabal exec -- ghc parser.hs
+    # check that benchmarks is working (but limit for 10 minutes only because of slow benchmarking)
+    - time 30m cabal bench xml-typelift --system-ghc
+  cache:
+    paths:
+      - ${HOME}/.cabal
+
+stack_build:
+  image: "migamake/haskell-build:8.4"
+  stage: build
+  variables:
+    LC_ALL: C.UTF-8
+  before_script:
     - stack --version
     - echo ${CI_COMMIT_REF_SLUG}
   script:

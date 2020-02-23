@@ -1,3 +1,5 @@
 packages:
   - .
   - xeno
+  - iso8601-duration
+  - haskell-src-match
