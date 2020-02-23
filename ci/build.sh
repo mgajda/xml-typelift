@@ -3,7 +3,9 @@
 source ci/common.sh
 
 # Hpack
-#message "Run hpack"
+message "Run hpack"
+hpack
+(cd haskell-src-match; hpack)
 #cabal v1-install hpack
 #hpack
 
