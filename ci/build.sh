@@ -17,11 +17,12 @@ cabal exec -- xml-typelift-cli --schema test/data/customersOrders.xsd         > 
 grep -z "\<data Customers.*= Customers {.*}" types.hs > /dev/null
 grep -z "\<parseTopLevelToArray " parser.hs > /dev/null
 
-message "Check generated code"
-cabal exec -- ghc types.hs
-cabal exec -- ghc parser.hs
+message "Check generated code compiles"
+# TODO: add main action
+cabal exec -- ghc types.hs  -o types.o
+cabal exec -- ghc parser.hs -o parser.o
 
 # check that benchmarks is working (but limit for 10 minutes only because of slow benchmarking)
 message "Benchmarks"
-timeout 30m cabal bench xml-typelift --system-ghc
+timeout 30m cabal bench xml-typelift
 

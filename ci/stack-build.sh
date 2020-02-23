@@ -23,4 +23,4 @@ stack exec -- ghc parser.hs
 
 # check that benchmarks is working (but limit for 10 minutes only because of slow benchmarking)
 message "Check benchmarks"
-timeout 30m stack bench xml-typelift --system-ghc
+timeout 30m stack bench xml-typelift
