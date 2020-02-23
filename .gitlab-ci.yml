@@ -2,7 +2,7 @@ stages:
   - build
 
 
-_build: &build
+.build:
   image: "migamake/haskell-build:${GHC_VER}"
   stage: build
   variables:
@@ -32,6 +32,6 @@ _build: &build
 
 build_8_6:
   variables:
-    GHC_VER: 8.6
-  >>: *build
+    GHC_VER: "8.6"
+  extends: .build
 
