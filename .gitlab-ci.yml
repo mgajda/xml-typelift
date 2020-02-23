@@ -1,8 +1,9 @@
 stages:
   - build
 
-buildTypelift:  # A job to build the static website - replace it with your build methods
-  image: "migamake/haskell-build:8.6"
+
+_build: &build
+  image: "migamake/haskell-build:${GHC_VER}"
   stage: build
   variables:
     LC_ALL: C.UTF-8
@@ -10,22 +11,27 @@ buildTypelift:  # A job to build the static website - replace it with your build
     - stack --version
     - echo ${CI_COMMIT_REF_SLUG}
   script:
-    # temporary remove cache
+    # Build it
     - stack install --system-ghc
-    - stack build
-    - stack test
-    # check that CLI application is working and output some reasonable
+    - stack build   --system-ghc
+    - stack test    --system-ghc
+    # check that CLI application is working and output is reasonable
     - stack exec -- xml-typelift-cli --version
     - stack exec -- xml-typelift-cli --help
     - stack exec -- xml-typelift-cli --schema test/data/customersOrders.xsd --types > types.hs
     - stack exec -- xml-typelift-cli --schema test/data/customersOrders.xsd > parser.hs
     - grep -z "\<data Customers.*= Customers {.*}" types.hs > /dev/null
     - grep -z "\<parseTopLevelToArray " parser.hs > /dev/null
-    # stack exec -- ghc types.hs
+    - stack exec -- ghc types.hs
+    - stack exec -- ghc parser.hs
     # check that benchmarks is working (but limit for 10 minutes only because of slow benchmarking)
-    - stack bench xml-typelift --no-run-benchmarks
-    - timeout 10m stack bench xml-typelift
+    - time 30m stack bench xml-typelift --system-ghc
   cache:
     paths:
       - .stack-work
+
+build_8_6:
+  variables:
+    GHC_VER: 8.6
+  >>: *build
 
