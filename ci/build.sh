@@ -12,8 +12,8 @@ hpack
 # Build it
 message "Build it"
 cabal v2-install --dependencies-only --allow-newer
-cabal v2-build   --system-ghc        --allow-newer
-cabal v2-test    --system-ghc        --allow-newer
+cabal v2-build                       --allow-newer
+cabal v2-test                        --allow-newer
 
 # check that CLI application is working and output is reasonable
 message "Check CLI"
