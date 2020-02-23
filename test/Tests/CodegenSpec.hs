@@ -24,7 +24,7 @@ import FromXML
 
 spec :: Spec
 spec = describe "codegen" $ do
-    describe "compiling" $
+    xdescribe "compiling" $
         forM_ ["person.xsd", "customersOrders.xsd", "shiporder.xsd", "choice.xsd", "extensions.xsd", "nested-extensions.xsd", "restriction.xsd"] $ \fn -> do
             it [qc|can compile generated types for "{fn}"|] $ example $
                 tryCompile True  (inTestDir fn)
@@ -32,7 +32,7 @@ spec = describe "codegen" $ do
                 tryCompile False (inTestDir fn)
             it [qc|can parse XML generated parser for "{fn}"|] $ example $
                 tryParse (inTestDir fn) (inTestDir fn -<.> "xml")
-    describe "compiling types" $
+    xdescribe "compiling types" $
         forM_ ["simple.xsd", "test.xsd", "contactExample.xsd"] $ \fn ->
             it [qc|can compile types for "{fn}"|] $ example $
                 tryCompile True (inTestDir fn)
@@ -88,8 +88,9 @@ callProcess' cmd args = do
 runGhc :: [String] -> IO ()
 runGhc args = do
     handle (\(e::SomeException) -> do print e >> throw e) $ do
-        -- TODO reimplement with 'cabal', see `runAutotype`
-        -- TODO reimplement running as here: https://github.com/migamake/json-autotype/blob/master/json-autotype/src/Data/Aeson/AutoType/CodeGen/Haskell.hs
+        -- TODO: reimplement with 'cabal', see `runAutotype`
+        -- TODO: reimplement running as here: https://github.com/migamake/json-autotype/blob/master/json-autotype/src/Data/Aeson/AutoType/CodeGen/Haskell.hs
+        -- TODO: Output stderr upon failure
         callProcess' "stack" args
 
 
