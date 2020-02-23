@@ -2,6 +2,11 @@
 
 source ci/common.sh
 
+# Hpack
+message "Run hpack"
+cabal v1-install hpack
+hpack
+
 # Build it
 message "Build it"
 cabal v1-install --dependencies-only
