@@ -71,7 +71,7 @@ spec = describe "codegen" $ do
 
 tryCompile :: Bool -> FilePath -> IO ()
 tryCompile isGenerateOnlyTypes xsdFileName =
-    withGeneratedFile isGenerateOnlyTypes xsdFileName $ \hsFilename ->
+    withGeneratedFile opts xsdFileName $ \hsFilename ->
         checkExitCode "Can't compile haskell module" $
             compileHaskellModule hsFilename []
   where
