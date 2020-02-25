@@ -53,9 +53,17 @@ flags:
 library:
   source-dirs:
     - lib
+    - lib/trustworthy
   exposed-modules:
     - FromXML
     - Errors
+    # 'trustworthy' stuff:
+    - Data.Vector.Safe
+    - Data.Scientific.Safe
+    - Xeno.DOM.Safe
+  dependencies:
+    - vector
+    - scientific
 
 executables:
   xml-typelift-cli:

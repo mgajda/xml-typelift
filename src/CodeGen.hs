@@ -54,11 +54,12 @@ import           Identifiers
 -- | Options for generating
 data GenerateOpts = GenerateOpts
     { isGenerateMainFunction :: Bool
+    , isUnsafe               :: Bool
     } deriving Show
 
 
 instance Def.Default GenerateOpts where
-    def = GenerateOpts False
+    def = GenerateOpts False False
 
 
 -- | Returns a pair of field name, and type code.
@@ -238,8 +239,8 @@ codegen' sch gen = do
 
 -- | Make builder to generate schema code
 -- TODO rename it!
-codegen    :: Schema -> IO String
-codegen sch = codegen' sch (generateSchema sch)
+codegen    :: GenerateOpts -> Schema -> IO String
+codegen opts sch = codegen' sch (generateSchema opts sch)
 
 
 -- | Make parser for schema
@@ -261,8 +262,9 @@ generateNamedContentType (name, ty) = do
     warn "-- Named base type"
     declareNewtype (TyData contentTypeName) (TyCon contentConsName) (TyType contentTypeCode)
 
-generateSchema :: Schema -> CG ()
-generateSchema sch = do
+generateSchema :: GenerateOpts -> Schema -> CG ()
+generateSchema GenerateOpts{..} sch = do
+    unless isUnsafe $ outCodeLine "{-# LANGUAGE Safe #-}"
     outCodeLine "{-# LANGUAGE DuplicateRecordFields #-}"
     -- TODO add codegen to parser
     outCodeLine "{-# LANGUAGE OverloadedStrings #-}"
@@ -276,7 +278,7 @@ generateSchema sch = do
     --
     --
     outCodeLine "module XMLSchema where"
-    outCodeLine basePrologue
+    outCodeLine (basePrologue isUnsafe)
     -- First generate all types that may be referred by others.
     mapM_ generateNamedContentType $ Map.toList $ types sch
     -- Then generate possible top level types.
@@ -337,18 +339,18 @@ withIndent act = do -- TODO use `bracket`
     return r
 
 generateParser1 :: GenerateOpts -> Schema -> CG ()
-generateParser1 GenerateOpts{..} schema = do
+generateParser1 opts@GenerateOpts{..} schema = do
     -- pTraceShowM schema
-    generateSchema schema
+    generateSchema opts schema
     outCodeLine [qc|-- PARSER --|]
     generateParserInternalStructures schema
-    generateParserInternalArray schema
+    generateParserInternalArray opts schema
     outCodeLine ""
     outCodeLine ""
     outCodeLine "-- extr --"
     outCodeLine ""
     outCodeLine ""
-    generateParserExtractTopLevel schema
+    generateParserExtractTopLevel opts schema
     outCodeLine ""
     outCodeLine ""
     outCodeLine "-- parser --"
@@ -356,13 +358,13 @@ generateParser1 GenerateOpts{..} schema = do
     outCodeLine ""
     generateParserTop schema
     generateAuxiliaryFunctions schema
-    when isGenerateMainFunction $ generateMainFunction schema
+    when isGenerateMainFunction $ generateMainFunction opts schema
 
 
 generateParserInternalStructures :: Schema -> CG ()
 generateParserInternalStructures Schema{..} = do
     outCodeLine [qc|-- | Internal representation of TopLevel|]
-    outCodeLine [qc|data TopLevelInternal = TopLevelInternal !ByteString !(UV.Vector Int) deriving (G.Generic, NFData, Show)|] -- TODO qualify all imports to avoid name clush
+    outCodeLine [qc|data TopLevelInternal = TopLevelInternal !ByteString !(V.Vector Int) deriving (G.Generic, NFData, Show)|] -- TODO qualify all imports to avoid name clush
     outCodeLine ""
 
 
@@ -428,8 +430,8 @@ extractAllTypes types tops =
     removeDuplicatesInFavourOfFirst = Map.toList . Map.fromList . reverse
 
 
-generateParserInternalArray :: Schema -> CG ()
-generateParserInternalArray Schema{..} = do
+generateParserInternalArray :: GenerateOpts -> Schema -> CG ()
+generateParserInternalArray GenerateOpts{..} Schema{..} = do
     outCodeLine [qc|-- PARSER --|]
     -- FIXME: examine which element is on the toplevel, if there are many
     when (length tops /= 1) $ error "Only one element supported on toplevel."
@@ -439,9 +441,9 @@ generateParserInternalArray Schema{..} = do
     when (minOccurs topEl /= 1) $ parseErrorBs topName [qc|Wrong minOccurs = {minOccurs topEl}|]
     when (maxOccurs topEl /= MaxOccurs 1) $ parseErrorBs topName [qc|Wrong maxOccurs = {maxOccurs topEl}|]
     outCodeLine' [qc|parseTopLevelToArray :: ByteString -> Either String TopLevelInternal|]
-    outCodeLine' [qc|parseTopLevelToArray bs = Right $ TopLevelInternal bs $ UV.create $ do|]
+    outCodeLine' [qc|parseTopLevelToArray bs = Right $ TopLevelInternal bs $ V.create $ do|]
     withIndent $ do
-        outCodeLine' [qc|vec <- UMV.unsafeNew ((max 1 (BS.length bs `div` 7)) * 2)|] -- TODO add code to strip vector
+        outCodeLine' [qc|vec <- {vecNew} ((max 1 (BS.length bs `div` 7)) * 2)|] -- TODO add code to strip vector
         outCodeLine' [qc|farthest    <- STRef.newSTRef 0 -- farthest index so far|]
         outCodeLine' [qc|farthestTag <- STRef.newSTRef ("<none>" :: ByteString)|]
         outCodeLine' [qc|let|]
@@ -449,7 +451,7 @@ generateParserInternalArray Schema{..} = do
             --outCodeLine' [qc|parse{topName} :: forall s . UMV.STVector s Int -> ST s ()|]
             outCodeLine' [qc|parse{topName} vec = do|]
             withIndent $ do
-                outCodeLine' [qc|UMV.unsafeWrite vec (0::Int) (0::Int)|]
+                outCodeLine' [qc|{vecWrite} vec (0::Int) (0::Int)|]
                 outCodeLine' [qc|(_, _) <- inOneTag "{topName}" (skipSpaces $ skipHeader $ skipSpaces 0) $ parse{topName}Content 0|]
                 outCodeLine' [qc|return ()|]
                 outCodeLine' [qc|where|]
@@ -503,7 +505,7 @@ generateParserInternalArray Schema{..} = do
                             outCodeLine' [qc|"{eName e}" -> do|]
                             withIndent $ do
                                 (a,o) <- generateElementsOfComplexParser ("arrOfs'", "strStart") [Elt e]
-                                outCodeLine' [qc|UMV.unsafeWrite vec arrStart {i::Int}|]
+                                outCodeLine' [qc|{vecWrite} vec arrStart {i::Int}|]
                                 outCodeLine' [qc|return ({a}, {o})|]
                         (x, _) -> warn [qc|Type {c}: nested types not supported yet // {x}|]
             r@(Ref {}) -> do
@@ -529,6 +531,13 @@ generateParserInternalArray Schema{..} = do
     getParserName (Extension {base}) xname =
         fromMaybe [qc|{xname}Content|] $ getParserForStandardXsd base
     getParserName t _                    = [qc|???{t}|]
+    vecNew, vecWrite, bsIndex :: String
+    vecNew   | isUnsafe  = "V.unsafeNew"
+             | otherwise = "V.new"
+    vecWrite | isUnsafe  = "V.unsafeWrite"
+             | otherwise = "V.write"
+    bsIndex  | isUnsafe  = "BSU.unsafeIndex"
+             | otherwise = "BS.index"
     generateAuxiliaryFunctionsIA = do
         --
         -- TODO read this from file!
@@ -538,7 +547,7 @@ generateParserInternalArray Schema{..} = do
         outCodeLine' [qc|        Nothing -> failExp ("<" <> tag) strOfs|]
         outCodeLine' [qc|        Just res -> return res|]
         outCodeLine' [qc|getTagName :: Int -> XMLString|]
-        outCodeLine' [qc|getTagName strOfs = BSX.takeWhile (\c -> not (isSpaceChar c || c == closeTagChar || c == slashChar)) $ BS.drop (skipToOpenTag strOfs + 1) bs|]
+        outCodeLine' [qc|getTagName strOfs = BS.takeWhile (\c -> not (isSpaceChar c || c == closeTagChar || c == slashChar)) $ BS.drop (skipToOpenTag strOfs + 1) bs|]
         outCodeLine' [qc|inOneTag          tag strOfs inParser = toError tag strOfs $ inOneTag' True tag strOfs inParser|] -- TODO add attributes processing
         outCodeLine' [qc|inOneTagWithAttrs tag strOfs inParser = toError tag strOfs $ inOneTag' True  tag strOfs inParser|]
         outCodeLine' [qc|inOneTag' hasAttrs tag strOfs inParser = do|]
@@ -553,14 +562,13 @@ generateParserInternalArray Schema{..} = do
         outCodeLine' [qc|        Just (ofs', _) -> do|]
         outCodeLine' [qc|            (arrOfs, strOfs) <- inParser ofs'|]
         outCodeLine' [qc|            let ofs'' = skipToOpenTag strOfs|]
-        outCodeLine' [qc|            if bs `BSU.unsafeIndex` (ofs'' + 1) == slashChar then do|]
+        outCodeLine' [qc|            if bs `{bsIndex}` (ofs'' + 1) == slashChar then do|]
         outCodeLine' [qc|                case ensureTag False tag (ofs'' + 2) of|]
         outCodeLine' [qc|                    Nothing     -> do|]
         outCodeLine' [qc|                        updateFarthest tag tagOfs|]
         outCodeLine' [qc|                        return Nothing|]
         outCodeLine' [qc|                    Just (ofs''', _) -> return $ Just (arrOfs, ofs''')|]
         outCodeLine' [qc|            else do|]
-        outCodeLine' [qc|                updateFarthest tag tagOfs|]
         outCodeLine' [qc|                return Nothing|]
         -- ~~~~~~~~
         outCodeLine' [qc|inMaybeTag tag arrOfs strOfs inParser = inMaybeTag' True tag arrOfs strOfs inParser|] -- TODO add attributes processing
@@ -570,8 +578,8 @@ generateParserInternalArray Schema{..} = do
         outCodeLine' [qc|        Just res -> return res|]
         outCodeLine' [qc|        Nothing -> do|]
         outCodeLine' [qc|            updateFarthest tag strOfs|]
-        outCodeLine' [qc|            UMV.unsafeWrite vec arrOfs 0|]
-        outCodeLine' [qc|            UMV.unsafeWrite vec (arrOfs + 1) 0|]
+        outCodeLine' [qc|            {vecWrite} vec arrOfs 0|]
+        outCodeLine' [qc|            {vecWrite} vec (arrOfs + 1) 0|]
         outCodeLine' [qc|            return (arrOfs + 2, strOfs)|]
         outCodeLine' [qc|inManyTags tag arrOfs strOfs inParser = inManyTags' True tag arrOfs strOfs inParser|] -- TODO add attributes processing
         outCodeLine' [qc|inManyTagsWithAttrs tag arrOfs strOfs inParser = inManyTags' True tag arrOfs strOfs inParser|]
@@ -583,22 +591,22 @@ generateParserInternalArray Schema{..} = do
         outCodeLine' [qc|            Nothing                   -> do|]
         outCodeLine' [qc|                updateFarthest tag strOfs|]
         outCodeLine' [qc|                return (cnt,     arrOfs', strOfs')|]
-        outCodeLine' [qc|    UMV.unsafeWrite vec arrOfs cnt|]
+        outCodeLine' [qc|    {vecWrite} vec arrOfs cnt|]
         outCodeLine' [qc|    return (endArrOfs, endStrOfs)|]
         -- ~~~~~~~~
         outCodeLine' [qc|ensureTag True expectedTag ofs|]
         outCodeLine' [qc|  | expectedTag `BS.isPrefixOf` (BS.drop ofs bs) =|]
-        outCodeLine' [qc|      if bs `BSU.unsafeIndex` ofsToEnd == closeTagChar|]
+        outCodeLine' [qc|      if bs `{bsIndex}` ofsToEnd == closeTagChar|]
         outCodeLine' [qc|        then Just (ofsToEnd + 1, False)|]
-        outCodeLine' [qc|      else if isSpaceChar (bs `BSU.unsafeIndex` ofsToEnd)|]
+        outCodeLine' [qc|      else if isSpaceChar (bs `{bsIndex}` ofsToEnd)|]
         outCodeLine' [qc|        then let ofs' = skipToCloseTag (ofs + BS.length expectedTag)|]
-        outCodeLine' [qc|             in Just (ofs' + 1, bs `BSU.unsafeIndex` (ofs' - 1) == slashChar)|]
+        outCodeLine' [qc|             in Just (ofs' + 1, bs `{bsIndex}` (ofs' - 1) == slashChar)|]
         outCodeLine' [qc|      else|]
         outCodeLine' [qc|        Nothing|]
         outCodeLine' [qc|  | otherwise = Nothing|]
         outCodeLine' [qc|  where ofsToEnd = ofs + BS.length expectedTag|]
         outCodeLine' [qc|ensureTag False expectedTag ofs|]
-        outCodeLine' [qc|  | expectedTag `BS.isPrefixOf` (BS.drop ofs bs) && (bs `BSU.unsafeIndex` ofsToEnd == closeTagChar)|]
+        outCodeLine' [qc|  | expectedTag `BS.isPrefixOf` (BS.drop ofs bs) && (bs `{bsIndex}` ofsToEnd == closeTagChar)|]
         outCodeLine' [qc|        = Just (ofsToEnd + 1, False)|]
         outCodeLine' [qc|  | otherwise|]
         outCodeLine' [qc|        = Nothing|]
@@ -619,8 +627,8 @@ generateParserInternalArray Schema{..} = do
         --outCodeLine' [qc|parseString :: Int -> Int -> ST s (Int, Int)|]
         outCodeLine' [qc|parseString arrStart strStart = do|]
         outCodeLine' [qc|  let strEnd = skipToOpenTag strStart|]
-        outCodeLine' [qc|  UMV.unsafeWrite vec arrStart     strStart|]
-        outCodeLine' [qc|  UMV.unsafeWrite vec (arrStart+1) (strEnd - strStart)|]
+        outCodeLine' [qc|  {vecWrite} vec arrStart     strStart|]
+        outCodeLine' [qc|  {vecWrite} vec (arrStart+1) (strEnd - strStart)|]
         outCodeLine' [qc|  return (arrStart+2, strEnd)|]
         outCodeLine' [qc|parseDecimal = parseString|]
         outCodeLine' [qc|parseDateTime = parseString|]
@@ -631,13 +639,13 @@ generateParserInternalArray Schema{..} = do
         outCodeLine' [qc|parseDay = parseString|]
         outCodeLine' [qc|parseBoolean = parseString|]
         outCodeLine' [qc|skipSpaces ofs|]
-        outCodeLine' [qc|  | isSpaceChar (BSU.unsafeIndex bs ofs) = skipSpaces (ofs + 1)|]
+        outCodeLine' [qc|  | isSpaceChar (bs `{bsIndex}` ofs) = skipSpaces (ofs + 1)|]
         outCodeLine' [qc|  | otherwise = ofs|]
         outCodeLine' [qc|isSpaceChar :: Word8 -> Bool|]
         outCodeLine' [qc|isSpaceChar c = c == 32 || c == 10 || c == 9 || c == 13|]
         outCodeLine' [qc|skipHeader :: Int -> Int|]
         outCodeLine' [qc|skipHeader ofs|]
-        outCodeLine' [qc|  | bs `BSU.unsafeIndex` ofs == openTagChar && bs `BSU.unsafeIndex` (ofs + 1) == questionChar = skipToCloseTag (ofs + 2) + 1|]
+        outCodeLine' [qc|  | bs `{bsIndex}` ofs == openTagChar && bs `{bsIndex}` (ofs + 1) == questionChar = skipToCloseTag (ofs + 2) + 1|]
         outCodeLine' [qc|  | otherwise = ofs|]
         outCodeLine' [qc|slashChar    = 47 -- '<'|]
         outCodeLine' [qc|openTagChar  = 60 -- '<'|]
@@ -645,16 +653,16 @@ generateParserInternalArray Schema{..} = do
         outCodeLine' [qc|questionChar = 63 -- '?'|]
         outCodeLine' [qc|skipToCloseTag :: Int -> Int|]
         outCodeLine' [qc|skipToCloseTag ofs|]
-        outCodeLine' [qc|  | bs `BSU.unsafeIndex` ofs == closeTagChar = ofs|]
+        outCodeLine' [qc|  | bs `{bsIndex}` ofs == closeTagChar = ofs|]
         outCodeLine' [qc|  | otherwise = skipToCloseTag (ofs + 1)|]
         outCodeLine' [qc|skipToOpenTag :: Int -> Int|]
         outCodeLine' [qc|skipToOpenTag ofs|] -- TODO with `takeWhile`
-        outCodeLine' [qc|  | bs `BSU.unsafeIndex` ofs == openTagChar = ofs|]
+        outCodeLine' [qc|  | bs `{bsIndex}` ofs == openTagChar = ofs|]
         outCodeLine' [qc|  | otherwise = skipToOpenTag (ofs + 1)|]
 
 
-generateParserExtractTopLevel :: Schema -> CG ()
-generateParserExtractTopLevel sch@Schema{..} = do
+generateParserExtractTopLevel :: GenerateOpts -> Schema -> CG ()
+generateParserExtractTopLevel GenerateOpts{..} sch@Schema{..} = do
     forM_ tops $ \topEl -> do
         let rootName = eName topEl
         haskellRootName <- translate (ElementName, TargetTypeName) "" rootName -- TODO container?
@@ -737,7 +745,7 @@ generateParserExtractTopLevel sch@Schema{..} = do
                 getExtendedType e >>= generateContentParser typeName haskellTypeName
             c@(Complex _ _attrs (Choice choices)) -> do
                 outCodeLine' [qc|let ofs' = ofs + 1 in|]
-                outCodeLine' [qc|case (arr `UV.unsafeIndex` ofs) of|]
+                outCodeLine' [qc|case (arr {index} ofs) of|]
                 withIndent $ do
                     -- TODO what to do if there are two options with minOccurs="0" ?
                     forM_ (zip choices [0..]) $ \case
@@ -760,14 +768,17 @@ generateParserExtractTopLevel sch@Schema{..} = do
     getExtractorName t _                  = error [qc|Don't know how to generate {take 100 $ show t}|]
     generateAuxiliaryFunctions = do
         outCodeLine' [qc|extractStringContent :: Int -> (ByteString, Int)|]
-        outCodeLine' [qc|extractStringContent ofs = (BSU.unsafeTake bslen (BSU.unsafeDrop bsofs bs), ofs + 2)|]
+        if isUnsafe then
+            outCodeLine' [qc|extractStringContent ofs = (BSU.unsafeTake bslen (BSU.unsafeDrop bsofs bs), ofs + 2)|]
+        else
+            outCodeLine' [qc|extractStringContent ofs = (BS.take bslen (BS.drop bsofs bs), ofs + 2)|]
         outCodeLine' [qc|  where|]
-        outCodeLine' [qc|    bsofs = arr `UV.unsafeIndex` ofs|]
-        outCodeLine' [qc|    bslen = arr `UV.unsafeIndex` (ofs + 1)|]
+        outCodeLine' [qc|    bsofs = arr {index} ofs|]
+        outCodeLine' [qc|    bslen = arr {index} (ofs + 1)|]
         outCodeLine' [qc|extractMaybe ofs subextr|]
-        outCodeLine' [qc|  | arr `UV.unsafeIndex` ofs == 0 = (Nothing, ofs + 2)|]
+        outCodeLine' [qc|  | arr {index} ofs == 0 = (Nothing, ofs + 2)|]
         outCodeLine' [qc|  | otherwise                     = first Just $ subextr ofs|]
-        outCodeLine' [qc|extractMany ofs subextr = extractMany' (ofs + 1) (arr `UV.unsafeIndex` ofs)|]
+        outCodeLine' [qc|extractMany ofs subextr = extractMany' (ofs + 1) (arr {index} ofs)|]
         outCodeLine' [qc|  where|]
         outCodeLine' [qc|    extractMany' ofs 0   = ([], ofs)|]
         outCodeLine' [qc|    extractMany' ofs len =|]
@@ -807,6 +818,8 @@ generateParserExtractTopLevel sch@Schema{..} = do
         outCodeLine' [qc|    case reads (BSC.unpack str) of|]
         outCodeLine' [qc|        [(a, [])] -> Right a|]
         outCodeLine' [qc|        _ -> Left $ "Can't parse " ++ show str|]
+    index | isUnsafe  = "`V.unsafeIndex`" :: String
+          | otherwise = "V.!"
 
 
 generateAuxiliaryFunctions :: Schema -> CG ()
@@ -836,8 +849,8 @@ generateParserTop _schema = do
     outCodeLine "parse :: ByteString -> Either String TopLevel" -- TODO
     outCodeLine "parse = fmap extractTopLevel . parseTopLevelToArray"
 
-generateMainFunction :: Schema -> CG ()
-generateMainFunction _schema = do
+generateMainFunction :: GenerateOpts -> Schema -> CG ()
+generateMainFunction GenerateOpts{..} _schema = do
     outCodeLine' [qc|parseAndPrintFiles :: Bool -> [FilePath] -> IO ()|]
     outCodeLine' [qc|parseAndPrintFiles isPrinting filenames =|]
     withIndent $ do

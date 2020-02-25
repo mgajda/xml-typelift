@@ -7,6 +7,7 @@ module Tests.CodegenSpec where
 
 
 import Control.Monad
+import Data.Default
 import Language.Haskell.RunHaskellModule
 import Language.Haskell.SourceMatch
 import Language.Haskell.TH.Lib
@@ -29,14 +30,16 @@ spec = describe "codegen" $ do
             it [qc|can compile generated parser for "{fn}"|] $ example $
                 tryCompile False (inTestDir fn)
             it [qc|can parse XML generated parser for "{fn}"|] $ example $
-                tryParse (inTestDir fn) (inTestDir fn -<.> "xml")
+                tryParse False (inTestDir fn) (inTestDir fn -<.> "xml")
+            it [qc|can parse XML generated parser for "{fn} (unsafe)"|] $ example $
+                tryParse True (inTestDir fn) (inTestDir fn -<.> "xml")
     describe "compiling types" $
         forM_ ["simple.xsd", "test.xsd", "contactExample.xsd"] $ \fn ->
             it [qc|can compile types for "{fn}"|] $ example $
                 tryCompile True (inTestDir fn)
     describe "declarations presence" $ do
         it "decl.presence.1" $ example $ do
-            withGeneratedFile True (inTestDir "person.xsd") $ \hsFilepath -> do
+            withGeneratedFile def (inTestDir "person.xsd") $ \hsFilepath -> do
                 hsFilepath `declShouldPresent`
                     [d|data Birthplace = Birthplace {
                                   city :: XMLString
@@ -54,7 +57,7 @@ spec = describe "codegen" $ do
                 --                , sex :: Integer
                 --                , education :: Education }|]
         it "decl.presence.2" $ example $ do
-            withGeneratedFile True (inTestDir "customersOrders.xsd") $ \hsFilepath -> do
+            withGeneratedFile def (inTestDir "customersOrders.xsd") $ \hsFilepath -> do
                 hsFilepath `declShouldPresent`
                     [d|data AddressType = AddressType { customerID :: Maybe XMLString,
                                                         address :: XMLString,
@@ -67,17 +70,21 @@ spec = describe "codegen" $ do
 -- * --------------------------------------------------------------------------
 
 tryCompile :: Bool -> FilePath -> IO ()
-tryCompile generateOnlyTypes xsdFileName =
-    withGeneratedFile generateOnlyTypes xsdFileName $ \hsFilename ->
+tryCompile isGenerateOnlyTypes xsdFileName =
+    withGeneratedFile isGenerateOnlyTypes xsdFileName $ \hsFilename ->
         checkExitCode "Can't compile haskell module" $
             compileHaskellModule hsFilename []
+  where
+    opts = def { generateOnlyTypes = isGenerateOnlyTypes }
 
 
-tryParse :: FilePath -> FilePath -> IO ()
-tryParse xsdFileName xmlFileName =
-    withGeneratedFile False xsdFileName $ \hsFilename ->
+tryParse :: Bool -> FilePath -> FilePath -> IO ()
+tryParse isUnsafe xsdFileName xmlFileName =
+    withGeneratedFile opts xsdFileName $ \hsFilename ->
         checkExitCode "Can't parse file with generated parser" $
             runHaskellModule hsFilename [xmlFileName]
+  where
+    opts = def { generateOnlyTypes = False, generateUnsafe = isUnsafe }
 
 
 declShouldPresent :: (HasCallStack) => FilePath -> DecsQ -> Expectation
