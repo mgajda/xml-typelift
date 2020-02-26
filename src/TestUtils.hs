@@ -60,19 +60,21 @@ findGhc RunOptions{..} ghcTool = do
         let showEnv env = lookupEnv env >>= (\e -> putStrLn [qc|>>> {env} = {e}|])
         showEnv "STACK_EXE"
         showEnv "CABAL_SANDBOX_CONFIG"
+        showEnv "GHC_ENVIRONMENT"
         showEnv "GHC_PACKAGE_PATH"
         showEnv "HASKELL_DIST_DIR"
         -- putStrLn "Environment: -----------"
         -- getEnvironment >>= (mapM_ $ \(env,val) -> putStrLn [qc|{env} = "{val}"|])
         -- putStrLn "End of environment -----"
-    stack      <- lookupEnv "STACK_EXE"
-    isOldCabal <- lookupEnv "CABAL_SANDBOX_CONFIG"
-    isNewCabal <- lookupEnv "HASKELL_DIST_DIR"
-    let res@(exe, exeArgs') | Just stackExec <- stack      = (stackExec, [tool, "--"])
-                            | Just _         <- isOldCabal = ("cabal", ["exec", tool, "--"])
-                            -- NB: New cabal can't find used packages, so it is need to specify it explicit
-                            | Just _         <- isNewCabal = ("cabal", ["v2-exec", tool, "--"] ++ additionalPackagesArgs)
-                            | otherwise                    = (tool, [])
+    stack    <- lookupEnv "STACK_EXE"
+    oldCabal <- lookupEnv "CABAL_SANDBOX_CONFIG"
+    newCabal <- lookupEnv "HASKELL_DIST_DIR"
+    isStackSystemGhc <- (maybe False (=="-")) <$> lookupEnv "GHC_ENVIRONMENT"
+    let stackPrefix = if isStackSystemGhc then ["--system-ghc"] else []
+    let res@(exe, exeArgs') | Just stackExec <- stack    = (stackExec, stackPrefix ++ [tool, "--"])
+                            | Just _         <- oldCabal = ("cabal", ["exec", tool, "--"])
+                            | Just _         <- newCabal = ("cabal", ["v2-exec", tool, "--"] ++ additionalPackagesArgs)
+                            | otherwise                  = (tool, [])
         exeArgs = case ghcTool of
                     Compiler -> exeArgs' ++ ["-O0"]
                     Runner   -> exeArgs'
@@ -82,6 +84,7 @@ findGhc RunOptions{..} ghcTool = do
     tool = case ghcTool of
                Runner   -> "runghc"
                Compiler -> "ghc"
+    -- New cabal can't find packages, so it is need to specify it explicit
     mkAdditionalPackagesArg arg = case ghcTool of
                Runner   -> "--ghc-arg=-package " ++ arg
                Compiler ->            [qc|-package {arg}|]
