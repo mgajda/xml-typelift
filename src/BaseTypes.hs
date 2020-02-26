@@ -43,10 +43,11 @@ basePrologue isUnsafe = (mconcat $ map makeImport modules) <> "\n" <> mconcat ba
               -- TODO check imports:
               ,"Control.DeepSeq"
               ,"Control.Monad.Fix"
+              ,"Control.Monad.Fail"
               ,"Control.Monad.ST"
               ,"Data.ByteString (ByteString)"
               -- ,"Data.Char"
-              ,"Data.Functor.Identity(runIdentity)"
+              ,"Data.Functor.Identity"
               ,"Data.Time.Format"
               ,"Data.Time.LocalTime(ZonedTime)"
               ,"Data.Word"
@@ -57,10 +58,11 @@ basePrologue isUnsafe = (mconcat $ map makeImport modules) <> "\n" <> mconcat ba
               ,"Data.Either"
               -- TODO only when `isMainGenerate`
               ,"Data.List"
+              ,"Prelude hiding (fail)"
               ,"System.Environment (getArgs)"
               ,"System.Exit (exitSuccess, exitFailure)"
               ,"System.IO (hPutStrLn, stderr)"
-              ,"Control.Monad"
+              ,"Control.Monad hiding (fail)"
               ]
               ++ vectorModules
               ++ additionalBytestringModules

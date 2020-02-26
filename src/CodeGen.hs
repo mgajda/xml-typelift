@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP                       #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE LambdaCase                #-}
 {-# LANGUAGE NamedFieldPuns            #-}
@@ -868,7 +867,10 @@ generateMainFunction GenerateOpts{..} _schema = do
                     outCodeLine' [qc|if isPrinting then do|]
                     withIndent $ do
                         outCodeLine' [qc|putStrLn filename|]
-                        outCodeLine' [qc|print result|]
+                        if isUnsafe then
+                            outCodeLine' [qc|pPrint result|]
+                        else
+                            outCodeLine' [qc|print result|]
                     outCodeLine' [qc|else do|]
                     withIndent $ do
                         outCodeLine' [qc|result `seq` Prelude.putStrLn $ "Successfully parsed " ++ filename|]
