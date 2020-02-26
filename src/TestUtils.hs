@@ -68,7 +68,7 @@ findGhc RunOptions{..} ghcTool = do
     stack      <- lookupEnv "STACK_EXE"
     isOldCabal <- lookupEnv "CABAL_SANDBOX_CONFIG"
     isNewCabal <- lookupEnv "HASKELL_DIST_DIR"
-    let res@(exe, exeArgs') | Just stackExec <- stack      = (stackExec, [tool, "--"] ++ additionalPackagesArgs)
+    let res@(exe, exeArgs') | Just stackExec <- stack      = (stackExec, [tool, "--"])
                             | Just _         <- isOldCabal = ("cabal", ["exec", tool, "--"])
                             -- NB: New cabal can't find used packages, so it is need to specify it explicit
                             | Just _         <- isNewCabal = ("cabal", ["v2-exec", tool, "--"] ++ additionalPackagesArgs)
