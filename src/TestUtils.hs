@@ -63,15 +63,15 @@ findGhc RunOptions{..} ghcTool = do
         showEnv "GHC_ENVIRONMENT"
         showEnv "GHC_PACKAGE_PATH"
         showEnv "HASKELL_DIST_DIR"
+        showEnv "XML_TYPELIFT_STACK_FLAGS"
         -- putStrLn "Environment: -----------"
         -- getEnvironment >>= (mapM_ $ \(env,val) -> putStrLn [qc|{env} = "{val}"|])
         -- putStrLn "End of environment -----"
     stack    <- lookupEnv "STACK_EXE"
     oldCabal <- lookupEnv "CABAL_SANDBOX_CONFIG"
     newCabal <- lookupEnv "HASKELL_DIST_DIR"
-    isStackSystemGhc <- (maybe False (=="-")) <$> lookupEnv "GHC_ENVIRONMENT"
-    let stackPrefix = if isStackSystemGhc then ["--system-ghc"] else []
-    let res@(exe, exeArgs') | Just stackExec <- stack    = (stackExec, stackPrefix ++ [tool, "--"])
+    stackFlags <- (maybe [] (:[])) <$> lookupEnv "XML_TYPELIFT_STACK_FLAGS"
+    let res@(exe, exeArgs') | Just stackExec <- stack    = (stackExec, stackFlags ++ [tool, "--"])
                             | Just _         <- oldCabal = ("cabal", ["exec", tool, "--"])
                             | Just _         <- newCabal = ("cabal", ["v2-exec", tool, "--"] ++ additionalPackagesArgs)
                             | otherwise                  = (tool, [])
