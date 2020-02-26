@@ -183,7 +183,6 @@ benchmarks:
       - scientific
       - time
       - vector
-      - xml-typelift
     ghc-options: -O2 -rtsopts
     when:
       - condition: flag(use-parser2)
@@ -206,7 +205,6 @@ benchmarks:
       - time
       - vector
       - weigh
-      - xml-typelift
     ghc-options: -O2 -rtsopts "-with-rtsopts=-H1G"
     when:
       - condition: flag(use-parser2)
