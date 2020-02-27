@@ -50,6 +50,7 @@ basePrologue isUnsafe = (mconcat $ map makeImport modules) <> "\n" <> mconcat ba
               ,"Data.Functor.Identity"
               ,"Data.Time.Format"
               ,"Data.Time.LocalTime(ZonedTime)"
+              ,"Data.Semigroup"
               ,"Data.Word"
               ,"qualified GHC.Generics as G"
               ,"qualified Data.ByteString as BS"
