@@ -54,6 +54,28 @@ callProcess' RunOptions{..} cmd args = do
     whenMaybe a m = maybe (return ()) a m
 
 
+splitWithQuotes :: String -> [String]
+splitWithQuotes [] = []
+splitWithQuotes (ch:cs)
+  | isSpace ch = splitWithQuotes $ dropWhile isSpace cs
+  | otherwise = word : splitWithQuotes strrest
+  where
+    (word, strrest) = takeWordOrQuote (ch:cs)
+    takeWordOrQuote :: String -> (String, String)
+    takeWordOrQuote str = let (w', rest) = takeWordOrQuote' "" False str in (reverse w', rest)
+      where
+        takeWordOrQuote' acc _     ""         = (acc, "")
+        takeWordOrQuote' acc True  ('"':"")   = (acc, "")
+        takeWordOrQuote' acc True  ('"':c:rest)
+          | isSpace c = ('"':acc, rest)
+          | otherwise = takeWordOrQuote' ('"':acc) False (c:rest)
+        takeWordOrQuote' acc True  (c  :rest) = takeWordOrQuote' (c:acc) True rest
+        takeWordOrQuote' acc False ('"':rest) = takeWordOrQuote' ('"':acc) True rest
+        takeWordOrQuote' acc False (c  :rest)
+          | isSpace c = (acc, rest)
+          | otherwise = takeWordOrQuote' (c:acc) False rest
+
+
 findGhc :: RunOptions -> GhcTool -> IO (FilePath, [String])
 findGhc RunOptions{..} ghcTool = do
     when verbose $ do
@@ -63,15 +85,18 @@ findGhc RunOptions{..} ghcTool = do
         showEnv "GHC_ENVIRONMENT"
         showEnv "GHC_PACKAGE_PATH"
         showEnv "HASKELL_DIST_DIR"
-        showEnv "XML_TYPELIFT_STACK_FLAGS"
+        showEnv "XML_TYPELIFT_ADDITIONAL_FLAGS"
+        showEnv "XML_TYPELIFT_ADDITIONAL_PACKAGES"
         -- putStrLn "Environment: -----------"
         -- getEnvironment >>= (mapM_ $ \(env,val) -> putStrLn [qc|{env} = "{val}"|])
         -- putStrLn "End of environment -----"
     stack    <- lookupEnv "STACK_EXE"
     oldCabal <- lookupEnv "CABAL_SANDBOX_CONFIG"
     newCabal <- lookupEnv "HASKELL_DIST_DIR"
-    stackFlags <- (maybe [] (:[])) <$> lookupEnv "XML_TYPELIFT_STACK_FLAGS"
-    let res@(exe, exeArgs') | Just stackExec <- stack    = (stackExec, stackFlags ++ [tool, "--"])
+    additionalFlags    <- (maybe [] splitWithQuotes)                      <$> lookupEnv "XML_TYPELIFT_ADDITIONAL_FLAGS"
+    additionalPackages <- ((additionalPackagesDef ++) . (maybe [] words)) <$> lookupEnv "XML_TYPELIFT_ADDITIONAL_PACKAGES"
+    let additionalPackagesArgs = map mkAdditionalPackagesArg additionalPackages
+    let res@(exe, exeArgs') | Just stackExec <- stack    = (stackExec, additionalFlags ++ [tool, "--"])
                             | Just _         <- oldCabal = ("cabal", ["exec", tool, "--"])
                             | Just _         <- newCabal = ("cabal", ["v2-exec", tool, "--"] ++ additionalPackagesArgs)
                             | otherwise                  = (tool, [])
