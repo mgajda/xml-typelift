@@ -29,7 +29,7 @@ import           FromXML
 import           Schema
 
 -- | Module prologue to import all standard types
-basePrologue :: (IsString a, Monoid a) => a
+basePrologue :: (IsString a, Semigroup a, Monoid a) => a
 basePrologue  = mconcat $ map makeImport modules
   where
     makeImport modPath = "import " <> modPath <> "\n"
