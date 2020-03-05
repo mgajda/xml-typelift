@@ -51,6 +51,7 @@ basePrologue  = mconcat $ map makeImport modules
               ,"Data.Functor.Identity"
               ,"Data.Time.Format"
               ,"Data.Time.LocalTime(ZonedTime)"
+              ,"Data.Semigroup"
               ,"Data.Word"
               ,"qualified GHC.Generics as G"
               ,"qualified Data.ByteString as BSX"
