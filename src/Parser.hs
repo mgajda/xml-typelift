@@ -21,6 +21,9 @@ import           Data.Maybe(catMaybes, fromMaybe)
 import qualified Data.Map as Map
 import           System.IO(stderr)
 import           Text.Read(readMaybe)
+#if !MIN_VERSION_base(4,11,0)
+import           Data.Semigroup((<>))
+#endif
 
 import           Xeno.DOM    as Xeno
 import           Xeno.Errors as Xeno

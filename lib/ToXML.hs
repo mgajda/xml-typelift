@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP               #-}
 {-# LANGUAGE NamedFieldPuns    #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
@@ -8,6 +9,9 @@ import Data.ByteString (ByteString)
 import Data.ByteString.Builder (Builder)
 import Data.Char
 import Data.Word
+#if !MIN_VERSION_base(4,11,0)
+import           Data.Semigroup
+#endif
 import qualified Data.ByteString.Builder as B
 
 

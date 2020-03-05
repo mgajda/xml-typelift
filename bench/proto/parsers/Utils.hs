@@ -7,6 +7,7 @@ import Data.Time.LocalTime(ZonedTime)
 import FromXML
 import Xeno.DOM as Xeno
 import qualified Data.ByteString.Char8 as BSC
+import qualified Control.Monad.Fail as F
 
 
 -- | Extract text from node (and all its subnodes)
@@ -23,7 +24,7 @@ allTextM = return . allText
 
 -- | Convert text presentation of datetime to ZonedTime
 --
-zonedTimeStrM :: (Monad m) => ByteString -> m ZonedTime
+zonedTimeStrM :: (Monad m, F.MonadFail m) => ByteString -> m ZonedTime
 zonedTimeStrM = parseTimeM True defaultTimeLocale fmt . BSC.unpack
   where
     fmt = iso8601DateFormat (Just "%H:%M:%S")
@@ -31,7 +32,7 @@ zonedTimeStrM = parseTimeM True defaultTimeLocale fmt . BSC.unpack
 
 -- | Extract all text from node and convert string presentation of datetime to ZonedTime
 --
-zonedTimeM :: (Monad m) => Node -> m ZonedTime
+zonedTimeM :: (Monad m, F.MonadFail m) => Node -> m ZonedTime
 zonedTimeM = zonedTimeStrM . allText
 
 

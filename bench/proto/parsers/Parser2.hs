@@ -5,9 +5,11 @@
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE TypeApplications      #-}
 {-# LANGUAGE TypeFamilies          #-}
+{-# OPTIONS_GHC -fno-warn-orphans  #-}
 module Parser2 (parseMethod2) where
 
 
+import qualified Control.Monad.Fail as F
 import Control.Applicative
 import Control.DeepSeq
 import Data.ByteString (ByteString)
@@ -114,7 +116,7 @@ instance Located '["FullAddress", "Customer", "Customers", "Root"] where
         <*> xnode @ "PostalCode" text
         <*> xnode @ "Country" text
 
-zonedTimeStrM :: (Monad m) => ByteString -> m ZonedTime
+zonedTimeStrM :: (F.MonadFail m, Monad m) => ByteString -> m ZonedTime
 zonedTimeStrM = parseTimeM True defaultTimeLocale fmt . BSC.unpack
   where
     fmt = iso8601DateFormat (Just "%H:%M:%S")

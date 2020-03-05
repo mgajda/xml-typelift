@@ -1,5 +1,7 @@
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE TupleSections   #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE RecordWildCards       #-}
+{-# LANGUAGE TupleSections         #-}
+{-# OPTIONS_GHC -fno-warn-orphans  #-}
 module Parser4 (parseMethod4) where
 
 
@@ -9,10 +11,12 @@ import Data.Word
 import qualified Data.ByteString.Unsafe as BSU
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
+import qualified Control.Monad.Fail as F
 
 import CustomerOrdersTypes
 import Utils
 
+instance F.MonadFail (Either [Char]) where fail = error
 
 parseMethod4 :: ByteString -> Either String TopLevel
 parseMethod4 bs = do
