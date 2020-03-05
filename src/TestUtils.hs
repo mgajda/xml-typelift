@@ -5,12 +5,9 @@
 {-# LANGUAGE RecordWildCards      #-}
 {-# LANGUAGE ScopedTypeVariables  #-}
 module TestUtils
-    ( RunOptions(..)
-    , compileHaskellModule
-    , runHaskellModule
-    , runHaskellModule'
-    , withTempSavedFile
+    ( withTempSavedFile
     , withPreservedSystemTempDirectory
+    , checkExitCode
     ) where
 
 
@@ -27,6 +24,7 @@ import           System.IO.Temp
 import           System.Process
 import           Text.InterpolatedString.Perl6 (qc)
 
+    {-
 
 data RunOptions = RunOptions
         { verbose    :: Bool
@@ -102,6 +100,7 @@ runHaskellModule' ro moduleFilename args = passModuleToGhc ro Runner moduleFilen
 runHaskellModule :: FilePath -> [String] -> IO ()
 runHaskellModule moduleFilename args = runHaskellModule' def moduleFilename args
 
+-}
 
 -- | Save data in temporary directory with specified filename.
 --   If failed, don't erase this temporary directory and outputs path to it for further debugging.
@@ -137,4 +136,12 @@ withPreservedTempDirectory targetDir template action = do
 
 ignoringIOErrors :: MC.MonadCatch m => m () -> m ()
 ignoringIOErrors ioe = ioe `MC.catch` (\e -> const (return ()) (e :: IOError))
+
+
+checkExitCode :: String -> (IO ExitCode) -> IO ()
+checkExitCode errMsg act =
+    act >>= \case
+        ExitSuccess -> return ()
+        errCode     -> fail [qc|{errCode}\n{errMsg}|]
+
 

@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell     #-}
@@ -14,6 +15,7 @@ import           Data.Version          (showVersion)
 import           Development.GitRev    (gitHash)
 import           Paths_xml_typelift    (version)
 import           Text.InterpolatedString.Perl6 (qc)
+import           System.Exit
 import           System.IO
 import           Xeno.Errors           (printExceptions)
 import           System.IO
@@ -26,6 +28,7 @@ import           Analyze
 import           CodeGen
 import           Flatten
 import           Parser
+import           RunHaskellModule
 import           TestUtils
 
 
@@ -65,9 +68,11 @@ testGeneratedParser :: String   -- ^ Generated Parser
 testGeneratedParser generatedParser isPrintParsingResult xmlFilename =
     withTempSavedFile generatedParser "XMLSchema.hs" $ \parserFilename ->
         if isPrintParsingResult then do
-            runHaskellModule' (def { showStdout = True }) parserFilename ["--print", xmlFilename]
+            checkExitCode "Fail to print out of generated parser result" $
+                runHaskellModule' (def { showStdout = True }) parserFilename ["--print", xmlFilename]
         else do
-            runHaskellModule' def parserFilename [xmlFilename]
+            checkExitCode "Fail to run generated parser" $
+                runHaskellModule' def parserFilename [xmlFilename]
             putStrLn [qc|File {xmlFilename} processed successfully|]
 
 

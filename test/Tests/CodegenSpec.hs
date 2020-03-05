@@ -17,6 +17,7 @@ import Tests.Utils
 
 import FromXML
 import TestUtils
+import RunHaskellModule
 
 
 spec :: Spec
@@ -68,17 +69,15 @@ spec = describe "codegen" $ do
 tryCompile :: Bool -> FilePath -> IO ()
 tryCompile generateOnlyTypes xsdFileName =
     withGeneratedFile generateOnlyTypes xsdFileName $ \hsFilename ->
-        compileHaskellModule hsFilename compileArgs
-  where
-    failOnWarns = False
-    compileArgs | failOnWarns = ["-Wall", "-Werror"]
-                | otherwise   = ["-Wno-all"]
+        checkExitCode "Can't compile haskell module" $
+            compileHaskellModule hsFilename []
 
 
 tryParse :: FilePath -> FilePath -> IO ()
 tryParse xsdFileName xmlFileName =
     withGeneratedFile False xsdFileName $ \hsFilename ->
-        runHaskellModule hsFilename [xmlFileName]
+        checkExitCode "Can't parse file with generated parser" $
+            runHaskellModule hsFilename [xmlFileName]
 
 
 declShouldPresent :: (HasCallStack) => FilePath -> DecsQ -> Expectation

@@ -63,7 +63,7 @@ executables:
     source-dirs:
       - src
       - app
-      - bench
+      - json-autotype/json-autotype/run-haskell-module
     dependencies:
       - gitrev
       - optparse-applicative
@@ -208,6 +208,7 @@ tests:
     source-dirs:
       - test
       - src
+      - json-autotype/json-autotype/run-haskell-module
     main: Tests.hs
     dependencies:
       - hspec
