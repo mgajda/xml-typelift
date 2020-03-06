@@ -39,6 +39,7 @@ import           BaseTypes
 import           CodeGenMonad
 import           Schema
 import           TypeDecls
+import           Errors(parseError)
 
 import           Data.Generics.Uniplate.Operations
 
@@ -139,8 +140,8 @@ generateContentType eName cpl@(Complex {attrs, inner}) = do
             childFields <- choiceInstance ls
             declareSumType (TyData myTypeName, childFields)
             return myTypeName
-        Elt e -> error  $ "Unexpected singular Elt inside content of ComplexType: " <> show e
-        Group gName -> error $ "Did not yet implement complexType referring only to the xs:group " <> show gName
+        Elt   e     -> parseError eName $ "Unexpected singular Elt inside content of ComplexType: " <> show e
+        Group gName -> parseError gName $ "Did not yet implement complexType referring only to the xs:group " <> show gName
   where
     makeAttrType :: Attr -> CG TyField
     makeAttrType Attr {..} = second (\(TyType bs) -> TyType $ wrapAttr use bs) <$> makeFieldType aName aType
@@ -154,7 +155,7 @@ generateContentType eName cpl@(Complex {attrs, inner}) = do
         fun (Group gName) =
           generateGroupType gName
         fun  x =
-          error [qc|Type {eName}: not yet implemented nested sequence, all or choice: {x}|]
+          parseError eName [qc|Type {eName}: not yet implemented nested sequence, all or choice: {x}|]
     choiceInstance :: [TyPart] -> CG [SumAlt]
     choiceInstance ls = do
         elts <- catMaybes <$> (forM ls $ \case -- TODO move to `forM`
@@ -198,7 +199,7 @@ generateContentType eName (Extension   base  (cpl@Complex {inner=Seq []})) = do
 generateContentType eName ex@(Extension _    (Complex {inner=Seq{}})) =
     getExtendedType ex >>= generateContentType eName
 generateContentType eName (Extension   _base  _otherType) = do
-    error [qc|Can't generate extension "{eName}"|]
+    parseError eName [qc|Can't generate extension "{eName}"|]
 
 
 getExtendedType :: Type -> CG Type
@@ -210,8 +211,8 @@ getExtendedType (Extension base cpl@Complex {inner=Seq {}}) = do
                                    ,maxOccurs=MaxOccurs 1
                                    ,minOccurs=1
                                    ,targetNamespace=""}
-getExtendedType (Extension {}) = error "TODO"
-getExtendedType _              = error "'getExtendedType' is available only for Extension"
+getExtendedType (Extension {base}) = parseError base "Extension not yet implemented"
+getExtendedType _                  = error "'getExtendedType' is available only for Extension"
 
 
 appendElt :: Type -> Element -> Type
@@ -430,12 +431,13 @@ extractAllTypes types tops =
 generateParserInternalArray :: Schema -> CG ()
 generateParserInternalArray Schema{..} = do
     outCodeLine [qc|-- PARSER --|]
-    when (length tops /= 1) $ error "tops must contain only one element"
+    -- FIXME: examine which element is on the toplevel, if there are many
+    when (length tops /= 1) $ error "Only one element supported on toplevel."
     let topEl = head tops
     -- Generate parser header
     let topName = eName topEl
-    when (minOccurs topEl /= 1) $ error [qc|Wrong minOccurs = {minOccurs topEl}|]
-    when (maxOccurs topEl /= MaxOccurs 1) $ error [qc|Wrong maxOccurs = {maxOccurs topEl}|]
+    when (minOccurs topEl /= 1) $ parseError topName [qc|Wrong minOccurs = {minOccurs topEl}|]
+    when (maxOccurs topEl /= MaxOccurs 1) $ parseError topName [qc|Wrong maxOccurs = {maxOccurs topEl}|]
     outCodeLine' [qc|parseTopLevelToArray :: ByteString -> Either String TopLevelInternal|]
     outCodeLine' [qc|parseTopLevelToArray bs = Right $ TopLevelInternal bs $ UV.create $ do|]
     withIndent $ do
@@ -480,7 +482,7 @@ generateParserInternalArray Schema{..} = do
                     outCodeLine' [qc|({arrOfs'}, {strOfs'}) <- {tagQuantifier} "{eName el}"{arrOfs1} {strOfs} $ parse{parserName}{arrOfs2}|]
                 Group gName ->
                     outCodeLine' [qc|({arrOfs'}, {strOfs'}) <- parse{gName}Content {arrOfs} {strOfs}|]
-                _ -> error [qc|Unsupported type: {take 100 $ show typart}|]
+                _ -> parseError arrStart [qc|Unsupported type: {take 100 $ show typart}|]
         return $ fst $ ofsNames !! endNum
     ofsToReturn :: (XMLString, XMLString) -> CG ()
     ofsToReturn (arrLastOfs, strLastOfs) = outCodeLine' [qc|return ({arrLastOfs}, {strLastOfs})|]
@@ -511,14 +513,14 @@ generateParserInternalArray Schema{..} = do
                 let baseParserName = fromMaybe [qc|{base}Content|] $ getParserForStandardXsd base
                 outCodeLine' [qc|(arrOfs', strOfs') <- parse{baseParserName} arrStart strStart|]
                 generateElementsOfComplexParser ("arrOfs'", "strOfs'") exFields >>= ofsToReturn
-            _ -> error [qc|Unsupported type: {ty}|]
+            _ -> parseError typeName [qc|Unsupported type: {ty}|]
     -- TODO unite with extractor
     getParserName :: Type -> XMLString -> XMLString
     getParserName (Ref r) _ =
         case getParserForStandardXsd r of
             Nothing ->
                 if "xs:" `BS.isPrefixOf` r
-                then (error [qc|Standard type `{r}` is not supported|])
+                then parseError r [qc|Standard type `{r}` is not supported|]
                 else [qc|{r}Content|]
             Just rr -> rr
     getParserName (Complex {}) xname     = [qc|{xname}Content|]
@@ -686,7 +688,7 @@ generateParserExtractTopLevel sch@Schema{..} = do
                             fieldName <- translate (SchemaGroup, TargetFieldName) gName gName -- TODO container?
                             outCodeLine' [qc|let ({fieldName}, ofs{ofsIdx}) = extract{extractor}Content ofs{ofsIdx - 1} in|]
                             return fieldName
-                        _ -> error [qc|Unsupported type: {take 100 $ show ty}|]
+                        _ -> parseError typeName [qc|Unsupported type: {take 100 $ show ty}|]
                     let fields = attrFields ++ properFields
                         ofs' = if null elts then "ofs" else [qc|ofs{length elts}|]::XMLString
                     haskellConsName <- translate (SchemaType, TargetConsName) typeName typeName -- TODO container?
@@ -724,13 +726,13 @@ generateParserExtractTopLevel sch@Schema{..} = do
                             tn <- translate (ChoiceIn typeName, TargetConsName) typeName (eName el) -- TODO change 'typeName' to 'haskellTypeName' ?
                             outCodeLine' [qc|{i::Int} -> first {tn} $ {extractor}|]
                         (x, _) -> warn [qc|Type {c}: nested types not supported yet // {x}|]
-            _ -> error [qc|Unsupported type: {show ty}|]
+            _ -> parseError typeName [qc|Unsupported type: {show ty}|]
     getExtractorName :: Type -> XMLString -> CG B.Builder
     getExtractorName (Ref r) _ =
         case getParserForStandardXsd r of
             Nothing ->
                 if "xs:" `BS.isPrefixOf` r
-                then (error [qc|Standard type `{r}` is not supported|])
+                then error [qc|Standard type `{r}` is not supported|]
                 else translate (ElementName, TargetTypeName) r r -- TODO container?
             Just rr -> return $ B.byteString rr
     getExtractorName (Complex {}) xname   = translate (ElementName, TargetTypeName) xname xname

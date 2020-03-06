@@ -51,6 +51,7 @@ library:
     - lib
   exposed-modules:
     - FromXML
+    - Errors
 
 executables:
   xml-typelift-cli:
