@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP                 #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE NamedFieldPuns      #-}
@@ -9,6 +10,9 @@ import Prelude hiding (id)
 --import Data.Monoid
 import Data.ByteString.Char8 as BS
 import Data.ByteString.Internal(ByteString(..))
+#if !MIN_VERSION_base(4,11,0)
+import           Data.Semigroup
+#endif
 
 -- | Since all ByteStrings have the pointer to initial input,
 --   we can show the preceding data and count lines before error.

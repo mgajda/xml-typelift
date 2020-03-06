@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP                       #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE LambdaCase                #-}
 {-# LANGUAGE NamedFieldPuns            #-}
@@ -28,6 +29,9 @@ import qualified Data.Set                          as Set
 import           Data.String
 import qualified Language.Haskell.TH               as TH
 import           Text.InterpolatedString.Perl6     (qc)
+#if !MIN_VERSION_base(4,11,0)
+import           Data.Semigroup((<>))
+#endif
 
 import           FromXML                           (XMLString)
 
@@ -753,7 +757,7 @@ generateParserExtractTopLevel sch@Schema{..} = do
         outCodeLine' [qc|extractDayContent :: Int -> (Day, Int)|]
         outCodeLine' [qc|extractDayContent = first (read . BSC.unpack) . extractStringContent|]
         outCodeLine' [qc|extractDurationContent :: Int -> (Duration, Int)|]
-        outCodeLine' [qc|extractDurationContent = first (\d -> fromRight (Prelude.error $ "Can't parse duration \"" ++ BSC.unpack d ++ "\"") $ parseDuration d) . extractStringContent|]
+        outCodeLine' [qc|extractDurationContent = first (\d -> fromRight' (Prelude.error $ "Can't parse duration \"" ++ BSC.unpack d ++ "\"") $ parseDuration d) . extractStringContent|]
         outCodeLine' [qc|extractDecimalContent :: Int -> (Scientific, Int)|]
         outCodeLine' [qc|extractDecimalContent = first (read . BSC.unpack) . extractStringContent|]
         outCodeLine' [qc|extractIntegerContent :: Int -> (Integer, Int)|]
@@ -776,10 +780,18 @@ generateAuxiliaryFunctions _schema = do
     outCodeLine' ""
     outCodeLine' ""
     outCodeLine' [qc|zonedTimeStr :: ByteString -> ZonedTime|]
-    outCodeLine' [qc|zonedTimeStr = runIdentity . parseTimeM True defaultTimeLocale fmt . BSC.unpack|]
+    outCodeLine' [qc|zonedTimeStr = parseTimeOrError True defaultTimeLocale fmt . BSC.unpack|]
     outCodeLine' [qc|  where|]
     outCodeLine' [qc|    fmt = iso8601DateFormat (Just "%H:%M:%S%Q%Z")|]
     outCodeLine' "{-# INLINE zonedTimeStr #-}"
+    outCodeLine' ""
+    -- `fromRight` appear only on base 4.10, and not available on GHC 8.0, so we use own
+    outCodeLine' [qc|fromRight' :: b -> Either a b -> b|]
+    outCodeLine' [qc|fromRight' _ (Right b) = b|]
+    outCodeLine' [qc|fromRight' b _         = b|]
+    outCodeLine' "{-# INLINE fromRight' #-}"
+    outCodeLine' ""
+    outCodeLine' ""
 
 
 generateParserTop :: Schema -> CG ()
@@ -803,7 +815,7 @@ generateMainFunction _schema = do
                     outCodeLine' [qc|exitFailure|]
                 outCodeLine' [qc|Right result -> do|]
                 withIndent $ do
-                    outCodeLine' [qc|when isPrinting $ pPrint result|]
+                    outCodeLine' [qc|when isPrinting $ print result|]
                     outCodeLine' [qc|result `seq` Prelude.putStrLn $ "Successfully parsed " ++ filename|]
     outCodeLine' ""
     outCodeLine' "main :: IO ()"

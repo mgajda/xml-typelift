@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP               #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE Strict            #-}
 {-# LANGUAGE ViewPatterns      #-}
@@ -21,6 +22,9 @@ module FromXML(FromXML(..),
 import           Control.Monad(foldM)
 import qualified Data.ByteString.Char8 as BS hiding (elem)
 import           Data.ByteString.Internal(ByteString(..))
+#if !MIN_VERSION_base(4,11,0)
+import           Data.Semigroup
+#endif
 import           Data.Char(isSpace)
 import           Xeno.Types as Xeno
 import           Xeno.DOM as Xeno

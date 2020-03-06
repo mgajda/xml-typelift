@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP                        #-}
 {-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
@@ -19,6 +20,9 @@ import           Data.Bool             (bool)
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.Map.Strict       as Map
 import           Data.Maybe            (catMaybes, isJust)
+#if !MIN_VERSION_base(4,11,0)
+import           Data.Semigroup((<>))
+#endif
 
 import           Data.Functor.Identity
 import           FromXML               (XMLString, getStartIndex)

@@ -5,6 +5,7 @@
 {-# LANGUAGE DeriveGeneric         #-}
 {-# LANGUAGE TupleSections   #-}
 {-# LANGUAGE RankNTypes   #-}
+{-# OPTIONS_GHC -fno-warn-orphans  #-}
 module Parser7 (parseMethod7, parseToArray7) where
 
 
@@ -17,6 +18,7 @@ import Data.Time.Format
 import Data.Time.LocalTime(ZonedTime)
 import Data.Word
 import GHC.Generics
+import qualified Control.Monad.Fail as F
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
 import qualified Data.ByteString.Unsafe as BSU
@@ -1186,6 +1188,7 @@ closeTagChar = 62 -- '>'
 questionChar :: Word8
 questionChar = 63
 
+instance F.MonadFail Identity where fail = error
 
 zonedTimeStr :: ByteString -> ZonedTime
 zonedTimeStr = runIdentity . parseTimeM True defaultTimeLocale fmt . BSC.unpack

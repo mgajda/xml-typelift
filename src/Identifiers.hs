@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP               #-}
 {-# LANGUAGE ViewPatterns      #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Identifiers(normalizeTypeName,
@@ -9,6 +10,9 @@ import           Prelude               hiding(lookup)
 
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.Set              as Set
+#if !MIN_VERSION_base(4,11,0)
+import           Data.Semigroup((<>))
+#endif
 
 import qualified Data.Char as Char
 

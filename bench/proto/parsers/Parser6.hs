@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP                  #-}
 {-# LANGUAGE FlexibleContexts     #-}
 {-# LANGUAGE FlexibleInstances    #-}
 {-# LANGUAGE LambdaCase           #-}
@@ -14,6 +15,7 @@ import Data.ByteString (ByteString)
 import Data.Void
 import Text.Megaparsec hiding (region)
 import qualified Data.ByteString.Char8 as BSC
+import qualified Control.Monad.Fail as F
 
 import Xeno.StreamedSAX as Xeno
 
@@ -31,7 +33,11 @@ instance Stream [SAXEvent] where
                 | otherwise = Just (take n sx, drop n sx)
     tokensToChunk _ sx = sx
     chunkToTokens _ sx = sx
+#if MIN_VERSION_megaparsec(8,0,0)
     reachOffset _ p = ("<line>", p)
+#else
+    reachOffset _ p = (undefined, "<line>", p)
+#endif
     showTokens _ toks = show toks
     chunkLength _ toks = length toks
     takeWhile_ p s = span p s
@@ -150,7 +156,7 @@ openTagAttrs tagName = do
     return attrs
 
 
-tagValue :: (MonadParsec e [SAXEvent] m)
+tagValue :: (F.MonadFail m, MonadParsec e [SAXEvent] m)
          => ByteString
          -> m ByteString
 tagValue tagName = do

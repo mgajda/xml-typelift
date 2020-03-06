@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP                        #-}
 {-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
@@ -52,6 +53,7 @@ module CodeGenMonad(-- Code generation monad
 import           Prelude                  hiding (lookup)
 
 import           Control.Lens             as Lens
+import           Control.Monad.Fail
 -- import           Text.InterpolatedString.Perl6 (qc)
 import qualified Control.Monad.RWS.Strict as RWS
 import qualified Data.ByteString.Builder  as B
@@ -60,6 +62,9 @@ import qualified Data.ByteString.Lazy     as BSL (length, null, toStrict)
 import qualified Data.Map.Strict          as Map
 import qualified Data.Set                 as Set
 import qualified Language.Haskell.TH      as TH
+#if !MIN_VERSION_base(4,11,0)
+import           Data.Semigroup((<>))
+#endif
 
 import           BaseTypes
 import           FromXML                  (XMLString)
@@ -138,6 +143,9 @@ instance RWS.MonadReader Schema CG where
   -- local  = CG RWS.local
   -- asks   = CG RWS.asks
   -- TODO
+
+instance MonadFail CG where
+    fail = RWS.fail
 
 initialState :: CGState
 initialState  = CGState

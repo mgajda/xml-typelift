@@ -2,6 +2,7 @@
 {-# LANGUAGE DeriveGeneric         #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE OverloadedStrings     #-}
+{-# OPTIONS_GHC -fno-warn-orphans  #-}
 module Parser3 (parseMethod3, parseToArray) where
 
 
@@ -15,6 +16,7 @@ import Data.Time.Format
 import Data.Time.LocalTime(ZonedTime)
 import GHC.Generics
 import GHC.Stack
+import qualified Control.Monad.Fail as F
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
 import qualified Data.ByteString.Unsafe as BSU
@@ -32,6 +34,8 @@ data TopLevelNode = TopLevelNode !ByteString !(UV.Vector Int) deriving (Generic,
 substring :: ByteString -> Int -> Int -> ByteString
 substring s' start len = BSU.unsafeTake len (BSU.unsafeDrop start s')
 {-# INLINE substring #-}
+
+instance F.MonadFail Identity where fail = error
 
 zonedTimeStr :: ByteString -> ZonedTime
 zonedTimeStr = runIdentity . parseTimeM True defaultTimeLocale fmt . BSC.unpack
