@@ -194,6 +194,7 @@ schemaAttr sch attr@(aName, aVal) =
     (_,       "elementFormDefault"  ) -> return sch
     (_,       "attributeFormDefault") -> return sch
     (_,       "xmlns"               ) -> return sch
+    (_,       "lang"                ) -> return sch
     ("xmlns", _                     ) -> return sch
     _                                 -> unknownAttrHandler "schema" attr
 
