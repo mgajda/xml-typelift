@@ -1,4 +1,5 @@
 -- | Generating type declarations in code generation monad.
+{-# LANGUAGE CPP               #-}
 {-# LANGUAGE OverloadedStrings #-}
 module TypeDecls( Record
                 , TyData(..)
@@ -64,10 +65,17 @@ newFieldName (TyFieldName bsn) = newName'' bsn
 
 
 -- | Creates 'deriving Show' clause
+#if MIN_VERSION_template_haskell(2,12,0)
 makeShowDc :: Q DerivClause
 makeShowDc = do
     showDc <- newName'' (B.byteString "Show")
     return $ DerivClause Nothing [ConT showDc]
+#else
+makeShowDc :: Q Pred
+makeShowDc = do
+    showDc <- newName'' (B.byteString "Show")
+    return $ ConT showDc
+#endif
 
 
 declareAlgebraicType :: (TyData, [Record]) -> CG ()

@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP                 #-}
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE MonoLocalBinds      #-}
 {-# LANGUAGE NamedFieldPuns      #-}
@@ -20,12 +21,15 @@ import           Prelude               hiding (lookup)
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.Set              as Set
 import           Data.String
+#if !MIN_VERSION_base(4,11,0)
+import           Data.Semigroup
+#endif
 
 import           FromXML
 import           Schema
 
 -- | Module prologue to import all standard types
-basePrologue :: (IsString a, Monoid a) => a
+basePrologue :: (IsString a, Semigroup a, Monoid a) => a
 basePrologue  = mconcat $ map makeImport modules
   where
     makeImport modPath = "import " <> modPath <> "\n"
@@ -44,9 +48,10 @@ basePrologue  = mconcat $ map makeImport modules
               ,"Control.Monad.ST"
               ,"Data.ByteString (ByteString)"
               -- ,"Data.Char"
-              ,"Data.Functor.Identity(runIdentity)"
+              ,"Data.Functor.Identity"
               ,"Data.Time.Format"
               ,"Data.Time.LocalTime(ZonedTime)"
+              ,"Data.Semigroup"
               ,"Data.Word"
               ,"qualified GHC.Generics as G"
               ,"qualified Data.ByteString as BSX"
@@ -58,11 +63,11 @@ basePrologue  = mconcat $ map makeImport modules
               ,"Data.Either"
               -- TODO only when `isMainGenerate`
               ,"Data.List"
+              ,"Prelude hiding (fail)"
               ,"System.Environment (getArgs)"
               ,"System.Exit (exitSuccess, exitFailure)"
               ,"System.IO (hPutStrLn, stderr)"
               ,"Control.Monad"
-              ,"Text.Pretty.Simple"
               ]
 
 baseTranslations :: [(BS.ByteString, BS.ByteString)]

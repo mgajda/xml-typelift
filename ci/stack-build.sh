@@ -4,6 +4,7 @@ source ci/common.sh
 
 # Build it
 message "Build it"
+export XML_TYPELIFT_ADDITIONAL_FLAGS="--system-ghc"
 stack install --system-ghc
 stack build   --system-ghc
 stack test    --system-ghc
@@ -18,9 +19,9 @@ grep -z "\<data Customers.*= Customers {.*}" types.hs > /dev/null
 grep -z "\<parseTopLevelToArray " parser.hs > /dev/null
 
 message "Check generated code runs"
-stack exec -- ghc types.hs
-stack exec -- ghc parser.hs
+stack exec --system-ghc -- ghc types.hs
+stack exec --system-ghc -- ghc parser.hs
 
 # check that benchmarks is working (but limit for 10 minutes only because of slow benchmarking)
 message "Check benchmarks"
-timeout 30m stack bench xml-typelift
+timeout 30m stack bench --system-ghc xml-typelift

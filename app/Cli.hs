@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP                 #-}
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell     #-}
@@ -13,6 +14,10 @@ import           Development.GitRev    (gitHash)
 import           Paths_xml_typelift    (version)
 import           Xeno.Errors           (printExceptions)
 import           System.IO
+import           Xeno.Errors           (printExceptions)
+#if !MIN_VERSION_base(4,11,0)
+import           Data.Semigroup
+#endif
 
 import           Analyze
 import           CodeGen
