@@ -442,11 +442,11 @@ generateParserInternalArray Schema{..} = do
     outCodeLine' [qc|parseTopLevelToArray bs = Right $ TopLevelInternal bs $ UV.create $ do|]
     withIndent $ do
         outCodeLine' [qc|vec <- UMV.unsafeNew ((max 1 (BS.length bs `div` 7)) * 2)|] -- TODO add code to strip vector
-        outCodeLine' [qc|parse{topName} vec|]
-        outCodeLine' [qc|return vec|]
-        outCodeLine' [qc|where|]
+        outCodeLine' [qc|farthest    <- STRef.newSTRef 0 -- farthest index so far|]
+        outCodeLine' [qc|farthestTag <- STRef.newSTRef ("<none>" :: ByteString)|]
+        outCodeLine' [qc|let|]
         withIndent $ do
-            outCodeLine' [qc|parse{topName} :: forall s . UMV.STVector s Int -> ST s ()|]
+            --outCodeLine' [qc|parse{topName} :: forall s . UMV.STVector s Int -> ST s ()|]
             outCodeLine' [qc|parse{topName} vec = do|]
             withIndent $ do
                 outCodeLine' [qc|UMV.unsafeWrite vec (0::Int) (0::Int)|]
@@ -461,6 +461,8 @@ generateParserInternalArray Schema{..} = do
                         withIndent $ generateContentParserIA typeName ty
                     -- Generate auxiliary functions
                     generateAuxiliaryFunctionsIA
+        outCodeLine' [qc|parse{topName} vec|]
+        outCodeLine' [qc|return vec|]
   where
     generateElementsOfComplexParser :: (XMLString, XMLString) -> [TyPart] -> CG (XMLString, XMLString)
     generateElementsOfComplexParser (arrStart, strStart) typarts = do
@@ -540,8 +542,11 @@ generateParserInternalArray Schema{..} = do
         outCodeLine' [qc|inOneTag          tag strOfs inParser = toError tag strOfs $ inOneTag' True tag strOfs inParser|] -- TODO add attributes processing
         outCodeLine' [qc|inOneTagWithAttrs tag strOfs inParser = toError tag strOfs $ inOneTag' True  tag strOfs inParser|]
         outCodeLine' [qc|inOneTag' hasAttrs tag strOfs inParser = do|]
-        outCodeLine' [qc|    case ensureTag hasAttrs tag (skipToOpenTag strOfs + 1) of|]
-        outCodeLine' [qc|        Nothing -> return Nothing|]
+        outCodeLine' [qc|    let tagOfs = skipToOpenTag strOfs + 1|]
+        outCodeLine' [qc|    case ensureTag hasAttrs tag tagOfs of|]
+        outCodeLine' [qc|        Nothing -> do|]
+        outCodeLine' [qc|            updateFarthest tag tagOfs|]
+        outCodeLine' [qc|            return Nothing|]
         outCodeLine' [qc|        Just (ofs', True) -> do|]
         outCodeLine' [qc|            (arrOfs, strOfs) <- inParser (ofs' - 1)|] -- TODO points to special unparseable place
         outCodeLine' [qc|            return $ Just (arrOfs, ofs')|]
@@ -550,28 +555,34 @@ generateParserInternalArray Schema{..} = do
         outCodeLine' [qc|            let ofs'' = skipToOpenTag strOfs|]
         outCodeLine' [qc|            if bs `BSU.unsafeIndex` (ofs'' + 1) == slashChar then do|]
         outCodeLine' [qc|                case ensureTag False tag (ofs'' + 2) of|]
-        outCodeLine' [qc|                    Nothing     -> return Nothing|]
+        outCodeLine' [qc|                    Nothing     -> do|]
+        outCodeLine' [qc|                        updateFarthest tag tagOfs|]
+        outCodeLine' [qc|                        return Nothing|]
         outCodeLine' [qc|                    Just (ofs''', _) -> return $ Just (arrOfs, ofs''')|]
         outCodeLine' [qc|            else do|]
+        outCodeLine' [qc|                updateFarthest tag tagOfs|]
         outCodeLine' [qc|                return Nothing|]
         -- ~~~~~~~~
         outCodeLine' [qc|inMaybeTag tag arrOfs strOfs inParser = inMaybeTag' True tag arrOfs strOfs inParser|] -- TODO add attributes processing
-        outCodeLine' [qc|inMaybeTag' :: Bool -> ByteString -> Int -> Int -> (Int -> Int -> ST s (Int, Int)) -> ST s (Int, Int)|]
+        --outCodeLine' [qc|inMaybeTag' :: Bool -> ByteString -> Int -> Int -> (Int -> Int -> ST s (Int, Int)) -> ST s (Int, Int)|]
         outCodeLine' [qc|inMaybeTag' hasAttrs tag arrOfs strOfs inParser = do|]
         outCodeLine' [qc|    inOneTag' hasAttrs tag strOfs (inParser arrOfs) >>= \case|]
         outCodeLine' [qc|        Just res -> return res|]
         outCodeLine' [qc|        Nothing -> do|]
+        outCodeLine' [qc|            updateFarthest tag strOfs|]
         outCodeLine' [qc|            UMV.unsafeWrite vec arrOfs 0|]
         outCodeLine' [qc|            UMV.unsafeWrite vec (arrOfs + 1) 0|]
         outCodeLine' [qc|            return (arrOfs + 2, strOfs)|]
         outCodeLine' [qc|inManyTags tag arrOfs strOfs inParser = inManyTags' True tag arrOfs strOfs inParser|] -- TODO add attributes processing
         outCodeLine' [qc|inManyTagsWithAttrs tag arrOfs strOfs inParser = inManyTags' True tag arrOfs strOfs inParser|]
-        outCodeLine' [qc|inManyTags' :: Bool -> ByteString -> Int -> Int -> (Int -> Int -> ST s (Int, Int)) -> ST s (Int, Int)|]
+        --outCodeLine' [qc|inManyTags' :: Bool -> ByteString -> Int -> Int -> (Int -> Int -> ST s (Int, Int)) -> ST s (Int, Int)|]
         outCodeLine' [qc|inManyTags' hasAttrs tag arrOfs strOfs inParser = do|]
         outCodeLine' [qc|    (cnt, endArrOfs, endStrOfs) <- flip fix (0, (arrOfs + 1), strOfs) $ \next (cnt, arrOfs', strOfs') ->|]
         outCodeLine' [qc|        inOneTag' hasAttrs tag strOfs' (inParser arrOfs') >>= \case|]
         outCodeLine' [qc|            Just (arrOfs'', strOfs'') -> next   (cnt + 1, arrOfs'', strOfs'')|]
-        outCodeLine' [qc|            Nothing                   -> return (cnt,     arrOfs', strOfs')|]
+        outCodeLine' [qc|            Nothing                   -> do|]
+        outCodeLine' [qc|                updateFarthest tag strOfs|]
+        outCodeLine' [qc|                return (cnt,     arrOfs', strOfs')|]
         outCodeLine' [qc|    UMV.unsafeWrite vec arrOfs cnt|]
         outCodeLine' [qc|    return (endArrOfs, endStrOfs)|]
         -- ~~~~~~~~
@@ -592,11 +603,19 @@ generateParserInternalArray Schema{..} = do
         outCodeLine' [qc|  | otherwise|]
         outCodeLine' [qc|        = Nothing|]
         outCodeLine' [qc|  where ofsToEnd = ofs + BS.length expectedTag|]
-        outCodeLine' [qc|failExp expStr ofs = fail $ BSC.unpack ("Expected '" <> expStr <> "' but got '" <> ptake bs ofs (BS.length expStr + 100) <> "'")|]
+        outCodeLine' [qc|failExp expStr ofs = do|]
+        outCodeLine' [qc|  failOfs <- STRef.readSTRef farthest|]
+        outCodeLine' [qc|  failTag <- STRef.readSTRef farthestTag|]
+        outCodeLine' [qc|  fail $ BSC.unpack ("Failure when expecting " <> failTag <> " on: " <> ptake bs failOfs (failOfs + 100) <> "'")|]
+        outCodeLine' [qc|updateFarthest tag tagOfs = do|]
+        outCodeLine' [qc|  f <- STRef.readSTRef farthest|]
+        outCodeLine' [qc|  when (tagOfs > f) $ do|]
+        outCodeLine' [qc|    STRef.writeSTRef farthest    tagOfs|]
+        outCodeLine' [qc|    STRef.writeSTRef farthestTag tag|]
         outCodeLine' [qc|ptake :: ByteString -> Int -> Int -> ByteString|]
         outCodeLine' [qc|ptake bs ofs len = BS.take len $ BS.drop ofs bs -- TODO replace with UNSAFE?|]
         outCodeLine' [qc|--|]
-        outCodeLine' [qc|parseString :: Int -> Int -> ST s (Int, Int)|]
+        --outCodeLine' [qc|parseString :: Int -> Int -> ST s (Int, Int)|]
         outCodeLine' [qc|parseString arrStart strStart = do|]
         outCodeLine' [qc|  let strEnd = skipToOpenTag strStart|]
         outCodeLine' [qc|  UMV.unsafeWrite vec arrStart     strStart|]

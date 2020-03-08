@@ -48,6 +48,7 @@ basePrologue  = mconcat $ map makeImport modules
               ,"Control.DeepSeq"
               ,"Control.Monad.Fix"
               ,"Control.Monad.ST"
+              ,"qualified Data.STRef as STRef"
               ,"Data.ByteString (ByteString)"
               -- ,"Data.Char"
               ,"Data.Time.Format"
