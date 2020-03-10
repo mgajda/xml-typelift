@@ -7,6 +7,7 @@ module Tests.CodegenSpec where
 
 
 import Control.Monad
+import Language.Haskell.RunHaskellModule
 import Language.Haskell.SourceMatch
 import Language.Haskell.TH.Lib
 import System.FilePath.Posix
@@ -17,7 +18,6 @@ import Tests.Utils
 
 import FromXML
 import TestUtils
-import RunHaskellModule
 
 
 spec :: Spec

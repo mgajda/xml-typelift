@@ -13,6 +13,7 @@ import           Data.Default
 import           Data.Maybe
 import           Data.Version          (showVersion)
 import           Development.GitRev    (gitHash)
+import           Language.Haskell.RunHaskellModule
 import           Paths_xml_typelift    (version)
 import           Text.InterpolatedString.Perl6 (qc)
 import           System.Exit
@@ -28,7 +29,6 @@ import           Analyze
 import           CodeGen
 import           Flatten
 import           Parser
-import           RunHaskellModule
 import           TestUtils
 
 

@@ -63,10 +63,10 @@ executables:
     source-dirs:
       - src
       - app
-      - json-autotype/json-autotype/run-haskell-module
     dependencies:
       - gitrev
       - optparse-applicative
+      - run-haskell-module
       - xml-typelift
   mkxml:
     main: Main.hs
@@ -208,8 +208,8 @@ tests:
     source-dirs:
       - test
       - src
-      - json-autotype/json-autotype/run-haskell-module
     main: Tests.hs
     dependencies:
       - hspec
       - xml-typelift
+      - run-haskell-module
