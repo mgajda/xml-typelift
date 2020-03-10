@@ -1,37 +1,41 @@
+-- | Reporting errors given site as ByteString
+--
 {-# LANGUAGE CPP                 #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE NamedFieldPuns      #-}
--- Reporting errors given site as ByteString
-module Errors(parseError) where
+module Errors
+    ( parseError
+    , parseErrorBs
+    ) where
 
-import Prelude hiding (id)
 
---import Data.Monoid
-import Data.ByteString.Char8 as BS
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.Char8 as BSC
 import Data.ByteString.Internal(ByteString(..))
 #if !MIN_VERSION_base(4,11,0)
 import           Data.Semigroup
 #endif
 
--- | Since all ByteStrings have the pointer to initial input,
---   we can show the preceding data and count lines before error.
---   This hack looks dirty hack, but is still safe.
-parseError :: ByteString -> String -> a
-parseError (PS ptr start len) msg =
-    error $ msg <> "\nIn line " <> show lineCount
-         <>        " after:\n"
-         <> BS.unpack (PS ptr lastLineStart (end-lastLineStart)) <> "\n"
-  where
-    end           = start+len
-    lineCount     = BS.count '\n' $ PS ptr 0 start
-    sndLastLineStart = do
-      lastLineBeforeStart <- BS.elemIndexEnd '\n' $ til start
-      BS.elemIndexEnd                        '\n' $ til lastLineBeforeStart
-    lastLineStart = case sndLastLineStart of
-                      Nothing              -> defaultStart
-                      Just i | start-i>120 -> defaultStart
-                      Just i               -> i+1
-    defaultStart  = max    0 $ start-40
-    til           = PS ptr 0
 
+-- | Show error with context
+parseError :: Int -> ByteString -> String -> a
+parseError ofs inputStr msg =
+    error $ msg <> "\nIn line " <> show lineCount <> " (offset " <> show ofs <> "):"
+         <> BSC.unpack inputStrPart <> "\n"
+         <> replicate errPtrStickLen '-' <> "^"
+  where
+    lineCount           = succ $ BS.count nextLineChar $ BS.take ofs inputStr
+    lastLineBeforeStart = maybe 0 id $ BS.elemIndexEnd nextLineChar $ til ofs
+    sndLastLineStart    = maybe 0 id $ BS.elemIndexEnd nextLineChar $ til lastLineBeforeStart
+    lastLineStart       = max 0 $ max (ofs - 120) sndLastLineStart
+    lastLineLen         = min 40 $ maybe 40 id $ BS.elemIndex nextLineChar (BS.drop ofs inputStr)
+    til len             = BS.take len inputStr
+    errPtrStickLen      = max 0 (ofs - lastLineBeforeStart - 1)
+    nextLineChar        = 10 -- '\n'
+    inputStrPart        = BS.take (ofs - lastLineStart + lastLineLen) $ BS.drop lastLineStart inputStr
+
+
+parseErrorBs :: ByteString -> String -> a
+parseErrorBs inputStr@(PS _ start _) msg =
+    parseError start inputStr msg
