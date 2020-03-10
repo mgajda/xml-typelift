@@ -70,6 +70,7 @@ basePrologue  = mconcat $ map makeImport modules
               ,"System.Exit (exitSuccess, exitFailure)"
               ,"System.IO (hPutStrLn, stderr)"
               ,"Control.Monad"
+              ,"Text.ParserCombinators.ReadP"
               ]
 
 baseTranslations :: [(BS.ByteString, BS.ByteString)]

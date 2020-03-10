@@ -273,9 +273,10 @@ instance FromXML Schema where
 nodeName :: Node -> ByteString
 nodeName = stripNS . Xeno.name
 
+-- TODO use `parseError` !
 readAttr :: Read a => ByteString -> a
 readAttr v = case readMaybe $ BS.unpack v of
-               Nothing -> parseError v "Cannot read attribute value"
+               Nothing -> parseErrorBs v "Cannot read attribute value"
                Just x  -> x
 
 -- | Add type if name is non-empty, to the toplevel schema dictionary.

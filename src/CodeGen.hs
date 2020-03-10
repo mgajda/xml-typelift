@@ -39,7 +39,7 @@ import           BaseTypes
 import           CodeGenMonad
 import           Schema
 import           TypeDecls
-import           Errors(parseError)
+import           Errors(parseErrorBs)
 
 import           Data.Generics.Uniplate.Operations
 
@@ -140,8 +140,8 @@ generateContentType eName cpl@(Complex {attrs, inner}) = do
             childFields <- choiceInstance ls
             declareSumType (TyData myTypeName, childFields)
             return myTypeName
-        Elt   e     -> parseError eName $ "Unexpected singular Elt inside content of ComplexType: " <> show e
-        Group gName -> parseError gName $ "Did not yet implement complexType referring only to the xs:group " <> show gName
+        Elt   e     -> parseErrorBs eName $ "Unexpected singular Elt inside content of ComplexType: " <> show e
+        Group gName -> parseErrorBs gName $ "Did not yet implement complexType referring only to the xs:group " <> show gName
   where
     makeAttrType :: Attr -> CG TyField
     makeAttrType Attr {..} = second (\(TyType bs) -> TyType $ wrapAttr use bs) <$> makeFieldType aName aType
@@ -155,7 +155,7 @@ generateContentType eName cpl@(Complex {attrs, inner}) = do
         fun (Group gName) =
           generateGroupType gName
         fun  x =
-          parseError eName [qc|Type {eName}: not yet implemented nested sequence, all or choice: {x}|]
+          parseErrorBs eName [qc|Type {eName}: not yet implemented nested sequence, all or choice: {x}|]
     choiceInstance :: [TyPart] -> CG [SumAlt]
     choiceInstance ls = do
         elts <- catMaybes <$> (forM ls $ \case -- TODO move to `forM`
@@ -199,7 +199,7 @@ generateContentType eName (Extension   base  (cpl@Complex {inner=Seq []})) = do
 generateContentType eName ex@(Extension _    (Complex {inner=Seq{}})) =
     getExtendedType ex >>= generateContentType eName
 generateContentType eName (Extension   _base  _otherType) = do
-    parseError eName [qc|Can't generate extension "{eName}"|]
+    parseErrorBs eName [qc|Can't generate extension "{eName}"|]
 
 
 getExtendedType :: Type -> CG Type
@@ -211,7 +211,7 @@ getExtendedType (Extension base cpl@Complex {inner=Seq {}}) = do
                                    ,maxOccurs=MaxOccurs 1
                                    ,minOccurs=1
                                    ,targetNamespace=""}
-getExtendedType (Extension {base}) = parseError base "Extension not yet implemented"
+getExtendedType (Extension {base}) = parseErrorBs base "Extension not yet implemented"
 getExtendedType _                  = error "'getExtendedType' is available only for Extension"
 
 
@@ -436,8 +436,8 @@ generateParserInternalArray Schema{..} = do
     let topEl = head tops
     -- Generate parser header
     let topName = eName topEl
-    when (minOccurs topEl /= 1) $ parseError topName [qc|Wrong minOccurs = {minOccurs topEl}|]
-    when (maxOccurs topEl /= MaxOccurs 1) $ parseError topName [qc|Wrong maxOccurs = {maxOccurs topEl}|]
+    when (minOccurs topEl /= 1) $ parseErrorBs topName [qc|Wrong minOccurs = {minOccurs topEl}|]
+    when (maxOccurs topEl /= MaxOccurs 1) $ parseErrorBs topName [qc|Wrong maxOccurs = {maxOccurs topEl}|]
     outCodeLine' [qc|parseTopLevelToArray :: ByteString -> Either String TopLevelInternal|]
     outCodeLine' [qc|parseTopLevelToArray bs = Right $ TopLevelInternal bs $ UV.create $ do|]
     withIndent $ do
@@ -484,7 +484,7 @@ generateParserInternalArray Schema{..} = do
                     outCodeLine' [qc|({arrOfs'}, {strOfs'}) <- {tagQuantifier} "{eName el}"{arrOfs1} {strOfs} $ parse{parserName}{arrOfs2}|]
                 Group gName ->
                     outCodeLine' [qc|({arrOfs'}, {strOfs'}) <- parse{gName}Content {arrOfs} {strOfs}|]
-                _ -> parseError arrStart [qc|Unsupported type: {take 100 $ show typart}|]
+                _ -> parseErrorBs arrStart [qc|Unsupported type: {take 100 $ show typart}|]
         return $ fst $ ofsNames !! endNum
     ofsToReturn :: (XMLString, XMLString) -> CG ()
     ofsToReturn (arrLastOfs, strLastOfs) = outCodeLine' [qc|return ({arrLastOfs}, {strLastOfs})|]
@@ -515,14 +515,14 @@ generateParserInternalArray Schema{..} = do
                 let baseParserName = fromMaybe [qc|{base}Content|] $ getParserForStandardXsd base
                 outCodeLine' [qc|(arrOfs', strOfs') <- parse{baseParserName} arrStart strStart|]
                 generateElementsOfComplexParser ("arrOfs'", "strOfs'") exFields >>= ofsToReturn
-            _ -> parseError typeName [qc|Unsupported type: {ty}|]
+            _ -> parseErrorBs typeName [qc|Unsupported type: {ty}|]
     -- TODO unite with extractor
     getParserName :: Type -> XMLString -> XMLString
     getParserName (Ref r) _ =
         case getParserForStandardXsd r of
             Nothing ->
                 if "xs:" `BS.isPrefixOf` r
-                then parseError r [qc|Standard type `{r}` is not supported|]
+                then parseErrorBs r [qc|Standard type `{r}` is not supported|]
                 else [qc|{r}Content|]
             Just rr -> rr
     getParserName (Complex {}) xname     = [qc|{xname}Content|]
@@ -707,7 +707,7 @@ generateParserExtractTopLevel sch@Schema{..} = do
                             fieldName <- translate (SchemaGroup, TargetFieldName) gName gName -- TODO container?
                             outCodeLine' [qc|let ({fieldName}, ofs{ofsIdx}) = extract{extractor}Content ofs{ofsIdx - 1} in|]
                             return fieldName
-                        _ -> parseError typeName [qc|Unsupported type: {take 100 $ show ty}|]
+                        _ -> parseErrorBs typeName [qc|Unsupported type: {take 100 $ show ty}|]
                     let fields = attrFields ++ properFields
                         ofs' = if null elts then "ofs" else [qc|ofs{length elts}|]::XMLString
                     haskellConsName <- translate (SchemaType, TargetConsName) typeName typeName -- TODO container?
@@ -745,7 +745,7 @@ generateParserExtractTopLevel sch@Schema{..} = do
                             tn <- translate (ChoiceIn typeName, TargetConsName) typeName (eName el) -- TODO change 'typeName' to 'haskellTypeName' ?
                             outCodeLine' [qc|{i::Int} -> first {tn} $ {extractor}|]
                         (x, _) -> warn [qc|Type {c}: nested types not supported yet // {x}|]
-            _ -> parseError typeName [qc|Unsupported type: {show ty}|]
+            _ -> parseErrorBs typeName [qc|Unsupported type: {show ty}|]
     getExtractorName :: Type -> XMLString -> CG B.Builder
     getExtractorName (Ref r) _ =
         case getParserForStandardXsd r of
@@ -774,19 +774,19 @@ generateParserExtractTopLevel sch@Schema{..} = do
         outCodeLine' [qc|      in first (v:) $ extractMany' ofs' (len - 1)|]
         outCodeLine' [qc|extractTokenContent = extractStringContent|]
         outCodeLine' [qc|extractDateTimeContent :: Int -> (ZonedTime, Int)|]
-        outCodeLine' [qc|extractDateTimeContent = first zonedTimeStr . extractStringContent|]
+        outCodeLine' [qc|extractDateTimeContent = extractAndParse zonedTimeStr|]
         outCodeLine' [qc|extractDayContent :: Int -> (Day, Int)|]
-        outCodeLine' [qc|extractDayContent = first (read . BSC.unpack) . extractStringContent|]
+        outCodeLine' [qc|extractDayContent = extractReadInst|]
         outCodeLine' [qc|extractDurationContent :: Int -> (Duration, Int)|]
-        outCodeLine' [qc|extractDurationContent = first (\d -> fromRight' (Prelude.error $ "Can't parse duration \"" ++ BSC.unpack d ++ "\"") $ parseDuration d) . extractStringContent|]
+        outCodeLine' [qc|extractDurationContent = extractAndParse parseDuration|]
         outCodeLine' [qc|extractDecimalContent :: Int -> (Scientific, Int)|]
-        outCodeLine' [qc|extractDecimalContent = first (read . BSC.unpack) . extractStringContent|]
+        outCodeLine' [qc|extractDecimalContent = extractReadInst|]
         outCodeLine' [qc|extractIntegerContent :: Int -> (Integer, Int)|]
-        outCodeLine' [qc|extractIntegerContent = first (read . BSC.unpack) . extractStringContent|]
+        outCodeLine' [qc|extractIntegerContent = extractReadInst|]
         outCodeLine' [qc|extractIntContent :: Int -> (Int, Int)|]
-        outCodeLine' [qc|extractIntContent = first (read . BSC.unpack) . extractStringContent|]
+        outCodeLine' [qc|extractIntContent = extractReadInst|]
         outCodeLine' [qc|extractInt64Content :: Int -> (Int64, Int)|]
-        outCodeLine' [qc|extractInt64Content = first (read . BSC.unpack) . extractStringContent|]
+        outCodeLine' [qc|extractInt64Content = extractReadInst|]
         outCodeLine' [qc|extractBooleanContent :: Int -> (Bool, Int)|]
         outCodeLine' [qc|extractBooleanContent ofs = first (\case|]
         outCodeLine' [qc|    "true" -> True|]
@@ -794,19 +794,34 @@ generateParserExtractTopLevel sch@Schema{..} = do
         outCodeLine' [qc|    _      -> False|]
         outCodeLine' [qc|    ) $ extractStringContent ofs|]
         outCodeLine' [qc|first f (a,b) = (f a, b)|]
+        outCodeLine' [qc|extractAndParse :: (ByteString -> Either String a) -> Int -> (a, Int)|]
+        outCodeLine' [qc|extractAndParse parser ofs = first (catchErr ofs parser) $ extractStringContent ofs|]
+        outCodeLine' [qc|extractReadInst :: (Read a) => Int -> (a, Int)|]
+        outCodeLine' [qc|extractReadInst = extractAndParse readEither|]
+        outCodeLine' [qc|catchErr :: Int -> (ByteString -> Either String b) -> ByteString -> b|]
+        outCodeLine' [qc|catchErr ofs f str = either (\msg -> parseError bsofs bs msg) id (f str)|]
+        outCodeLine' [qc|  where bsofs = arr `UV.unsafeIndex` ofs|]
+        outCodeLine' [qc|readEither :: Read a => ByteString -> Either String a|]
+        outCodeLine' [qc|readEither str =|]
+        outCodeLine' [qc|    case reads (BSC.unpack str) of|]
+        outCodeLine' [qc|        [(a, [])] -> Right a|]
+        outCodeLine' [qc|        _ -> Left $ "Can't parse " ++ show str|]
 
 
 generateAuxiliaryFunctions :: Schema -> CG ()
 generateAuxiliaryFunctions _schema = do
     outCodeLine' ""
     outCodeLine' ""
-    outCodeLine' [qc|zonedTimeStr :: ByteString -> ZonedTime|]
-    outCodeLine' [qc|zonedTimeStr = parseTimeOrError True defaultTimeLocale fmt . BSC.unpack|]
+    outCodeLine' [qc|zonedTimeStr :: ByteString -> Either String ZonedTime|]
+    outCodeLine' [qc|zonedTimeStr str =|]
+    outCodeLine' [qc|    case (readP_to_S (readPTime True defaultTimeLocale fmt) $ BSC.unpack str) of|]
+    outCodeLine' [qc|        [(dt, [])] -> Right dt|]
+    outCodeLine' [qc|        _          -> Left ("Can't parse " ++ show str)|]
     outCodeLine' [qc|  where|]
     outCodeLine' [qc|    fmt = iso8601DateFormat (Just "%H:%M:%S%Q%Z")|]
     outCodeLine' "{-# INLINE zonedTimeStr #-}"
     outCodeLine' ""
-    -- `fromRight` appear only on base 4.10, and not available on GHC 8.0, so we use own
+    -- `fromRight` appears only in base 4.10, and not available on GHC 8.0, so we use own
     outCodeLine' [qc|fromRight' :: b -> Either a b -> b|]
     outCodeLine' [qc|fromRight' _ (Right b) = b|]
     outCodeLine' [qc|fromRight' b _         = b|]
