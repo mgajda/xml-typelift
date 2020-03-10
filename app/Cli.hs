@@ -17,9 +17,6 @@ import           Development.GitRev    (gitHash)
 import           Language.Haskell.RunHaskellModule
 import           Paths_xml_typelift    (version)
 import           Text.InterpolatedString.Perl6 (qc)
-import           System.Exit
-import           System.IO
-import           Xeno.Errors           (printExceptions)
 import           System.IO
 import           Xeno.Errors           (printExceptions)
 #if !MIN_VERSION_base(4,11,0)
@@ -113,8 +110,7 @@ optsParser =
              <*> (GenerateOpts <$>
                  switch         (long "main"                                 <> help "Generate `main` function"))
              <*> (optional $
-                 filenameOption (long "test-document" <> metavar "FILENAME"  <> help "Path to test document (.xml file) \
-                                                                                     \(turn on `--main` and turn off `--types`)"))
+                 filenameOption (long "test-document" <> metavar "FILENAME"  <> help "Path to test document (.xml file) (turn on `--main` and turn off `--types`)"))
              <*> (switch        (long "print-result"                         <> help "Print result of test document parsing"))
              <*> (optional $
                  filenameOption (long "output"        <> metavar "FILENAME"  <> help "Output generated parser to FILENAME"))
