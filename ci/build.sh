@@ -2,6 +2,9 @@
 
 source ci/common.sh
 
+message "Tree"
+ls -R json-autotype
+
 # Hpack
 message "Run hpack"
 hpack
