@@ -32,17 +32,7 @@ stack_build:
   cache:
     paths:
       - .stack-work
-
-build_8_6:
-  variables:
-    GHC_VER: "8.6"
-  extends: .build
-
-build_8_4:
-  variables:
-    GHC_VER: "8.4"
-  extends: .build
-  allow_failure: true
+  allow_failure: false
 
 build_8_2:
   variables:
@@ -56,11 +46,23 @@ build_8_0:
   extends: .build
   allow_failure: true
 
+build_8_4:
+  variables:
+    GHC_VER: "8.4"
+  extends: .build
+  allow_failure: false
+
+build_8_6:
+  variables:
+    GHC_VER: "8.6"
+  extends: .build
+  allow_failure: false
+
 build_8_8:
   variables:
     GHC_VER: "8.8"
   extends: .build
-  allow_failure: true
+  allow_failure: false
 
 build_8_10:
   variables:
