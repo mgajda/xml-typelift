@@ -1,2 +1,2 @@
-packages: . xeno iso8601-duration haskell-src-match
+packages: . xeno iso8601-duration haskell-src-match json-autotype/run-haskell-module
 allow-newer: base
