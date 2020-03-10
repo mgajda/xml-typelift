@@ -38,20 +38,22 @@ basePrologue  = mconcat $ map makeImport modules
               ,"Data.Int(Int64)"
               ,"Data.Scientific (Scientific)"
               ,"Data.Time.ISO8601.Duration"
-              ,"FromXML"
               ,"Data.Time.Calendar(Day)"
               ,"Data.Time.Clock"
-              ,"qualified Xeno.DOM as Xeno" -- TODO
+              -- XML Typelift
+              ,"FromXML"
+              ,"Errors"
               -- TODO check imports:
+              ,"qualified Xeno.DOM as Xeno" -- TODO
               ,"Control.DeepSeq"
               ,"Control.Monad.Fix"
               ,"Control.Monad.ST"
+              ,"qualified Data.STRef as STRef"
               ,"Data.ByteString (ByteString)"
               -- ,"Data.Char"
-              ,"Data.Functor.Identity"
               ,"Data.Time.Format"
               ,"Data.Time.LocalTime(ZonedTime)"
-              ,"Data.Semigroup"
+              ,"Data.Semigroup hiding (Product)"
               ,"Data.Word"
               ,"qualified GHC.Generics as G"
               ,"qualified Data.ByteString as BSX"
@@ -68,6 +70,7 @@ basePrologue  = mconcat $ map makeImport modules
               ,"System.Exit (exitSuccess, exitFailure)"
               ,"System.IO (hPutStrLn, stderr)"
               ,"Control.Monad"
+              ,"Text.ParserCombinators.ReadP"
               ]
 
 baseTranslations :: [(BS.ByteString, BS.ByteString)]
