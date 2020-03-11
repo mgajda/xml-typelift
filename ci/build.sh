@@ -30,8 +30,8 @@ grep -z "\<parseTopLevelToArray " parser.hs > /dev/null
 
 message "Check generated code compiles"
 # TODO: add main action
-cabal v2-exec -- ghc types.hs  -package iso8601-duration -package xml-typelift
-cabal v2-exec -- ghc parser.hs -package iso8601-duration -package xml-typelift
+cabal v2-exec -- ghc types.hs  -package iso8601-duration -package xml-typelift -package xeno -package scientific
+cabal v2-exec -- ghc parser.hs -package iso8601-duration -package xml-typelift -package xeno -package scientific
 
 # check that benchmarks is working (but limit for 10 minutes only because of slow benchmarking)
 message "Benchmarks"
