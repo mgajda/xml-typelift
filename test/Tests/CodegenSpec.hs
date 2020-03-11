@@ -73,9 +73,10 @@ tryCompile :: Bool -> FilePath -> IO ()
 tryCompile isGenerateOnlyTypes xsdFileName =
     withGeneratedFile opts xsdFileName $ \hsFilename ->
         checkExitCode "Can't compile haskell module" $
-            compileHaskellModule hsFilename []
+            compileHaskellModule' compileOpts hsFilename []
   where
     opts = def { generateOnlyTypes = isGenerateOnlyTypes }
+    compileOpts = def { compileArgs = ["-package xml-typelift"] }
 
 
 tryParse :: Bool -> FilePath -> FilePath -> IO ()

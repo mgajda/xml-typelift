@@ -812,7 +812,7 @@ generateParserExtractTopLevel GenerateOpts{..} sch@Schema{..} = do
         outCodeLine' [qc|extractReadInst = extractAndParse readEither|]
         outCodeLine' [qc|catchErr :: Int -> (ByteString -> Either String b) -> ByteString -> b|]
         outCodeLine' [qc|catchErr ofs f str = either (\msg -> parseError bsofs bs msg) id (f str)|]
-        outCodeLine' [qc|  where bsofs = arr `UV.unsafeIndex` ofs|]
+        outCodeLine' [qc|  where bsofs = arr {index} ofs|]
         outCodeLine' [qc|readEither :: Read a => ByteString -> Either String a|]
         outCodeLine' [qc|readEither str =|]
         outCodeLine' [qc|    case reads (BSC.unpack str) of|]

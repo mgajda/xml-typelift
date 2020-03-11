@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP                 #-}
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE MonoLocalBinds      #-}
 {-# LANGUAGE NamedFieldPuns      #-}
@@ -44,12 +45,13 @@ basePrologue isUnsafe = (mconcat $ map makeImport modules) <> "\n" <> mconcat ba
               ,"Control.DeepSeq"
               ,"Control.Monad.Fix"
               ,"Control.Monad.ST"
+              ,"qualified Data.STRef as STRef"
               ,"Data.ByteString (ByteString)"
               -- ,"Data.Char"
               ,"Data.Functor.Identity"
               ,"Data.Time.Format"
               ,"Data.Time.LocalTime(ZonedTime)"
-              ,"Data.Semigroup"
+              ,"Data.Semigroup hiding (Product)"
               ,"Data.Word"
               ,"qualified GHC.Generics as G"
               ,"qualified Data.ByteString as BS"
@@ -63,6 +65,7 @@ basePrologue isUnsafe = (mconcat $ map makeImport modules) <> "\n" <> mconcat ba
               ,"System.Exit (exitSuccess, exitFailure)"
               ,"System.IO (hPutStrLn, stderr)"
               ,"Control.Monad"
+              ,"Text.ParserCombinators.ReadP"
               ]
               ++ vectorModules
               ++ additionalBytestringModules
