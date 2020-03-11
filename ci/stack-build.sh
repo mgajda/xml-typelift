@@ -4,10 +4,12 @@ source ci/common.sh
 
 # Build it
 message "Build it"
-export XML_TYPELIFT_ADDITIONAL_FLAGS="--system-ghc"
-stack install --system-ghc
-stack build   --system-ghc
-stack test    --system-ghc
+export CI_GHC_ADDITIONAL_FLAGS="--system-ghc"
+# Note: `--allow-different-user` flag is for debugging purpose,
+# when running this script locally in developer's working directory
+stack install --system-ghc --allow-different-user
+stack build   --system-ghc --allow-different-user
+stack test    --system-ghc --allow-different-user
 
 # check that CLI application is working and output is reasonable
 message "Check CLI"

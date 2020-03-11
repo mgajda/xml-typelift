@@ -7,3 +7,6 @@
 [submodule "haskell-src-match"]
 	path = haskell-src-match
 	url = https://gitlab.com/migamake/haskell-src-match.git
+[submodule "json-autotype"]
+	path = json-autotype
+	url = https://gitlab.com/migamake/json-autotype.git

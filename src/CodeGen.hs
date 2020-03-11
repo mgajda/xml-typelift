@@ -852,14 +852,19 @@ generateMainFunction _schema = do
                     outCodeLine' [qc|exitFailure|]
                 outCodeLine' [qc|Right result -> do|]
                 withIndent $ do
-                    outCodeLine' [qc|when isPrinting $ print result|]
-                    outCodeLine' [qc|result `seq` Prelude.putStrLn $ "Successfully parsed " ++ filename|]
+                    outCodeLine' [qc|if isPrinting then do|]
+                    withIndent $ do
+                        outCodeLine' [qc|putStrLn filename|]
+                        outCodeLine' [qc|print result|]
+                    outCodeLine' [qc|else do|]
+                    withIndent $ do
+                        outCodeLine' [qc|result `seq` Prelude.putStrLn $ "Successfully parsed " ++ filename|]
     outCodeLine' ""
     outCodeLine' "main :: IO ()"
     outCodeLine' "main = do"
     withIndent $ do
         outCodeLine' [qc|args <- getArgs|]
-        outCodeLine' [qc|case Data.List.span (== "--print") args of|]
+        outCodeLine' [qc|case Data.List.partition (== "--print") args of|]
         withIndent $ do
             outCodeLine' [qc|([], filenames) -> parseAndPrintFiles False filenames|]
             outCodeLine' [qc|(_,  filenames) -> parseAndPrintFiles True  filenames|]
