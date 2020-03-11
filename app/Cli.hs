@@ -49,8 +49,8 @@ processSchema Opts{..} = do
         let (analyzed, schemaErrors) = analyze flattened
         null schemaErrors `unless` printExceptions input schemaErrors
         let generator | isGenerateTypesOnly = codegen
-                      | otherwise           = parserCodegen generateOpts
-        generatedFile <- generator analyzed
+                      | otherwise           = parserCodegen
+        generatedFile <- generator generateOpts analyzed
         let defoutputer = maybe putStrLn (\_ -> \_ -> return ()) testXmlFilename
         maybe defoutputer writeFile outputToFile generatedFile
         maybe (return ()) (testGeneratedParser generatedFile textXmlIsPrint) testXmlFilename
@@ -107,11 +107,12 @@ optsParser =
     programOptions =
         Opts <$> filenameOption (long "schema"        <> metavar "FILENAME"  <> help "Path to XML schema (.xsd file)")
              <*> switch         (long "types"                                <> help "Generate types only")
-             <*> (GenerateOpts <$>
-                 switch         (long "main"                                 <> help "Generate `main` function"))
+             <*> (GenerateOpts
+                 <$> switch     (long "main"                                 <> help "Generate `main` function")
+                 <*> switch     (long "unsafe"                               <> help "Generate fast UNSAFE code"))
              <*> (optional $
                  filenameOption (long "test-document" <> metavar "FILENAME"  <> help "Path to test document (.xml file) (turn on `--main` and turn off `--types`)"))
              <*> (switch        (long "print-result"                         <> help "Print result of test document parsing"))
              <*> (optional $
-                 filenameOption (long "output"        <> metavar "FILENAME"  <> help "Output generated parser to FILENAME"))
+                 filenameOption (long "output" <> metavar "FILENAME"         <> help "Output generated parser to FILENAME"))
     filenameOption = strOption

@@ -29,38 +29,33 @@ import           FromXML
 import           Schema
 
 -- | Module prologue to import all standard types
-basePrologue :: (IsString a, Semigroup a, Monoid a) => a
-basePrologue  = mconcat $ map makeImport modules
+basePrologue :: (IsString a, Semigroup a, Monoid a) => Bool -> a
+basePrologue isUnsafe = (mconcat $ map makeImport modules) <> "\n" <> mconcat baseTypes
   where
     makeImport modPath = "import " <> modPath <> "\n"
     modules = ["Data.Time.LocalTime(ZonedTime)"
-              ,"qualified Data.ByteString.Char8 as BS"
               ,"Data.Int(Int64)"
-              ,"Data.Scientific (Scientific)"
+              ,if isUnsafe then "Data.Scientific (Scientific)" else "Data.Scientific.Safe (Scientific)"
               ,"Data.Time.ISO8601.Duration"
+              -- ,"FromXML"
+              ,"Errors"
               ,"Data.Time.Calendar(Day)"
               ,"Data.Time.Clock"
-              -- XML Typelift
-              ,"FromXML"
-              ,"Errors"
               -- TODO check imports:
-              ,"qualified Xeno.DOM as Xeno" -- TODO
               ,"Control.DeepSeq"
               ,"Control.Monad.Fix"
               ,"Control.Monad.ST"
               ,"qualified Data.STRef as STRef"
               ,"Data.ByteString (ByteString)"
               -- ,"Data.Char"
+              ,"Data.Functor.Identity"
               ,"Data.Time.Format"
               ,"Data.Time.LocalTime(ZonedTime)"
               ,"Data.Semigroup hiding (Product)"
               ,"Data.Word"
               ,"qualified GHC.Generics as G"
-              ,"qualified Data.ByteString as BSX"
+              ,"qualified Data.ByteString as BS"
               ,"qualified Data.ByteString.Char8 as BSC" -- TODO resolve with previous import
-              ,"qualified Data.ByteString.Unsafe as BSU"
-              ,"qualified Data.Vector.Unboxed as UV"
-              ,"qualified Data.Vector.Unboxed.Mutable as UMV"
               -- TODO
               ,"Data.Either"
               -- TODO only when `isMainGenerate`
@@ -72,6 +67,24 @@ basePrologue  = mconcat $ map makeImport modules
               ,"Control.Monad"
               ,"Text.ParserCombinators.ReadP"
               ]
+              ++ vectorModules
+              ++ additionalBytestringModules
+              ++ xenoModules
+              ++ prettyPrintModules
+    vectorModules
+      | isUnsafe  = ["qualified Data.Vector.Unboxed as V"
+                    ,"qualified Data.Vector.Unboxed.Mutable as V"]
+      | otherwise = ["qualified Data.Vector.Safe as V"]
+    additionalBytestringModules
+      | isUnsafe  = ["qualified Data.ByteString.Unsafe as BSU"]
+      | otherwise = []
+    xenoModules
+      | isUnsafe  = ["qualified Xeno.DOM as Xeno"]
+      | otherwise = ["qualified Xeno.DOM.Safe as Xeno"]
+    prettyPrintModules
+      | isUnsafe  = ["Text.Pretty.Simple"]
+      | otherwise = []
+    baseTypes = ["type XMLString = ByteString"]
 
 baseTranslations :: [(BS.ByteString, BS.ByteString)]
 baseTranslations = map addNS
