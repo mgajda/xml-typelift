@@ -41,11 +41,12 @@ build_8_2:
   extends: .build
   allow_failure: true
 
-build_8_0:
-  variables:
-    GHC_VER: "8.0"
-  extends: .build
-  allow_failure: true
+# Fails with simplifier tick message: https://gitlab.com/migamake/xml-typelift/-/jobs/468997313
+#build_8_0:
+#  variables:
+#    GHC_VER: "8.0"
+#  extends: .build
+#  allow_failure: true
 
 build_8_4:
   variables:
