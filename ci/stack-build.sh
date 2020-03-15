@@ -8,8 +8,8 @@ message "Build it"
 export CI_GHC_ADDITIONAL_FLAGS=""
 # Note: `--allow-different-user` flag is for debugging purpose,
 # when running this script locally in developer's working directory
-stack install --allow-different-user
-stack build   --allow-different-user
+stack install --allow-different-user --test --dependencies-only
+stack build   --allow-different-user --test
 stack test    --allow-different-user
 
 # check that CLI application is working and output is reasonable
@@ -27,4 +27,4 @@ stack exec --system-ghc -- ghc parser.hs
 
 # check that benchmarks is working (but limit for 10 minutes only because of slow benchmarking)
 message "Check benchmarks"
-timeout 30m stack bench --system-ghc xml-typelift
+timeout 30m stack bench xml-typelift --test
