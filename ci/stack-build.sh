@@ -4,12 +4,13 @@ source ci/common.sh
 
 # Build it
 message "Build it"
-export CI_GHC_ADDITIONAL_FLAGS="--system-ghc"
+#export CI_GHC_ADDITIONAL_FLAGS="--system-ghc"
+export CI_GHC_ADDITIONAL_FLAGS=""
 # Note: `--allow-different-user` flag is for debugging purpose,
 # when running this script locally in developer's working directory
-stack install --system-ghc --allow-different-user
-stack build   --system-ghc --allow-different-user
-stack test    --system-ghc --allow-different-user
+stack install --allow-different-user
+stack build   --allow-different-user
+stack test    --allow-different-user
 
 # check that CLI application is working and output is reasonable
 message "Check CLI"

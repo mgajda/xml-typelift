@@ -3,6 +3,7 @@ stages:
 
 variables:
   GIT_SUBMODULE_STRATEGY: recursive
+  CABAL_OPTS: "--ghc-option=-fsimpl-tick-factor=10000"
 
 .build:
   image: "migamake/haskell-build:${GHC_VER}"
@@ -20,7 +21,7 @@ variables:
       - ${HOME}/.cabal
 
 stack_build:
-  image: "migamake/haskell-build:8.4"
+  image: "migamake/stack-build-image:12.26"
   stage: build
   variables:
     LC_ALL: C.UTF-8
