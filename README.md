@@ -1,3 +1,7 @@
+# Repository moved to GitLab!!!
+
+Look at: https://gitlab.com/migamake/xml-typelift
+
 # Converting XML Schema to Haskell datatype
 
 GitLab build: [![pipeline status](https://gitlab.com/migamake/xml-typelift/badges/master/pipeline.svg)](https://gitlab.com/migamake/xml-typelift/commits/master)
