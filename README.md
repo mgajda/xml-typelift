@@ -20,6 +20,7 @@ It is part of DataHaskell initiative on type providers in Haskell.
 
 * [Michal](http://github.com/mgajda) - works on this
 * [Kevin](http://github.com/dataopt) - made initial explorations in the playground/, now retired from the project.
+* [Dima Krylov]() - many contributions, including benchmarks, no longer works on this
 
 ## How?
 
